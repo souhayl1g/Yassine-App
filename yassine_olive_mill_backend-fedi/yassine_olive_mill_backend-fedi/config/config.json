@@ -1,0 +1,25 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "97972002",
+    "database": "yassine-app",
+    "host": "127.0.0.1",
+    "dialect": "postgres",
+    "jwtSecret": "your-secret-key-here"
+  },
+  "test": {
+    "username": "your_db_username",
+    "password": "your_db_password",
+    "database": "your_test_db_name",
+    "host": "127.0.0.1",
+    "dialect": "postgres"
+  },
+  "production": {
+    "username": "your_db_username",
+    "password": "your_db_password",
+    "database": "your_production_db_name",
+    "host": "production_host",
+    "dialect": "postgres",
+    "use_env_variable": "DATABASE_URL"
+  }
+}

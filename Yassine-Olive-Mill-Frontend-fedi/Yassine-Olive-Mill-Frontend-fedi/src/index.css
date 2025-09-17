@@ -1,0 +1,223 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Olive Mill Management System Design System
+All colors MUST be HSL for proper theming support.
+*/
+
+@layer base {
+  :root {
+    /* Olive Theme Colors */
+    --background: 210 40% 98%;        /* #F8FAFC - Light gray */
+    --foreground: 222 84% 5%;         /* #0F172A - Dark slate */
+
+    --card: 0 0% 100%;                /* #FFFFFF - Pure white */
+    --card-foreground: 222 84% 5%;    /* #0F172A - Dark slate */
+
+    --popover: 0 0% 100%;             /* #FFFFFF - Pure white */
+    --popover-foreground: 222 84% 5%; /* #0F172A - Dark slate */
+
+    --primary: 142 70% 36%;           /* #22C55E - Olive green */
+    --primary-foreground: 0 0% 100%;  /* #FFFFFF - White */
+
+    --secondary: 33 80% 32%;          /* #B45309 - Wood brown */
+    --secondary-foreground: 0 0% 100%; /* #FFFFFF - White */
+
+    --success: 142 70% 36%;           /* #22C55E - Success green */
+    --success-foreground: 0 0% 100%;  /* #FFFFFF - White */
+
+    --warning: 45 93% 47%;            /* #F59E0B - Warning yellow */
+    --warning-foreground: 0 0% 100%;  /* #FFFFFF - White */
+
+    --error: 0 72% 51%;               /* #EF4444 - Error red */
+    --error-foreground: 0 0% 100%;    /* #FFFFFF - White */
+
+    --info: 221 83% 53%;              /* #3B82F6 - Info blue */
+    --info-foreground: 0 0% 100%;     /* #FFFFFF - White */
+
+    --muted: 210 40% 96%;             /* #F1F5F9 - Light muted */
+    --muted-foreground: 215 16% 47%;  /* #64748B - Muted text */
+
+    --accent: 142 70% 36%;            /* #22C55E - Olive accent */
+    --accent-foreground: 0 0% 100%;   /* #FFFFFF - White */
+
+    --destructive: 0 72% 51%;         /* #EF4444 - Destructive red */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF - White */
+
+    --border: 214 32% 91%;            /* #E2E8F0 - Light border */
+    --input: 214 32% 91%;             /* #E2E8F0 - Input border */
+    --ring: 142 70% 36%;              /* #22C55E - Focus ring */
+
+    --radius: 1rem;                   /* 16px - Rounded corners */
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(142 70% 36%) 0%, hsl(142 70% 45%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(33 80% 32%) 0%, hsl(33 80% 40%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(142 70% 36%) 0%, hsl(33 80% 32%) 100%);
+
+    /* Shadows */
+    --shadow-olive: 0 10px 30px -10px hsl(142 70% 36% / 0.3);
+    --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.1);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark Mode Olive Theme */
+    --background: 222 84% 5%;           /* #020617 - Very dark */
+    --foreground: 210 40% 98%;          /* #F8FAFC - Light text */
+
+    --card: 222 84% 5%;                 /* #0F172A - Dark card */
+    --card-foreground: 210 40% 98%;     /* #F8FAFC - Light text */
+
+    --popover: 222 84% 5%;              /* #0F172A - Dark popover */
+    --popover-foreground: 210 40% 98%;  /* #F8FAFC - Light text */
+
+    --primary: 142 71% 45%;             /* Lighter olive for dark mode */
+    --primary-foreground: 210 40% 98%;  /* Light text */
+
+    --secondary: 33 81% 40%;            /* Lighter wood brown */
+    --secondary-foreground: 210 40% 98%; /* Light text */
+
+    --success: 142 71% 45%;             /* Success green */
+    --success-foreground: 210 40% 98%;  /* Light text */
+
+    --warning: 45 93% 47%;              /* Warning yellow */
+    --warning-foreground: 222 84% 5%;   /* Dark text */
+
+    --error: 0 84% 60%;                 /* Error red */
+    --error-foreground: 210 40% 98%;    /* Light text */
+
+    --info: 221 83% 53%;                /* Info blue */
+    --info-foreground: 210 40% 98%;     /* Light text */
+
+    --muted: 215 28% 17%;               /* Dark muted */
+    --muted-foreground: 215 20% 65%;    /* Light muted text */
+
+    --accent: 142 71% 45%;              /* Lighter olive accent */
+    --accent-foreground: 210 40% 98%;   /* Light text */
+
+    --destructive: 0 84% 60%;           /* Destructive red */
+    --destructive-foreground: 210 40% 98%; /* Light text */
+
+    --border: 215 28% 17%;              /* Dark border */
+    --input: 215 28% 17%;               /* Dark input */
+    --ring: 142 71% 45%;                /* Olive focus ring */
+
+    /* Dark mode gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(142 70% 45%) 0%, hsl(142 70% 55%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(33 80% 40%) 0%, hsl(33 80% 50%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(142 70% 45%) 0%, hsl(33 80% 40%) 100%);
+
+    /* Dark mode shadows */
+    --shadow-olive: 0 10px 30px -10px hsl(142 70% 45% / 0.4);
+    --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.3);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.3);
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  html[lang="ar"] {
+    font-family: 'Tajawal', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground transition-colors duration-300;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+}
+
+@layer components {
+  /* Olive Mill Custom Components */
+  .olive-card {
+    @apply bg-card text-card-foreground rounded-2xl border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300;
+  }
+
+  .olive-button {
+    @apply inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .olive-button-primary {
+    @apply olive-button bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg hover:shadow-xl;
+  }
+
+  .olive-button-secondary {
+    @apply olive-button bg-secondary text-secondary-foreground hover:bg-secondary/90;
+  }
+
+  .olive-button-success {
+    @apply olive-button bg-success text-success-foreground hover:bg-success/90;
+  }
+
+  .olive-button-warning {
+    @apply olive-button bg-warning text-warning-foreground hover:bg-warning/90;
+  }
+
+  .olive-button-error {
+    @apply olive-button bg-error text-error-foreground hover:bg-error/90;
+  }
+
+  .olive-input {
+    @apply flex h-12 w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .olive-hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  .olive-primary-gradient {
+    background: var(--gradient-primary);
+  }
+
+  .olive-secondary-gradient {
+    background: var(--gradient-secondary);
+  }
+}
+
+@layer utilities {
+  .rtl-flip {
+    transform: scaleX(-1);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}

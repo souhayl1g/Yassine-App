@@ -1,0 +1,878 @@
+openapi: 3.0.0
+info:
+  title: Olive Oil Mill API
+  version: 1.0.0
+  description: API for olive oil mill management system
+servers:
+  - url: http://localhost:3000/api
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, role]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                role: { type: string, enum: [admin, manager, employee] }
+                firstname: { type: string }
+                lastname: { type: string }
+      responses:
+        201:
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  email: { type: string }
+                  role: { type: string }
+                  token: { type: string }
+        400:
+          description: Invalid input or email already exists
+
+  /auth/login:
+    post:
+      summary: Login to get access token
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      email: { type: string }
+                      role: { type: string }
+        401:
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      summary: Get current user profile
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  email: { type: string }
+                  role: { type: string }
+                  firstname: { type: string }
+                  lastname: { type: string }
+        401:
+          description: Unauthorized - Invalid or missing token
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        200:
+          description: API status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "OK" }
+                  message: { type: string }
+                  timestamp: { type: string, format: date-time }
+
+  /clients:
+    get:
+      security:
+        - BearerAuth: []
+      summary: Get all clients
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Search in firstname, lastname, phone
+      responses:
+        200:
+          description: Paginated clients list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clients:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        firstname: { type: string }
+                        lastname: { type: string }
+                        phone: { type: string }
+                        address: { type: string }
+                        batches: { type: array }
+                  pagination:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      page: { type: integer }
+                      pages: { type: integer }
+    post:
+      summary: Create client
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [firstname, lastname, phone]
+              properties:
+                firstname: { type: string }
+                lastname: { type: string }
+                phone: { type: string }
+                address: { type: string }
+      responses:
+        201:
+          description: Client created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  firstname: { type: string }
+                  lastname: { type: string }
+                  phone: { type: string }
+                  address: { type: string }
+
+  /clients/{id}:
+    get:
+      security:
+        - BearerAuth: []
+      summary: Get client by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Client details with batches and invoices
+        404:
+          description: Client not found
+    put:
+      security:
+        - BearerAuth: []
+      summary: Update client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstname: { type: string }
+                lastname: { type: string }
+                phone: { type: string }
+                address: { type: string }
+      responses:
+        200:
+          description: Client updated
+        404:
+          description: Client not found
+    delete:
+      security:
+        - BearerAuth: []
+      summary: Delete client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        204:
+          description: Client deleted
+        404:
+          description: Client not found
+
+  /batches:
+    get:
+      security:
+        - BearerAuth: []
+      summary: Get all batches
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [received, in_process, completed] }
+        - name: clientId
+          in: query
+          schema: { type: integer }
+      responses:
+        200:
+          description: Paginated batches with client info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batches:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        clientId: { type: integer }
+                        weight_in: { type: number }
+                        weight_out: { type: number }
+                        net_weight: { type: number }
+                        number_of_boxes: { type: integer }
+                        status: { type: string }
+                        date_received: { type: string, format: date-time }
+                        client: { type: object }
+                  pagination: { type: object }
+    post:
+      security:
+        - BearerAuth: []
+      summary: Create batch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, weight_in, weight_out, net_weight, number_of_boxes]
+              properties:
+                clientId: { type: integer }
+                weight_in: { type: number }
+                weight_out: { type: number }
+                net_weight: { type: number }
+                number_of_boxes: { type: integer }
+      responses:
+        201:
+          description: Batch created with status 'received'
+
+  /batches/{id}:
+    get:
+      security:
+        - BearerAuth: []
+      summary: Get batch by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Batch with client, processing decisions, oil batches
+        404:
+          description: Batch not found
+
+  /batches/{id}/status:
+    put:
+      summary: Update batch status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [received, in_process, completed] }
+      responses:
+        200:
+          description: Batch status updated
+
+  /processing-decisions:
+    get:
+      security:
+        - BearerAuth: []
+      summary: Get all processing decisions
+      description: Requires admin or manager role
+      parameters:
+        - name: batchId
+          in: query
+          schema: { type: integer }
+        - name: type
+          in: query
+          schema: { type: string }
+      responses:
+        200:
+          description: Processing decisions with batch and price info
+    post:
+      summary: Create processing decision
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [batchId, type, unit_price]
+              properties:
+                batchId: { type: integer }
+                type: { type: string }
+                unit_price: { type: number }
+                priceId: { type: integer }
+      responses:
+        201:
+          description: Processing decision created, batch status set to 'in_process'
+        404:
+          description: Batch not found
+        400:
+          description: Batch already processed
+
+  /processing-decisions/{id}:
+    get:
+      summary: Get processing decision by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Processing decision details
+        404:
+          description: Processing decision not found
+
+  /pressing-sessions:
+    get:
+      summary: Get all pressing sessions
+      parameters:
+        - name: active
+          in: query
+          schema: { type: boolean }
+          description: Filter active sessions (finish is null)
+        - name: pressing_roomId
+          in: query
+          schema: { type: integer }
+      responses:
+        200:
+          description: Pressing sessions with room and oil batches
+    post:
+      summary: Start pressing session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pressing_roomID, number_of_boxes]
+              properties:
+                pressing_roomID: { type: integer }
+                number_of_boxes: { type: integer }
+      responses:
+        201:
+          description: Pressing session started
+        400:
+          description: Pressing room already in use
+
+  /pressing-sessions/{id}:
+    get:
+      summary: Get pressing session by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Pressing session with room and oil batches
+        404:
+          description: Pressing session not found
+
+  /pressing-sessions/{id}/finish:
+    put:
+      summary: Finish pressing session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Pressing session finished
+        404:
+          description: Pressing session not found
+        400:
+          description: Session already finished
+
+  /oil-batches:
+    get:
+      summary: Get all oil batches
+      parameters:
+        - name: batchId
+          in: query
+          schema: { type: integer }
+        - name: pressing_sessionId
+          in: query
+          schema: { type: integer }
+        - name: tested
+          in: query
+          schema: { type: boolean }
+          description: Filter by quality test status
+      responses:
+        200:
+          description: Oil batches with batch, session, tests, containers
+    post:
+      summary: Create oil batch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [weight, residue, batchId, pressing_sessionId]
+              properties:
+                weight: { type: number }
+                residue: { type: number }
+                batchId: { type: integer }
+                pressing_sessionId: { type: integer }
+      responses:
+        201:
+          description: Oil batch created
+
+  /oil-batches/{id}:
+    get:
+      summary: Get oil batch by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Oil batch with full details
+        404:
+          description: Oil batch not found
+
+  /oil-batches/{id}/traceability:
+    get:
+      summary: Get oil batch traceability report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Complete traceability from origin to storage
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  oilBatch: { type: object }
+                  origin: { type: object }
+                  processing: { type: object }
+                  quality: { type: array }
+                  storage: { type: array }
+
+  /quality-tests:
+    get:
+      summary: Get all quality tests
+      parameters:
+        - name: oil_batchId
+          in: query
+          schema: { type: integer }
+        - name: grade
+          in: query
+          schema: { type: string, enum: [extra_virgin, virgin, ordinary] }
+        - name: tested_by_employeeId
+          in: query
+          schema: { type: integer }
+      responses:
+        200:
+          description: Quality tests with oil batch and employee info
+    post:
+      summary: Create quality test
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oil_batchId, acidity_level, grade, tested_by_employeeId]
+              properties:
+                oil_batchId: { type: integer }
+                acidity_level: { type: number }
+                grade: { type: string, enum: [extra_virgin, virgin, ordinary] }
+                tested_by_employeeId: { type: integer }
+      responses:
+        201:
+          description: Quality test created with current timestamp
+        404:
+          description: Oil batch not found
+
+  /quality-tests/{id}:
+    get:
+      summary: Get quality test by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          description: Quality test details
+        404:
+          description: Quality test not found
+
+  /quality-tests/statistics:
+    get:
+      summary: Get quality statistics
+      parameters:
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Quality statistics and distributions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalTests: { type: integer }
+                  gradeDistribution:
+                    type: object
+                    properties:
+                      extra_virgin: { type: integer }
+                      virgin: { type: integer }
+                      ordinary: { type: integer }
+                  averageAcidity: { type: number }
+                  totalOilTested: { type: number }
+
+  /employees:
+    get:
+      security:
+        - BearerAuth: []
+      summary: Get all employees
+      description: Requires admin or manager role
+      parameters:
+        - name: role
+          in: query
+          schema: { type: string }
+        - name: active
+          in: query
+          schema: { type: boolean }
+      responses:
+        200:
+          description: Employees with quality tests count
+    post:
+      summary: Create employee
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [firstname, lastname, role]
+              properties:
+                firstname: { type: string }
+                lastname: { type: string }
+                role: { type: string }
+                hire_date: { type: string, format: date }
+                phone: { type: string }
+      responses:
+        201:
+          description: Employee created with active=true
+
+  /employees/{id}:
+    put:
+      summary: Update employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstname: { type: string }
+                lastname: { type: string }
+                role: { type: string }
+                phone: { type: string }
+                active: { type: boolean }
+      responses:
+        200:
+          description: Employee updated
+        404:
+          description: Employee not found
+
+  /prices:
+    get:
+      summary: Get all prices
+      parameters:
+        - name: latest
+          in: query
+          schema: { type: boolean }
+          description: Get only latest price entry
+      responses:
+        200:
+          description: Price entries or latest price if latest=true
+    post:
+      summary: Create price entry
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date]
+              properties:
+                date: { type: string, format: date }
+                milling_price_per_kg: { type: number }
+                oil_client_selling_price_per_kg: { type: number }
+                oil_export_selling_price_per_kg: { type: number }
+                olive_buying_price_per_kg: { type: number }
+      responses:
+        201:
+          description: Price entry created
+
+  /prices/{date}:
+    get:
+      summary: Get price for specific date
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Price for the date
+        404:
+          description: Price not found for date
+
+  /invoices:
+    get:
+      security:
+        - BearerAuth: []
+      summary: Get all invoices
+      description: Requires admin or manager role
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [draft, sent, paid, overdue] }
+        - name: clientId
+          in: query
+          schema: { type: integer }
+      responses:
+        200:
+          description: Paginated invoices with client, batch, payments
+    post:
+      summary: Create invoice
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, amount]
+              properties:
+                clientId: { type: integer }
+                batchId: { type: integer }
+                processing_decisionId: { type: integer }
+                amount: { type: number }
+                due_date: { type: string, format: date }
+                notes: { type: string }
+      responses:
+        201:
+          description: Invoice created with status 'draft'
+
+  /invoices/{id}/status:
+    put:
+      summary: Update invoice status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [draft, sent, paid, overdue] }
+      responses:
+        200:
+          description: Invoice status updated
+        404:
+          description: Invoice not found
+
+  /payments:
+    get:
+      summary: Get all payments
+      parameters:
+        - name: invoiceId
+          in: query
+          schema: { type: integer }
+      responses:
+        200:
+          description: Payments with invoice info
+    post:
+      summary: Record payment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invoiceId, amount, payment_method]
+              properties:
+                invoiceId: { type: integer }
+                amount: { type: number }
+                payment_method: { type: string }
+                reference: { type: string }
+      responses:
+        201:
+          description: Payment recorded, invoice status updated if fully paid
+        404:
+          description: Invoice not found
+
+  /dashboard/overview:
+    get:
+      summary: Get dashboard overview metrics
+      parameters:
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Key business metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metrics:
+                    type: object
+                    properties:
+                      totalClients: { type: integer }
+                      activeBatches: { type: integer }
+                      totalOilProduced: { type: number }
+                      pendingInvoices: { type: integer }
+                      recentQualityTests: { type: integer }
+                      totalRevenue: { type: number }
+
+  /dashboard/production-summary:
+    get:
+      summary: Get production summary
+      parameters:
+        - name: period
+          in: query
+          schema: { type: integer, default: 30 }
+          description: Days to look back
+      responses:
+        200:
+          description: Production data and quality distribution
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  productionData:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string, format: date }
+                        batches_processed: { type: integer }
+                        total_oil_produced: { type: number }
+                  qualityDistribution:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        grade: { type: string }
+                        count: { type: integer }
+
+  /dashboard/financial-summary:
+    get:
+      summary: Get financial summary
+      parameters:
+        - name: month
+          in: query
+          schema: { type: integer }
+        - name: year
+          in: query
+          schema: { type: integer }
+      responses:
+        200:
+          description: Financial metrics and processing breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  monthlyRevenue: { type: number }
+                  outstandingAmount: { type: number }
+                  processingBreakdown:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type: { type: string }
+                        count: { type: integer }
+                        avg_price: { type: number }

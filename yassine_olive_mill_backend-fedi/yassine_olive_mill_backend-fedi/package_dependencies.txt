@@ -1,0 +1,21 @@
+Required npm packages for this API:
+
+# Core dependencies
+npm install express sequelize pg pg-hstore dotenv cors helmet express-validator
+
+# Development dependencies  
+npm install --save-dev nodemon
+
+# Optional but recommended
+npm install morgan compression rate-limiter-flexible
+
+Add these scripts to your package.json:
+{
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "migrate": "sequelize db:migrate",
+    "migrate:undo": "sequelize db:migrate:undo",
+    "seed": "sequelize db:seed:all"
+  }
+}
