@@ -249,77 +249,90 @@ export function QRScannerPage() {
   };
 
   // ---------- Save changes (modal) ----------
-  const handleSaveChanges = async () => {
-    if (!uploadedTicket) return;
+// Updated handleSaveChanges function with backend compatibility
+const handleSaveChanges = async () => {
+  if (!uploadedTicket) return;
 
-    const weight_in = toNumber(form.weightIn);
-    const weight_out = form.weightOut === '' ? undefined : toNumber(form.weightOut);
-    const number_of_boxes = Math.max(0, parseInt(form.numberOfBoxes || '0', 10));
-    const unit_price = toNumber(form.unitPrice);
+  const weight_in = toNumber(form.weightIn);
+  const weight_out = form.weightOut === '' ? undefined : toNumber(form.weightOut);
+  const number_of_boxes = Math.max(0, parseInt(form.numberOfBoxes || '0', 10));
+  const unit_price = toNumber(form.unitPrice);
 
-    if (!(weight_in > 0)) {
-      toast({ variant: 'destructive', title: t('common.error'), description: 'أدخل وزنًا صحيحًا للوزن الداخل' });
-      return;
+  if (!(weight_in > 0)) {
+    toast({ variant: 'destructive', title: t('common.error'), description: 'أدخل وزنًا صحيحًا للوزن الداخل' });
+    return;
+  }
+  if (weight_out !== undefined && weight_out >= weight_in) {
+    toast({ variant: 'destructive', title: t('common.error'), description: 'الوزن الخارج يجب أن يكون أقل من الوزن الداخل' });
+    return;
+  }
+
+  const net_weight = weight_out === undefined ? weight_in : Math.max(0, weight_in - weight_out);
+  const total_amount = +(net_weight * unit_price).toFixed(2);
+  const amount_paid = form.amountPaid === '' ? undefined : toNumber(form.amountPaid);
+  
+  // Map frontend status to backend status
+  const backendStatus = (() => {
+    switch (form.status) {
+      case 'draft': return 'received';
+      case 'confirmed': return 'in_process';
+      case 'paid': return 'completed';
+      default: return 'unknown';
     }
-    if (weight_out !== undefined && weight_out >= weight_in) {
-      toast({ variant: 'destructive', title: t('common.error'), description: 'الوزن الخارج يجب أن يكون أقل من الوزن الداخل' });
-      return;
-    }
+  })();
+  const is_paid = form.status === 'paid';
+  const date_paid = is_paid ? new Date().toISOString() : undefined;
 
-    const net_weight = weight_out === undefined ? weight_in : Math.max(0, weight_in - weight_out);
-    const total_amount = +(net_weight * unit_price).toFixed(2);
-    const amount_paid = form.amountPaid === '' ? undefined : toNumber(form.amountPaid);
-    const status = form.status;
-    const is_paid = status === 'paid';
-    const date_paid = is_paid ? new Date().toISOString() : undefined;
-
-    const payload: any = {
-      clientId: uploadedTicket.clientId, // Ensure clientId is included
-      weight_in,
-      weight_out,
-      net_weight, // Ensure net_weight is included
-      number_of_boxes, // Ensure number_of_boxes is included
-      unit_price,
-      total_amount,
-      amount_paid,
-      status,
-      is_paid,
-      date_paid,
-    };
-
-    setIsSaving(true);
-    try {
-      await updateBatch(uploadedTicket.id, payload);
-
-      // reflect changes locally
-      const updated: ScannedTicket = {
-        ...uploadedTicket,
-        weightIn: weight_in,
-        weightOut: weight_out,
-        netWeight: net_weight,
-        numberOfBoxes: number_of_boxes,
-        unitPrice: unit_price,
-        totalAmount: total_amount,
-        amountPaid: amount_paid,
-        status,
-        isPaid: is_paid,
-      };
-      setUploadedTicket(updated);
-      setScannedTicket(updated);
-      setUploadModalOpen(false);
-
-      toast({ title: t('common.success'), description: 'تم حفظ التغييرات بنجاح' });
-    } catch (e: any) {
-      console.error('Update failed:', e);
-      toast({
-        variant: 'destructive',
-        title: 'خطأ',
-        description: e?.message || 'لم يتم العثور على مسار التعديل. تحقق من مسارات الخادم لـ batches.',
-      });
-    } finally {
-      setIsSaving(false);
-    }
+  // Prepare payload compatible with existing backend model
+  const payload: any = {
+    clientId: uploadedTicket.clientId,
+    // Send as integers if your backend expects integers, but convert carefully
+    weight_in: Math.round(weight_in), // Convert to integer for backend
+    weight_out: weight_out !== undefined ? Math.round(weight_out) : undefined,
+    net_weight: Math.round(net_weight), // Convert to integer for backend
+    number_of_boxes,
+    status: backendStatus, // Use mapped status
+    // Only include financial fields if your backend model supports them
+    ...(unit_price && { unit_price }),
+    ...(total_amount && { total_amount }),
+    ...(amount_paid !== undefined && { amount_paid }),
+    ...(is_paid !== undefined && { is_paid }),
+    ...(date_paid && { date_paid }),
   };
+
+  setIsSaving(true);
+  try {
+    await updateBatch(uploadedTicket.id, payload);
+
+    // Reflect changes locally using original decimal values
+    const updated: ScannedTicket = {
+      ...uploadedTicket,
+      weightIn: weight_in, // Keep original decimal precision in frontend
+      weightOut: weight_out,
+      netWeight: net_weight,
+      numberOfBoxes: number_of_boxes,
+      unitPrice: unit_price,
+      totalAmount: total_amount,
+      amountPaid: amount_paid,
+      status: form.status, // Keep frontend status
+      isPaid: is_paid,
+    };
+    setUploadedTicket(updated);
+    setScannedTicket(updated);
+    setUploadModalOpen(false);
+
+    toast({ title: t('common.success'), description: 'تم حفظ التغييرات بنجاح' });
+  } catch (e: any) {
+    console.error('Update failed:', e);
+    toast({
+      variant: 'destructive',
+      title: 'خطأ',
+      description: e?.message || 'فشل في تحديث التذكرة. تحقق من اتصال الخادم.',
+    });
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   // ---------- Misc UI ----------
   const simulateQRScan = () => {

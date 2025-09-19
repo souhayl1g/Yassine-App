@@ -90,7 +90,7 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
-const HOST = '0.0.0.0';
+const HOST = 'localhost';
 
 // Database connection and server start
 const startServer = async () => {

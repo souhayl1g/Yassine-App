@@ -61,7 +61,7 @@ export function SettingsPage() {
 
   const [companySettings, setCompanySettings] = useState<CompanySettings>({
     name: 'معصرة الزيتون النموذجية',
-    address: 'الرياض، المملكة العربية السعودية',
+    address: 'جلمة سيدي بوزيد تونس',
     phone: '+966501234567',
     email: 'info@olivemill.com',
   });
@@ -71,7 +71,7 @@ export function SettingsPage() {
     oilClientSellingPricePerKg: 15.5,
     oilExportSellingPricePerKg: 18.0,
     oliveBuyingPricePerKg: 3.5,
-    currency: 'SAR',
+    currency: 'TND',
   });
 
   const [printSettings, setPrintSettings] = useState({
@@ -299,9 +299,7 @@ export function SettingsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SAR">ريال سعودي (SAR)</SelectItem>
-                    <SelectItem value="USD">دولار أمريكي (USD)</SelectItem>
-                    <SelectItem value="EUR">يورو (EUR)</SelectItem>
+                    <SelectItem value="TND">دينار تونسي (TND)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
