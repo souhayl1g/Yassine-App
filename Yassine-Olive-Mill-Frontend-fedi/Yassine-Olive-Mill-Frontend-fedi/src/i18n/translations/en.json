@@ -15,9 +15,16 @@
     "lastname": "Last Name",
     "phone": "Phone Number",
     "confirmPassword": "Confirm Password",
-    "role": "Role"
+    "role": "Role",
+    "selectRole": "Select Role",
+    "roles": {
+      "admin": "Admin",
+      "operator": "Operator",
+      "scanner": "Scanner"
+    }
   },
   "nav": {
+    "dailyWork": "Daily Work",
     "dashboard": "Dashboard",
     "clients": "Clients",
     "tickets": "Tickets",
@@ -42,6 +49,12 @@
     "recentActivity": "Recent Activity",
     "noActivity": "No recent activity",
     "kg": "kg"
+  },
+  "dailyWork": {
+    "title": "Daily Work",
+    "subtitle": "Simplified page for managing daily mill operations",
+    "startOperations": "Start Operations",
+    "ofTheDay": "of the day"
   },
   "actions": {
     "new": "New",
@@ -206,6 +219,7 @@
     "minLength": "Minimum {{min}} characters",
     "maxLength": "Maximum {{max}} characters",
     "passwordMismatch": "Passwords do not match",
+    "roleRequired": "Please select a user role",
     "invalidPhone": "Invalid phone number"
   }
 }

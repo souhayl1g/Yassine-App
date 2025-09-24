@@ -6,7 +6,7 @@ import { OliveButton } from '@/components/ui/olive-button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -571,6 +571,9 @@ export function TicketsPage() {
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>إضافة تذكرة جديدة</DialogTitle>
+              <DialogDescription>
+                قم بملء البيانات المطلوبة لإنشاء تذكرة جديدة
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
@@ -590,7 +593,7 @@ export function TicketsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {clients.length === 0 ? (
-                        <SelectItem value="" disabled>
+                        <SelectItem value="no-clients" disabled>
                           {loadingClients ? 'جاري التحميل...' : 'لا يوجد عملاء'}
                         </SelectItem>
                       ) : (
@@ -623,6 +626,9 @@ export function TicketsPage() {
                     <DialogContent className="sm:max-w-md">
                       <DialogHeader>
                         <DialogTitle>إضافة عميل جديد</DialogTitle>
+                        <DialogDescription>
+                          أدخل بيانات العميل الجديد
+                        </DialogDescription>
                       </DialogHeader>
 
                       <div className="space-y-4">
@@ -857,6 +863,9 @@ export function TicketsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>تسجيل الدفع للتذكرة #{paymentModalTicket?.id}</DialogTitle>
+            <DialogDescription>
+              قم بتأكيد تفاصيل الدفع للتذكرة
+            </DialogDescription>
           </DialogHeader>
 
           {paymentModalTicket && (
@@ -935,6 +944,9 @@ export function TicketsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>رمز QR للتذكرة #{qrModalTicket?.id}</DialogTitle>
+            <DialogDescription>
+              استخدم هذا الرمز لمسح التذكرة
+            </DialogDescription>
           </DialogHeader>
 
           {qrModalTicket && (
@@ -1119,6 +1131,9 @@ export function TicketsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>تعديل التذكرة #{editModalTicket?.id}</DialogTitle>
+            <DialogDescription>
+              قم بتعديل بيانات التذكرة
+            </DialogDescription>
           </DialogHeader>
 
           {editModalTicket && (

@@ -16,12 +16,14 @@ import {
   LogOut,
   Menu,
   Container,
-  Clock
+  Clock,
+  Coffee
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigationItems = [
-  { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard', roles: ['admin', 'operator', 'scanner'] },
+  { key: 'dailyWork', icon: Coffee, href: '/', roles: ['admin', 'operator', 'scanner'] },
+  { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard', roles: ['admin', 'operator'] },
   { key: 'clients', icon: Users, href: '/clients', roles: ['admin', 'operator'] },
   { key: 'tickets', icon: FileText, href: '/tickets', roles: ['admin', 'operator'] },
   { key: 'containers', icon: Container, href: '/containers', roles: ['admin', 'operator'] },

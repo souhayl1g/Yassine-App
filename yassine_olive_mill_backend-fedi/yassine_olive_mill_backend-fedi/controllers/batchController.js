@@ -76,16 +76,16 @@ const batchController = {
     try {
       const { clientId, weight_in, weight_out, net_weight, number_of_boxes } = req.body;
       
-      if (!clientId || !net_weight || !number_of_boxes) {
-        return res.status(400).json({ error: 'clientId, net_weight, and number_of_boxes are required' });
+      if (!clientId) {
+        return res.status(400).json({ error: 'clientId is required' });
       }
 
       const batch = await Batch.create({
         clientId: parseInt(clientId),
         weight_in: weight_in ? parseInt(weight_in) : null,
         weight_out: weight_out ? parseInt(weight_out) : null,
-        net_weight: parseInt(net_weight),
-        number_of_boxes: parseInt(number_of_boxes),
+        net_weight: net_weight ? parseInt(net_weight) : null,
+        number_of_boxes: number_of_boxes ? parseInt(number_of_boxes) : null,
         status: 'received'
       });
 

@@ -24,6 +24,7 @@
     }
   },
   "nav": {
+    "dailyWork": "العمل اليومي",
     "dashboard": "لوحة التحكم",
     "clients": "العملاء",
     "tickets": "التذاكر",
@@ -48,6 +49,12 @@
     "recentActivity": "النشاط الأخير",
     "noActivity": "لا يوجد نشاط حديث",
     "kg": "كيلو"
+  },
+  "dailyWork": {
+    "title": "العمل اليومي",
+    "subtitle": "صفحة مبسطة لإدارة العمليات اليومية للمعصرة",
+    "startOperations": "بدء العمليات",
+    "ofTheDay": "من اليوم"
   },
   "actions": {
     "new": "جديد",

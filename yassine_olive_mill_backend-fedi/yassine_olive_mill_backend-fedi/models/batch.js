@@ -30,11 +30,11 @@ export default (sequelize) => {
     },
     net_weight: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: true
     },
     number_of_boxes: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: true
     },
     status: {
       type: DataTypes.ENUM('received', 'in_process', 'completed'),

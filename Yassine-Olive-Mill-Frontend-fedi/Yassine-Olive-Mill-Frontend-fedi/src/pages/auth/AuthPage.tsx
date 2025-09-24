@@ -199,6 +199,7 @@ export const AuthPage: React.FC = () => {
                       type={showPassword ? 'text' : 'password'}
                       className="olive-input pr-10"
                       {...loginForm.register('password')}
+                      autoComplete="current-password"
                     />
                     <button
                       type="button"

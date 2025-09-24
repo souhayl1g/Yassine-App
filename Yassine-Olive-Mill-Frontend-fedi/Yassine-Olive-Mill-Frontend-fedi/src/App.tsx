@@ -9,6 +9,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MainLayout } from "./components/layout/MainLayout";
 import { AuthPage } from "@/pages/auth/AuthPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { DailyWorkPage } from "@/pages/DailyWorkPage";
 import { ClientsPage } from "@/pages/ClientsPage";
 import { TicketsPage } from "@/pages/TicketsPage";
 import { QRScannerPage } from "@/pages/QRScannerPage";
@@ -37,12 +38,17 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true
+          }}
+        >
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/" element={<DailyWorkPage />} />
+                <Route path="/dashboard" element={<ProtectedRoute roles={['admin', 'operator']}><DashboardPage /></ProtectedRoute>} />
                 <Route path="/clients" element={<ProtectedRoute roles={['admin', 'operator']}><ClientsPage /></ProtectedRoute>} />
                 <Route path="/tickets" element={<ProtectedRoute roles={['admin', 'operator']}><TicketsPage /></ProtectedRoute>} />
                 <Route path="/containers" element={<ProtectedRoute roles={['admin', 'operator']}><ContainersPage /></ProtectedRoute>} />

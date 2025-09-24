@@ -15,9 +15,16 @@
     "lastname": "Nom de famille",
     "phone": "Numéro de téléphone",
     "confirmPassword": "Confirmer le mot de passe",
-    "role": "Rôle"
+    "role": "Rôle",
+    "selectRole": "Sélectionner le rôle",
+    "roles": {
+      "admin": "Administrateur",
+      "operator": "Opérateur",
+      "scanner": "Scanneur"
+    }
   },
   "nav": {
+    "dailyWork": "Travail Quotidien",
     "dashboard": "Tableau de bord",
     "clients": "Clients",
     "tickets": "Tickets",
@@ -42,6 +49,12 @@
     "recentActivity": "Activité récente",
     "noActivity": "Aucune activité récente",
     "kg": "kg"
+  },
+  "dailyWork": {
+    "title": "Travail Quotidien",
+    "subtitle": "Page simplifiée pour gérer les opérations quotidiennes du moulin",
+    "startOperations": "Commencer les Opérations",
+    "ofTheDay": "de la journée"
   },
   "actions": {
     "new": "Nouveau",
@@ -206,6 +219,7 @@
     "minLength": "Minimum {{min}} caractères",
     "maxLength": "Maximum {{max}} caractères",
     "passwordMismatch": "Les mots de passe ne correspondent pas",
+    "roleRequired": "Veuillez sélectionner un rôle utilisateur",
     "invalidPhone": "Numéro de téléphone invalide"
   }
 }
