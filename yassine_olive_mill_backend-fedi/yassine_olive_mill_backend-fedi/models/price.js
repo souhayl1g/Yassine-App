@@ -12,19 +12,19 @@ export default (sequelize) => {
       allowNull: true
     },
     milling_price_per_kg: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.FLOAT,
       allowNull: true
     },
     oil_client_selling_price_per_kg: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.FLOAT,
       allowNull: true
     },
     oil_export_selling_price_per_kg: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.FLOAT,
       allowNull: true
     },
     olive_buying_price_per_kg: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.FLOAT,
       allowNull: true
     }
   }, {

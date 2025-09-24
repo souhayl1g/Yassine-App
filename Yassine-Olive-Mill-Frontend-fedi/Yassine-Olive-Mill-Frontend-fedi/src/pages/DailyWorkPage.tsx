@@ -87,7 +87,6 @@ export function DailyWorkPage() {
   const [editForm, setEditForm] = useState({
     weightOut: '',
     numberOfBoxes: '',
-    unitPrice: '',
     notes: '',
   });
 
@@ -233,15 +232,9 @@ export function DailyWorkPage() {
         const ticket = await fetchTicketByCode(qrData.id);
         setScannedTicket(ticket);
 
-        // Set edit form with ticket data and use current prices if available
-        const suggestedUnitPrice = ticket.unitPrice !== undefined ? 
-          String(ticket.unitPrice) : 
-          (currentPrices?.milling_price_per_kg ? String(currentPrices.milling_price_per_kg) : '');
-
         setEditForm({
           weightOut: ticket.weightOut !== undefined ? String(ticket.weightOut) : '',
           numberOfBoxes: ticket.numberOfBoxes ? String(ticket.numberOfBoxes) : '',
-          unitPrice: suggestedUnitPrice,
           notes: '',
         });
 
@@ -321,10 +314,15 @@ export function DailyWorkPage() {
 
     const weightOut = editForm.weightOut === '' ? undefined : parseFloat(editForm.weightOut);
     const numberOfBoxes = Math.max(0, parseInt(editForm.numberOfBoxes || '0', 10));
-    const unitPrice = parseFloat(editForm.unitPrice || '0');
+    const unitPrice = currentPrices?.milling_price_per_kg || 0;
 
     if (weightOut !== undefined && weightOut >= scannedTicket.weightIn) {
       toast({ variant: 'destructive', title: t('common.error'), description: 'الوزن الخارج يجب أن يكون أقل من الوزن الداخل' });
+      return;
+    }
+
+    if (unitPrice <= 0) {
+      toast({ variant: 'destructive', title: t('common.error'), description: 'لا يوجد سعر محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.' });
       return;
     }
 
@@ -382,10 +380,10 @@ export function DailyWorkPage() {
     return Math.max(0, scannedTicket.weightIn - weightOut);
   };
 
-  // Calculate total amount from edit form
+  // Calculate total amount from edit form using backend price
   const calculateEditTotalAmount = () => {
     const netWeight = calculateEditNetWeight();
-    const unitPrice = parseFloat(editForm.unitPrice || '0');
+    const unitPrice = currentPrices?.milling_price_per_kg || 0;
     return netWeight * unitPrice;
   };
 
@@ -495,15 +493,9 @@ export function DailyWorkPage() {
 
       setScannedTicket(scannedTicketData);
 
-      // Set edit form with ticket data and use current prices if available
-      const suggestedUnitPrice = scannedTicketData.unitPrice !== undefined ? 
-        String(scannedTicketData.unitPrice) : 
-        (currentPrices?.milling_price_per_kg ? String(currentPrices.milling_price_per_kg) : '');
-
       setEditForm({
         weightOut: scannedTicketData.weightOut !== undefined ? String(scannedTicketData.weightOut) : '',
         numberOfBoxes: scannedTicketData.numberOfBoxes ? String(scannedTicketData.numberOfBoxes) : '',
-        unitPrice: suggestedUnitPrice,
         notes: '',
       });
 
@@ -942,87 +934,29 @@ export function DailyWorkPage() {
             </label>
           </div>
 
+          {/* Display current pricing information */}
           <div className="mb-4">
-            <label className="text-sm">
-              <span className="block mb-1">سعر الكيلو (دينار)</span>
-              <div className="space-y-2">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editForm.unitPrice}
-                  onChange={(e) => setEditForm((p) => ({ ...p, unitPrice: e.target.value }))}
-                  placeholder="سعر الكيلو"
-                  className="w-full"
-                />
-                {/* Show current prices from backend */}
-                {currentPrices && (
-                  <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                    <div className="font-medium text-blue-800 mb-1">الأسعار الحالية من النظام:</div>
-                    <div className="grid grid-cols-2 gap-2 text-blue-700">
-                      {currentPrices.milling_price_per_kg > 0 && (
-                        <div>
-                          <span className="font-medium">العصر:</span> {currentPrices.milling_price_per_kg} د.ت
-                          <button
-                            type="button"
-                            onClick={() => setEditForm(p => ({ ...p, unitPrice: String(currentPrices.milling_price_per_kg) }))}
-                            className="mr-1 text-blue-600 hover:text-blue-800 underline"
-                          >
-                            استخدم
-                          </button>
-                        </div>
-                      )}
-                      {currentPrices.oil_client_selling_price_per_kg > 0 && (
-                        <div>
-                          <span className="font-medium">بيع زيت:</span> {currentPrices.oil_client_selling_price_per_kg} د.ت
-                          <button
-                            type="button"
-                            onClick={() => setEditForm(p => ({ ...p, unitPrice: String(currentPrices.oil_client_selling_price_per_kg) }))}
-                            className="mr-1 text-blue-600 hover:text-blue-800 underline"
-                          >
-                            استخدم
-                          </button>
-                        </div>
-                      )}
-                      {currentPrices.oil_export_selling_price_per_kg > 0 && (
-                        <div>
-                          <span className="font-medium">تصدير:</span> {currentPrices.oil_export_selling_price_per_kg} د.ت
-                          <button
-                            type="button"
-                            onClick={() => setEditForm(p => ({ ...p, unitPrice: String(currentPrices.oil_export_selling_price_per_kg) }))}
-                            className="mr-1 text-blue-600 hover:text-blue-800 underline"
-                          >
-                            استخدم
-                          </button>
-                        </div>
-                      )}
-                      {currentPrices.olive_buying_price_per_kg > 0 && (
-                        <div>
-                          <span className="font-medium">شراء زيتون:</span> {currentPrices.olive_buying_price_per_kg} د.ت
-                          <button
-                            type="button"
-                            onClick={() => setEditForm(p => ({ ...p, unitPrice: String(currentPrices.olive_buying_price_per_kg) }))}
-                            className="mr-1 text-blue-600 hover:text-blue-800 underline"
-                          >
-                            استخدم
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {loadingPrices && (
-                  <div className="p-2 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600">
-                    <RefreshCw className="h-3 w-3 animate-spin inline mr-1" />
-                    جاري تحميل الأسعار...
-                  </div>
-                )}
-              </div>
-            </label>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-sm font-medium text-blue-800 mb-2">السعر المستخدم للحساب:</div>
+              {loadingPrices ? (
+                <div className="flex items-center text-blue-700">
+                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  جاري تحميل الأسعار...
+                </div>
+              ) : currentPrices && currentPrices.milling_price_per_kg > 0 ? (
+                <div className="text-lg font-bold text-blue-700">
+                  سعر العصر: {currentPrices.milling_price_per_kg} دينار/كيلو
+                </div>
+              ) : (
+                <div className="text-red-700">
+                  لا توجد أسعار محددة في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Calculated values */}
-          {(editForm.weightOut || editForm.unitPrice) && (
+          {editForm.weightOut && (
             <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
               <div className="p-3 rounded bg-blue-50 border border-blue-200">
                 <div className="text-blue-800 font-medium">الوزن الصافي</div>
