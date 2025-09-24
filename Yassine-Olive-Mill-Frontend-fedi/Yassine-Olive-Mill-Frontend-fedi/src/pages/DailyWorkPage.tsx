@@ -68,6 +68,14 @@ export function DailyWorkPage() {
   const [searchResults, setSearchResults] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
+  // State for recent tickets
+  const [recentTickets, setRecentTickets] = useState<any[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTickets, setTotalTickets] = useState(0);
+  const ticketsPerPage = 5;
+
   // QR Scan state
   const [scannedTicket, setScannedTicket] = useState<ScannedTicket | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -83,7 +91,6 @@ export function DailyWorkPage() {
     firstname: '',
     lastname: '',
     weightIn: '',
-    unitPrice: '',
     notes: '',
   });
 
@@ -118,9 +125,33 @@ export function DailyWorkPage() {
     }
   };
 
-  // Load clients on component mount
+  // Load recent tickets from API
+  const loadRecentTickets = async (page: number = 1) => {
+    setLoadingTickets(true);
+    try {
+      const res = await api.get<any>(`/batches?page=${page}&limit=${ticketsPerPage}`);
+      const payload = getPayload<any>(res);
+      
+      setRecentTickets(payload?.batches || payload || []);
+      setTotalPages(payload?.pagination?.pages || 1);
+      setTotalTickets(payload?.pagination?.total || 0);
+      setCurrentPage(page);
+    } catch (error: any) {
+      console.error('Error loading tickets:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'فشل في تحميل التذاكر الحديثة: ' + (error?.message || 'خطأ غير معروف'),
+      });
+    } finally {
+      setLoadingTickets(false);
+    }
+  };
+
+  // Load clients and tickets on component mount
   useEffect(() => {
     loadClients();
+    loadRecentTickets();
   }, []);
 
   // Search clients based on firstname and lastname
@@ -155,12 +186,7 @@ export function DailyWorkPage() {
     return weightIn; // For now, net weight equals weight in
   };
 
-  // Calculate total amount
-  const calculateTotalAmount = () => {
-    const netWeight = calculateNetWeight();
-    const unitPrice = parseFloat(newTicket.unitPrice || '0');
-    return netWeight * unitPrice;
-  };
+
 
   // Handle QR scan for completion
   const handleQRScan = async (file: File) => {
@@ -303,6 +329,9 @@ export function DailyWorkPage() {
       setIsEditModalOpen(false);
 
       toast({ title: t('common.success'), description: 'تم تحديث التذكرة بنجاح' });
+      
+      // Reload recent tickets to reflect changes
+      await loadRecentTickets(currentPage);
     } catch (e: any) {
       console.error('Update failed:', e);
       toast({
@@ -357,7 +386,6 @@ export function DailyWorkPage() {
       toast({ variant: 'destructive', title: t('common.error'), description: 'يرجى إدخال وزن صحيح للوزن الداخل' });
       return;
     }
-
     try {
       let clientId: number;
 
@@ -389,8 +417,6 @@ export function DailyWorkPage() {
         clientId: clientId,
         weight_in: weightIn,
         net_weight: weightIn, // Initial net weight equals weight in
-        unit_price: parseFloat(newTicket.unitPrice) || 0,
-        total_amount: calculateTotalAmount(),
         notes: newTicket.notes || undefined,
       };
 
@@ -401,16 +427,55 @@ export function DailyWorkPage() {
         firstname: '', 
         lastname: '', 
         weightIn: '', 
-        unitPrice: '', 
         notes: '' 
       });
       setSelectedClient(null);
       setIsAddTicketOpen(false);
 
       toast({ title: t('common.success'), description: 'تم إنشاء التذكرة بنجاح' });
+      
+      // Reload recent tickets
+      await loadRecentTickets(currentPage);
     } catch (e: any) {
       console.error('Error creating ticket:', e);
       toast({ variant: 'destructive', title: t('common.error'), description: e?.message || 'فشل في إنشاء التذكرة' });
+    }
+  };
+
+  // Handle ticket click to edit
+  const handleTicketClick = async (ticket: any) => {
+    try {
+      // Convert ticket data to ScannedTicket format
+      const scannedTicketData: ScannedTicket = {
+        id: String(ticket.id),
+        clientId: String(ticket.clientId),
+        clientName: ticket.client 
+          ? `${ticket.client.firstname} ${ticket.client.lastname}` 
+          : `عميل #${ticket.clientId}`,
+        weightIn: ticket.weight_in ?? 0,
+        weightOut: ticket.weight_out ?? undefined,
+        netWeight: ticket.net_weight ?? undefined,
+        numberOfBoxes: ticket.number_of_boxes ?? 0,
+        unitPrice: ticket.unit_price ?? 0,
+        totalAmount: ticket.total_amount ?? undefined,
+        dateReceived: ticket.date_received || ticket.createdAt || new Date().toISOString(),
+        status: ticket.status || 'received',
+      };
+
+      setScannedTicket(scannedTicketData);
+
+      // Set edit form with ticket data
+      setEditForm({
+        weightOut: scannedTicketData.weightOut !== undefined ? String(scannedTicketData.weightOut) : '',
+        numberOfBoxes: scannedTicketData.numberOfBoxes ? String(scannedTicketData.numberOfBoxes) : '',
+        unitPrice: scannedTicketData.unitPrice !== undefined ? String(scannedTicketData.unitPrice) : '',
+        notes: '',
+      });
+
+      setIsEditModalOpen(true);
+    } catch (error: any) {
+      console.error('Error opening ticket:', error);
+      toast({ variant: 'destructive', title: t('common.error'), description: 'فشل في فتح التذكرة' });
     }
   };
 
@@ -422,29 +487,30 @@ export function DailyWorkPage() {
   };
 
   return (
-    <div className="space-y-8">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-foreground">
-            {t('dailyWork.title')}
-          </h1>
-          <p className="text-lg text-muted-foreground mt-2">
-            {t('dailyWork.subtitle')}
-          </p>
+    <>
+      <div className="space-y-8">
+        {/* Page Header */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-foreground">
+              {t('dailyWork.title')}
+            </h1>
+            <p className="text-lg text-muted-foreground mt-2">
+              {t('dailyWork.subtitle')}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-primary">
+              {formatDayTime(new Date())}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {formatDayDate(new Date())}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {getDayStatusText()} • {Math.round(dayInfo.dayProgress)}% {t('dailyWork.ofTheDay')}
+            </div>
+          </div>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-primary">
-            {formatDayTime(new Date())}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {formatDayDate(new Date())}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {getDayStatusText()} • {Math.round(dayInfo.dayProgress)}% {t('dailyWork.ofTheDay')}
-          </div>
-        </div>
-      </div>
 
       {/* Start Operations - Ticket Creation */}
       <div className="flex justify-center">
@@ -552,38 +618,6 @@ export function DailyWorkPage() {
                 />
               </div>
 
-              {newTicket.weightIn && (
-                <div className="p-3 bg-muted/50 rounded-lg">
-                  <Label className="text-sm font-medium">الوزن الصافي الأولي</Label>
-                  <div className="text-lg font-bold text-primary">{calculateNetWeight().toFixed(2)} كيلو</div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="unitPrice">سعر الكيلو (دينار)</Label>
-                <Input
-                  id="unitPrice"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newTicket.unitPrice}
-                  onChange={(e) => setNewTicket((prev) => ({ ...prev, unitPrice: e.target.value }))}
-                  placeholder="0.00"
-                />
-              </div>
-
-              {newTicket.weightIn &&
-                newTicket.unitPrice &&
-                parseFloat(newTicket.unitPrice || '0') > 0 && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <Label className="text-sm font-medium text-green-800">المبلغ الإجمالي الأولي</Label>
-                    <div className="text-xl font-bold text-green-600">{calculateTotalAmount().toFixed(2)} دينار</div>
-                    <p className="text-xs text-green-600 mt-1">
-                      {calculateNetWeight().toFixed(2)} كيلو × {parseFloat(newTicket.unitPrice || '0').toFixed(2)} دينار
-                    </p>
-                  </div>
-                )}
-
               <div className="space-y-2">
                 <Label htmlFor="notes">ملاحظات (اختياري)</Label>
                 <Textarea
@@ -610,7 +644,6 @@ export function DailyWorkPage() {
                       firstname: '',
                       lastname: '',
                       weightIn: '',
-                      unitPrice: '',
                       notes: '',
                     });
                     setSelectedClient(null);
@@ -685,120 +718,259 @@ export function DailyWorkPage() {
         </Dialog>
       </div>
 
-      {/* Edit Modal for QR Scanned Ticket */}
-      {isEditModalOpen && scannedTicket && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg p-8 w-full max-w-lg shadow-lg relative">
-            <button 
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700" 
-              onClick={() => setIsEditModalOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <h2 className="text-2xl font-bold mb-4 text-primary">إكمال معالجة التذكرة</h2>
-
-            {/* Static ticket info */}
-            <div className="space-y-2 mb-4 text-sm bg-muted/20 p-3 rounded-lg">
-              <div>رقم التذكرة: <span className="font-semibold">#{scannedTicket.id}</span></div>
-              <div>اسم العميل: <span className="font-semibold">{scannedTicket.clientName}</span></div>
-              <div>الوزن الداخل: <span className="font-semibold">{scannedTicket.weightIn} كيلو</span></div>
-              <div>تاريخ الاستلام: <span className="font-semibold">
-                {new Date(scannedTicket.dateReceived).toLocaleDateString('ar-TN')}
-              </span></div>
-            </div>
-
-            {/* Editable fields */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <label className="text-sm">
-                <span className="block mb-1">الوزن الخارج (كيلو)</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={editForm.weightOut}
-                  onChange={(e) => setEditForm((p) => ({ ...p, weightOut: e.target.value }))}
-                  placeholder="أدخل الوزن الخارج"
-                  className="w-full"
-                />
-              </label>
-              <label className="text-sm">
-                <span className="block mb-1">عدد الصناديق</span>
-                <Input
-                  type="number"
-                  min="0"
-                  value={editForm.numberOfBoxes}
-                  onChange={(e) => setEditForm((p) => ({ ...p, numberOfBoxes: e.target.value }))}
-                  placeholder="عدد الصناديق"
-                  className="w-full"
-                />
-              </label>
-            </div>
-
-            <div className="mb-4">
-              <label className="text-sm">
-                <span className="block mb-1">سعر الكيلو (دينار)</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editForm.unitPrice}
-                  onChange={(e) => setEditForm((p) => ({ ...p, unitPrice: e.target.value }))}
-                  placeholder="سعر الكيلو"
-                  className="w-full"
-                />
-              </label>
-            </div>
-
-            {/* Calculated values */}
-            {(editForm.weightOut || editForm.unitPrice) && (
-              <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-                <div className="p-3 rounded bg-blue-50 border border-blue-200">
-                  <div className="text-blue-800 font-medium">الوزن الصافي</div>
-                  <div className="text-lg font-bold text-blue-600">
-                    {calculateEditNetWeight().toFixed(2)} كيلو
+      {/* Recent Tickets Section */}
+      <div className="max-w-4xl mx-auto">
+        <OliveCard>
+          <OliveCardHeader>
+            <OliveCardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              التذاكر الحديثة
+              {totalTickets > 0 && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  ({totalTickets} تذكرة)
+                </span>
+              )}
+            </OliveCardTitle>
+          </OliveCardHeader>
+          <OliveCardContent>
+            {loadingTickets ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="mr-2 text-muted-foreground">جاري التحميل...</span>
+              </div>
+            ) : recentTickets.length === 0 ? (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <p className="text-muted-foreground">لا توجد تذاكر حتى الآن</p>
+                <p className="text-sm text-muted-foreground mt-1">ابدأ بإنشاء أول تذكرة</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {recentTickets.map((ticket) => (
+                  <div
+                    key={ticket.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => handleTicketClick(ticket)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                        <span className="text-sm font-bold text-primary">#{ticket.id}</span>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">
+                          {ticket.client 
+                            ? `${ticket.client.firstname} ${ticket.client.lastname}` 
+                            : `عميل #${ticket.clientId}`
+                          }
+                        </h4>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Scale className="h-3 w-3" />
+                            {ticket.weight_in} كيلو
+                          </span>
+                          {ticket.number_of_boxes > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Box className="h-3 w-3" />
+                              {ticket.number_of_boxes} صندوق
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {new Date(ticket.date_received || ticket.createdAt).toLocaleDateString('ar-TN')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className={`px-2 py-1 rounded text-xs font-medium ${
+                        ticket.status === 'received' 
+                          ? 'bg-yellow-100 text-yellow-800' 
+                          : ticket.status === 'in_process'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {ticket.status === 'received' ? 'مستلم' : 
+                         ticket.status === 'in_process' ? 'قيد المعالجة' : 'مكتمل'}
+                      </div>
+                      {ticket.total_amount && (
+                        <div className="text-right">
+                          <div className="font-semibold text-primary">
+                            {ticket.total_amount.toFixed(2)} دينار
+                          </div>
+                          {ticket.net_weight && ticket.unit_price && (
+                            <div className="text-xs text-muted-foreground">
+                              {ticket.net_weight} × {ticket.unit_price}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="p-3 rounded bg-green-50 border border-green-200">
-                  <div className="text-green-800 font-medium">المبلغ الإجمالي</div>
-                  <div className="text-lg font-bold text-green-600">
-                    {calculateEditTotalAmount().toFixed(2)} دينار
-                  </div>
-                </div>
+                ))}
               </div>
             )}
 
-            <div className="mb-6">
-              <label className="text-sm">
-                <span className="block mb-1">ملاحظات (اختياري)</span>
-                <Textarea
-                  value={editForm.notes}
-                  onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
-                  placeholder="أدخل أي ملاحظات إضافية"
-                  className="w-full"
-                />
-              </label>
-            </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  الصفحة {currentPage} من {totalPages}
+                </div>
+                <div className="flex items-center gap-2">
+                  <OliveButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadRecentTickets(currentPage - 1)}
+                    disabled={currentPage === 1 || loadingTickets}
+                  >
+                    السابق
+                  </OliveButton>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pageNum = i + 1;
+                      return (
+                        <OliveButton
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "primary" : "outline"}
+                          size="sm"
+                          onClick={() => loadRecentTickets(pageNum)}
+                          disabled={loadingTickets}
+                          className="w-8 h-8 p-0"
+                        >
+                          {pageNum}
+                        </OliveButton>
+                      );
+                    })}
+                  </div>
+                  <OliveButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadRecentTickets(currentPage + 1)}
+                    disabled={currentPage === totalPages || loadingTickets}
+                  >
+                    التالي
+                  </OliveButton>
+                </div>
+              </div>
+            )}
+          </OliveCardContent>
+        </OliveCard>
+      </div>
+    </div>
 
-            <div className="flex gap-2">
-              <OliveButton 
-                onClick={handleSaveChanges} 
-                disabled={isSaving || !editForm.weightOut || !editForm.numberOfBoxes} 
-                className="flex-1"
-              >
-                {isSaving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
-              </OliveButton>
-              <OliveButton 
-                variant="outline" 
-                onClick={() => setIsEditModalOpen(false)}
-                className="flex-1"
-              >
-                إلغاء
-              </OliveButton>
+    {/* Edit Modal for QR Scanned Ticket */}
+    {isEditModalOpen && scannedTicket && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-8 w-full max-w-lg shadow-lg relative">
+          <button 
+            className="absolute top-2 right-2 text-gray-500 hover:text-gray-700" 
+            onClick={() => setIsEditModalOpen(false)}
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          <h2 className="text-2xl font-bold mb-4 text-primary">إكمال معالجة التذكرة</h2>
+
+          {/* Static ticket info */}
+          <div className="space-y-2 mb-4 text-sm bg-muted/20 p-3 rounded-lg">
+            <div>رقم التذكرة: <span className="font-semibold">#{scannedTicket.id}</span></div>
+            <div>اسم العميل: <span className="font-semibold">{scannedTicket.clientName}</span></div>
+            <div>الوزن الداخل: <span className="font-semibold">{scannedTicket.weightIn} كيلو</span></div>
+            <div>تاريخ الاستلام: <span className="font-semibold">
+              {new Date(scannedTicket.dateReceived).toLocaleDateString('ar-TN')}
+            </span></div>
+          </div>
+
+          {/* Editable fields */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <label className="text-sm">
+              <span className="block mb-1">الوزن الخارج (كيلو)</span>
+              <Input
+                type="number"
+                step="0.01"
+                value={editForm.weightOut}
+                onChange={(e) => setEditForm((p) => ({ ...p, weightOut: e.target.value }))}
+                placeholder="أدخل الوزن الخارج"
+                className="w-full"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block mb-1">عدد الصناديق</span>
+              <Input
+                type="number"
+                min="0"
+                value={editForm.numberOfBoxes}
+                onChange={(e) => setEditForm((p) => ({ ...p, numberOfBoxes: e.target.value }))}
+                placeholder="عدد الصناديق"
+                className="w-full"
+              />
+            </label>
+          </div>
+
+          <div className="mb-4">
+            <label className="text-sm">
+              <span className="block mb-1">سعر الكيلو (دينار)</span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={editForm.unitPrice}
+                onChange={(e) => setEditForm((p) => ({ ...p, unitPrice: e.target.value }))}
+                placeholder="سعر الكيلو"
+                className="w-full"
+              />
+            </label>
+          </div>
+
+          {/* Calculated values */}
+          {(editForm.weightOut || editForm.unitPrice) && (
+            <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+              <div className="p-3 rounded bg-blue-50 border border-blue-200">
+                <div className="text-blue-800 font-medium">الوزن الصافي</div>
+                <div className="text-lg font-bold text-blue-600">
+                  {calculateEditNetWeight().toFixed(2)} كيلو
+                </div>
+              </div>
+              <div className="p-3 rounded bg-green-50 border border-green-200">
+                <div className="text-green-800 font-medium">المبلغ الإجمالي</div>
+                <div className="text-lg font-bold text-green-600">
+                  {calculateEditTotalAmount().toFixed(2)} دينار
+                </div>
+              </div>
             </div>
+          )}
+
+          <div className="mb-6">
+            <label className="text-sm">
+              <span className="block mb-1">ملاحظات (اختياري)</span>
+              <Textarea
+                value={editForm.notes}
+                onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
+                placeholder="أدخل أي ملاحظات إضافية"
+                className="w-full"
+              />
+            </label>
+          </div>
+
+          <div className="flex gap-2">
+            <OliveButton 
+              onClick={handleSaveChanges} 
+              disabled={isSaving || !editForm.weightOut || !editForm.numberOfBoxes} 
+              className="flex-1"
+            >
+              {isSaving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
+            </OliveButton>
+            <OliveButton 
+              variant="outline" 
+              onClick={() => setIsEditModalOpen(false)}
+              className="flex-1"
+            >
+              إلغاء
+            </OliveButton>
           </div>
         </div>
-      )}
-
-    </div>
+      </div>
+    )}
+    </>
   );
 }
