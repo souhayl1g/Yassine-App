@@ -76,6 +76,10 @@ export function DailyWorkPage() {
   const [totalTickets, setTotalTickets] = useState(0);
   const ticketsPerPage = 5;
 
+  // State for prices
+  const [currentPrices, setCurrentPrices] = useState<any>(null);
+  const [loadingPrices, setLoadingPrices] = useState(false);
+
   // QR Scan state
   const [scannedTicket, setScannedTicket] = useState<ScannedTicket | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -148,10 +152,33 @@ export function DailyWorkPage() {
     }
   };
 
-  // Load clients and tickets on component mount
+  // Load current prices from API
+  const loadCurrentPrices = async () => {
+    setLoadingPrices(true);
+    try {
+      const response = await api.get('/prices?latest=true');
+      
+      // Handle the response data properly
+      if (response && typeof response === 'object' && response !== null) {
+        setCurrentPrices(response);
+      } else {
+        // If no response or null, set to null
+        setCurrentPrices(null);
+      }
+    } catch (error: any) {
+      console.error('Error loading prices:', error);
+      setCurrentPrices(null);
+      // Don't show error toast for prices as it's not critical for daily operations
+    } finally {
+      setLoadingPrices(false);
+    }
+  };
+
+  // Load clients, tickets, and prices on component mount
   useEffect(() => {
     loadClients();
     loadRecentTickets();
+    loadCurrentPrices();
   }, []);
 
   // Search clients based on firstname and lastname
@@ -206,11 +233,15 @@ export function DailyWorkPage() {
         const ticket = await fetchTicketByCode(qrData.id);
         setScannedTicket(ticket);
 
-        // Set edit form with ticket data
+        // Set edit form with ticket data and use current prices if available
+        const suggestedUnitPrice = ticket.unitPrice !== undefined ? 
+          String(ticket.unitPrice) : 
+          (currentPrices?.milling_price_per_kg ? String(currentPrices.milling_price_per_kg) : '');
+
         setEditForm({
           weightOut: ticket.weightOut !== undefined ? String(ticket.weightOut) : '',
           numberOfBoxes: ticket.numberOfBoxes ? String(ticket.numberOfBoxes) : '',
-          unitPrice: ticket.unitPrice !== undefined ? String(ticket.unitPrice) : '',
+          unitPrice: suggestedUnitPrice,
           notes: '',
         });
 
@@ -464,11 +495,15 @@ export function DailyWorkPage() {
 
       setScannedTicket(scannedTicketData);
 
-      // Set edit form with ticket data
+      // Set edit form with ticket data and use current prices if available
+      const suggestedUnitPrice = scannedTicketData.unitPrice !== undefined ? 
+        String(scannedTicketData.unitPrice) : 
+        (currentPrices?.milling_price_per_kg ? String(currentPrices.milling_price_per_kg) : '');
+
       setEditForm({
         weightOut: scannedTicketData.weightOut !== undefined ? String(scannedTicketData.weightOut) : '',
         numberOfBoxes: scannedTicketData.numberOfBoxes ? String(scannedTicketData.numberOfBoxes) : '',
-        unitPrice: scannedTicketData.unitPrice !== undefined ? String(scannedTicketData.unitPrice) : '',
+        unitPrice: suggestedUnitPrice,
         notes: '',
       });
 
@@ -910,15 +945,79 @@ export function DailyWorkPage() {
           <div className="mb-4">
             <label className="text-sm">
               <span className="block mb-1">سعر الكيلو (دينار)</span>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={editForm.unitPrice}
-                onChange={(e) => setEditForm((p) => ({ ...p, unitPrice: e.target.value }))}
-                placeholder="سعر الكيلو"
-                className="w-full"
-              />
+              <div className="space-y-2">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editForm.unitPrice}
+                  onChange={(e) => setEditForm((p) => ({ ...p, unitPrice: e.target.value }))}
+                  placeholder="سعر الكيلو"
+                  className="w-full"
+                />
+                {/* Show current prices from backend */}
+                {currentPrices && (
+                  <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                    <div className="font-medium text-blue-800 mb-1">الأسعار الحالية من النظام:</div>
+                    <div className="grid grid-cols-2 gap-2 text-blue-700">
+                      {currentPrices.milling_price_per_kg > 0 && (
+                        <div>
+                          <span className="font-medium">العصر:</span> {currentPrices.milling_price_per_kg} د.ت
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(p => ({ ...p, unitPrice: String(currentPrices.milling_price_per_kg) }))}
+                            className="mr-1 text-blue-600 hover:text-blue-800 underline"
+                          >
+                            استخدم
+                          </button>
+                        </div>
+                      )}
+                      {currentPrices.oil_client_selling_price_per_kg > 0 && (
+                        <div>
+                          <span className="font-medium">بيع زيت:</span> {currentPrices.oil_client_selling_price_per_kg} د.ت
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(p => ({ ...p, unitPrice: String(currentPrices.oil_client_selling_price_per_kg) }))}
+                            className="mr-1 text-blue-600 hover:text-blue-800 underline"
+                          >
+                            استخدم
+                          </button>
+                        </div>
+                      )}
+                      {currentPrices.oil_export_selling_price_per_kg > 0 && (
+                        <div>
+                          <span className="font-medium">تصدير:</span> {currentPrices.oil_export_selling_price_per_kg} د.ت
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(p => ({ ...p, unitPrice: String(currentPrices.oil_export_selling_price_per_kg) }))}
+                            className="mr-1 text-blue-600 hover:text-blue-800 underline"
+                          >
+                            استخدم
+                          </button>
+                        </div>
+                      )}
+                      {currentPrices.olive_buying_price_per_kg > 0 && (
+                        <div>
+                          <span className="font-medium">شراء زيتون:</span> {currentPrices.olive_buying_price_per_kg} د.ت
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(p => ({ ...p, unitPrice: String(currentPrices.olive_buying_price_per_kg) }))}
+                            className="mr-1 text-blue-600 hover:text-blue-800 underline"
+                          >
+                            استخدم
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {loadingPrices && (
+                  <div className="p-2 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600">
+                    <RefreshCw className="h-3 w-3 animate-spin inline mr-1" />
+                    جاري تحميل الأسعار...
+                  </div>
+                )}
+              </div>
             </label>
           </div>
 
