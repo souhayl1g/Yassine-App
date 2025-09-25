@@ -15,8 +15,8 @@ const handleValidationErrors = (req, res, next) => {
 // Client validation rules
 const validateClient = [
   body('firstname').trim().notEmpty().withMessage('First name is required'),
-  body('lastname').trim().notEmpty().withMessage('Last name is required'),
-  body('phone').trim().notEmpty().withMessage('Phone is required'),
+  body('lastname').optional().trim(),
+  body('phone').optional().trim(),
   body('address').optional().trim(),
   handleValidationErrors
 ];
