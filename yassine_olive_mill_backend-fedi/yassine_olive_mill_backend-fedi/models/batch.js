@@ -15,6 +15,14 @@ export default (sequelize) => {
         key: 'id'
       }
     },
+    priceId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'prices',
+        key: 'id'
+      }
+    },
     date_received: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -48,6 +56,7 @@ export default (sequelize) => {
 
   Batch.associate = (models) => {
     Batch.belongsTo(models.Client, { foreignKey: 'clientId', as: 'client' });
+    Batch.belongsTo(models.Price, { foreignKey: 'priceId', as: 'price' });
     Batch.hasMany(models.ProcessingDecision, { foreignKey: 'batchId', as: 'processingDecisions' });
     Batch.hasMany(models.OilBatch, { foreignKey: 'batchId', as: 'oilBatches' });
     Batch.hasMany(models.Invoice, { foreignKey: 'batchId', as: 'invoices' });

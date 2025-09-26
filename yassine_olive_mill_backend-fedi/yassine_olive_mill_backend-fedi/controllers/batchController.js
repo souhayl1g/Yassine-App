@@ -1,7 +1,7 @@
 import db from "../models/index.js"
 import { Op } from 'sequelize';
 
-const { Batch, Client, ProcessingDecision, OilBatch, QualityTest } = db;
+const { Batch, Client, Price, ProcessingDecision, OilBatch, QualityTest } = db;
 
 const batchController = {
   // GET /api/batches
@@ -20,6 +20,7 @@ const batchController = {
         offset: parseInt(offset),
         include: [
           { model: Client, as: 'client', attributes: ['id', 'firstname', 'lastname'] },
+          { model: Price, as: 'price' },
           { model: ProcessingDecision, as: 'processingDecisions' },
           { model: OilBatch, as: 'oilBatches' }
         ],
@@ -51,6 +52,7 @@ const batchController = {
       const batch = await Batch.findByPk(id, {
         include: [
           { model: Client, as: 'client' },
+          { model: Price, as: 'price' },
           { model: ProcessingDecision, as: 'processingDecisions' },
           { 
             model: OilBatch, 
@@ -80,8 +82,14 @@ const batchController = {
         return res.status(400).json({ error: 'clientId is required' });
       }
 
+      // Get the latest price record
+      const latestPrice = await Price.findOne({
+        order: [['createdAt', 'DESC']]
+      });
+
       const batch = await Batch.create({
         clientId: parseInt(clientId),
+        priceId: latestPrice ? latestPrice.id : null, // Assign latest price
         weight_in: weight_in ? parseInt(weight_in) : null,
         weight_out: weight_out ? parseInt(weight_out) : null,
         net_weight: net_weight ? parseInt(net_weight) : null,
@@ -90,7 +98,10 @@ const batchController = {
       });
 
       const fullBatch = await Batch.findByPk(batch.id, {
-        include: [{ model: Client, as: 'client' }]
+        include: [
+          { model: Client, as: 'client' },
+          { model: Price, as: 'price' }
+        ]
       });
 
       res.status(201).json(fullBatch);
@@ -160,7 +171,12 @@ const batchController = {
       });
 
       await batch.update(updatable);
-      const updated = await Batch.findByPk(id, { include: [{ model: Client, as: 'client' }] });
+      const updated = await Batch.findByPk(id, { 
+        include: [
+          { model: Client, as: 'client' },
+          { model: Price, as: 'price' }
+        ] 
+      });
       res.json(updated);
     } catch (error) {
       console.error('Update batch error:', error);
