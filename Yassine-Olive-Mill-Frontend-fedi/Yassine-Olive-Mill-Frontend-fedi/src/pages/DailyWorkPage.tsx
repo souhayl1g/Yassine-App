@@ -1260,8 +1260,10 @@ export function DailyWorkPage() {
                         className="flex items-center gap-4 flex-1 cursor-pointer"
                         onClick={() => handleTicketClick(ticket)}
                       >
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-                          <span className="text-sm font-bold text-primary">#{ticket.ticketNumber}</span>
+                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 flex-shrink-0">
+                          <span className="text-xs font-bold text-primary text-center leading-tight">
+                            #{ticket.ticketNumber.split('/').pop()}
+                          </span>
                         </div>
                         <div className="flex-1">
                           <h4 className="font-semibold">{ticket.clientName}</h4>
@@ -1521,22 +1523,22 @@ export function DailyWorkPage() {
       {/* Edit Modal for Ticket */}
       {isEditModalOpen && scannedTicket && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#0F1729] text-white rounded-lg p-6 w-full max-w-lg shadow-lg relative">
+          <div className="bg-white dark:bg-gray-900 text-foreground rounded-lg p-6 w-full max-w-lg shadow-lg relative">
             <button 
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-200" 
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" 
               onClick={() => setIsEditModalOpen(false)}
             >
               <X className="h-5 w-5" />
             </button>
 
-            <h2 className="text-2xl font-bold mb-6 text-[#22C55E]">تعديل التذكرة #{scannedTicket.ticketNumber}</h2>
+            <h2 className="text-2xl font-bold mb-6 text-primary">تعديل التذكرة #{scannedTicket.ticketNumber}</h2>
 
             {/* Static ticket info */}
-            <div className="space-y-3 mb-6">
-              <div className="text-gray-300">رقم التذكرة: <span className="text-white font-medium">#{scannedTicket.ticketNumber}</span></div>
-              <div className="text-gray-300">اسم العميل: <span className="text-white font-medium">{scannedTicket.clientName}</span></div>
-              <div className="text-gray-300">الوزن الداخل: <span className="text-white font-medium">{scannedTicket.weightIn} كيلو</span></div>
-              <div className="text-gray-300">تاريخ الاستلام: <span className="text-white font-medium">
+            <div className="space-y-3 mb-6 p-4 bg-muted/20 rounded-lg">
+              <div className="text-muted-foreground">رقم التذكرة: <span className="text-foreground font-medium">#{scannedTicket.ticketNumber}</span></div>
+              <div className="text-muted-foreground">اسم العميل: <span className="text-foreground font-medium">{scannedTicket.clientName}</span></div>
+              <div className="text-muted-foreground">الوزن الداخل: <span className="text-foreground font-medium">{scannedTicket.weightIn} كيلو</span></div>
+              <div className="text-muted-foreground">تاريخ الاستلام: <span className="text-foreground font-medium">
                 {new Date(scannedTicket.dateReceived).toLocaleDateString('ar-TN')}
               </span></div>
             </div>
@@ -1544,45 +1546,49 @@ export function DailyWorkPage() {
             {/* Editable fields */}
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div>
-                <label className="text-gray-300 block mb-2">الوزن الخارج (كيلو)</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={editForm.weightOut}
-                  onChange={(e) => setEditForm((p) => ({ ...p, weightOut: e.target.value }))}
-                  placeholder="أدخل الوزن الخارج"
-                  className="bg-[#1D2839] border-gray-700 text-white"
-                />
+                <label className="text-sm">
+                  <span className="block mb-2">الوزن الخارج (كيلو)</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editForm.weightOut}
+                    onChange={(e) => setEditForm((p) => ({ ...p, weightOut: e.target.value }))}
+                    placeholder="أدخل الوزن الخارج"
+                    className="w-full"
+                  />
+                </label>
               </div>
               <div>
-                <label className="text-gray-300 block mb-2">عدد الصناديق</label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={editForm.numberOfBoxes}
-                  onChange={(e) => setEditForm((p) => ({ ...p, numberOfBoxes: e.target.value }))}
-                  placeholder="0"
-                  className="bg-[#1D2839] border-gray-700 text-white"
-                />
+                <label className="text-sm">
+                  <span className="block mb-2">عدد الصناديق</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={editForm.numberOfBoxes}
+                    onChange={(e) => setEditForm((p) => ({ ...p, numberOfBoxes: e.target.value }))}
+                    placeholder="0"
+                    className="w-full"
+                  />
+                </label>
               </div>
             </div>
 
             {/* Display current pricing information */}
             <div className="mb-6">
-              <div className="p-4 bg-[#1D2839] rounded-lg">
-                <div className="text-gray-300 mb-2">السعر المستخدم للحساب:</div>
+              <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">السعر المستخدم للحساب:</div>
                 {loadingPrices ? (
-                  <div className="flex items-center text-gray-300">
+                  <div className="flex items-center text-blue-700 dark:text-blue-300">
                     <RefreshCw className="h-4 w-4 animate-spin mr-2" />
                     جاري تحميل الأسعار...
                   </div>
                 ) : currentPrices && currentPrices.milling_price_per_kg > 0 ? (
-                  <div className="text-[#22C55E] font-medium">
+                  <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
                     سعر العصر: {currentPrices.milling_price_per_kg} دينار/كيلو
                   </div>
                 ) : (
-                  <div className="text-red-400">
-                    لا توجد أسعار محددة في النظام
+                  <div className="text-red-700 dark:text-red-400">
+                    لا توجد أسعار محددة في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
                   </div>
                 )}
               </div>
@@ -1590,20 +1596,20 @@ export function DailyWorkPage() {
 
             {/* Calculated values */}
             {editForm.weightOut && (
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="p-4 rounded bg-[#1D2839] border border-gray-700">
-                  <div className="text-gray-300 mb-1">الوزن الصافي</div>
-                  <div className="text-lg font-medium text-[#60A5FA]">
+              <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+                <div className="p-3 rounded bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+                  <div className="text-blue-800 dark:text-blue-200 font-medium">الوزن الصافي</div>
+                  <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                     {calculateEditNetWeight().toFixed(2)} كيلو
                   </div>
                 </div>
-                <div className="p-4 rounded bg-[#1D2839] border border-gray-700">
-                  <div className="text-gray-300 mb-1">المبلغ الإجمالي</div>
-                  <div className="text-lg font-medium text-[#22C55E]">
+                <div className="p-3 rounded bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+                  <div className="text-green-800 dark:text-green-200 font-medium">المبلغ الإجمالي</div>
+                  <div className="text-lg font-bold text-green-600 dark:text-green-400">
                     {calculateEditTotalAmount().toFixed(2)} دينار
                   </div>
                   {isMinimumPriceApplied() && (
-                    <div className="text-xs text-gray-400 mt-1">
+                    <div className="text-xs text-green-600 dark:text-green-400 mt-1">
                       تم تطبيق الحد الأدنى للسعر (40 دينار)
                     </div>
                   )}
@@ -1612,13 +1618,13 @@ export function DailyWorkPage() {
             )}
 
             <div className="mb-6">
-              <label>
-                <span className="block mb-2 text-gray-300">ملاحظات (اختياري)</span>
+              <label className="text-sm">
+                <span className="block mb-1">ملاحظات (اختياري)</span>
                 <Textarea
                   value={editForm.notes}
                   onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
                   placeholder="أدخل أي ملاحظات إضافية"
-                  className="bg-[#1D2839] border-gray-700 text-white w-full"
+                  className="w-full"
                 />
               </label>
             </div>
@@ -1627,14 +1633,14 @@ export function DailyWorkPage() {
               <OliveButton 
                 onClick={handleSaveChanges} 
                 disabled={isSaving}
-                className="flex-1 bg-[#22C55E] hover:bg-[#22C55E]/90 text-white"
+                className="flex-1"
               >
                 {isSaving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
               </OliveButton>
               <OliveButton 
                 variant="outline" 
                 onClick={() => minimizeTicket(scannedTicket)}
-                className="flex-1 border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700"
+                className="flex-1"
               >
                 <Minimize2 className="h-4 w-4 mr-2" />
                 تصغير
@@ -1642,7 +1648,7 @@ export function DailyWorkPage() {
               <OliveButton 
                 variant="outline" 
                 onClick={() => setIsEditModalOpen(false)}
-                className="flex-1 border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700"
+                className="flex-1"
               >
                 إلغاء
               </OliveButton>

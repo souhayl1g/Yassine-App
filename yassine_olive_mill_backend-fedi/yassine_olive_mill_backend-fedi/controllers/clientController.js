@@ -77,15 +77,15 @@ const clientController = {
     try {
       const { firstname, lastname, phone, address } = req.body;
       
-      if (!firstname || !lastname || !phone) {
-        return res.status(400).json({ error: 'firstname, lastname, and phone are required' });
+      if (!firstname || !lastname) {
+        return res.status(400).json({ error: 'firstname and lastname are required' });
       }
 
       const client = await Client.create({
         firstname,
         lastname, 
-        phone,
-        address
+        phone: phone || null,
+        address: address || null
       });
 
       res.status(201).json(client);
