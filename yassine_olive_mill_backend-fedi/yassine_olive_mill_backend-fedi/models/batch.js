@@ -48,6 +48,11 @@ export default (sequelize) => {
       type: DataTypes.ENUM('received', 'in_process', 'completed'),
       allowNull: false,
       defaultValue: 'received'
+    },
+    operation_type: {
+      type: DataTypes.ENUM('milling', 'sale'),
+      allowNull: true,
+      defaultValue: 'milling'
     }
   }, {
     tableName: 'batches',
@@ -57,7 +62,6 @@ export default (sequelize) => {
   Batch.associate = (models) => {
     Batch.belongsTo(models.Client, { foreignKey: 'clientId', as: 'client' });
     Batch.belongsTo(models.Price, { foreignKey: 'priceId', as: 'price' });
-    Batch.hasMany(models.ProcessingDecision, { foreignKey: 'batchId', as: 'processingDecisions' });
     Batch.hasMany(models.OilBatch, { foreignKey: 'batchId', as: 'oilBatches' });
     Batch.hasMany(models.Invoice, { foreignKey: 'batchId', as: 'invoices' });
   };

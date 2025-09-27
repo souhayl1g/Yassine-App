@@ -1,7 +1,7 @@
 import db from "../models/index.js"
 import { Op } from 'sequelize';
 
-const { Client, Batch, Invoice, ProcessingDecision } = db;
+const { Client, Batch, Invoice } = db;
 
 const clientController = {
   // GET /api/clients
@@ -52,11 +52,7 @@ const clientController = {
 
       const client = await Client.findByPk(id, {
         include: [
-          { 
-            model: Batch, 
-            as: 'batches',
-            include: [{ model: ProcessingDecision, as: 'processingDecisions' }]
-          },
+          { model: Batch, as: 'batches' },
           { model: Invoice, as: 'invoices' }
         ]
       });

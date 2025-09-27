@@ -1,7 +1,7 @@
 import db from "../models/index.js"
 import { Op } from 'sequelize';
 
-const { Batch, Client, Price, ProcessingDecision, OilBatch, QualityTest } = db;
+const { Batch, Client, Price, OilBatch, QualityTest } = db;
 
 const batchController = {
   // GET /api/batches
@@ -21,7 +21,6 @@ const batchController = {
         include: [
           { model: Client, as: 'client', attributes: ['id', 'firstname', 'lastname'] },
           { model: Price, as: 'price' },
-          { model: ProcessingDecision, as: 'processingDecisions' },
           { model: OilBatch, as: 'oilBatches' }
         ],
         order: [['date_received', 'DESC']]
@@ -53,7 +52,6 @@ const batchController = {
         include: [
           { model: Client, as: 'client' },
           { model: Price, as: 'price' },
-          { model: ProcessingDecision, as: 'processingDecisions' },
           { 
             model: OilBatch, 
             as: 'oilBatches',
@@ -76,7 +74,9 @@ const batchController = {
   // POST /api/batches
   createBatch: async (req, res) => {
     try {
-      const { clientId, weight_in, weight_out, net_weight, number_of_boxes } = req.body;
+      const { clientId, weight_in, weight_out, net_weight, number_of_boxes, operation_type, ticket_number, notes, status } = req.body;
+      
+      console.log('Creating batch with payload:', req.body);
       
       if (!clientId) {
         return res.status(400).json({ error: 'clientId is required' });
@@ -94,7 +94,10 @@ const batchController = {
         weight_out: weight_out ? parseInt(weight_out) : null,
         net_weight: net_weight ? parseInt(net_weight) : null,
         number_of_boxes: number_of_boxes ? parseInt(number_of_boxes) : null,
-        status: 'received'
+        operation_type: operation_type || 'milling', // Add operation_type field
+        ticket_number: ticket_number || null,
+        notes: notes || null,
+        status: status || 'received'
       });
 
       const fullBatch = await Batch.findByPk(batch.id, {
@@ -158,11 +161,13 @@ const batchController = {
         numberOfBoxes: 'number_of_boxes',
         unitPrice: 'unit_price',
         totalAmount: 'total_amount',
+        operationType: 'operation_type',
         status: 'status',
         isPaid: 'is_paid',
         paymentMethod: 'payment_method',
         paymentReference: 'payment_reference',
         datePaid: 'date_paid',
+        notes: 'notes',
       };
 
       Object.keys(req.body || {}).forEach((key) => {

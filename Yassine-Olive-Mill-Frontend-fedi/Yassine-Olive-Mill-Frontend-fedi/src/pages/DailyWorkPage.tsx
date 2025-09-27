@@ -60,6 +60,7 @@ interface Ticket {
   totalAmount?: number;
   dateReceived: string;
   status: 'received' | 'in_process' | 'completed';
+  operationType?: 'milling' | 'sale';
   notes?: string;
   qrCode?: string;
 }
@@ -132,6 +133,7 @@ export function DailyWorkPage() {
     firstname: '',
     lastname: '',
     weightIn: '',
+    operationType: 'milling', // 'milling' for عصر, 'sale' for بيع
     notes: '',
   });
 
@@ -355,6 +357,7 @@ export function DailyWorkPage() {
             totalAmount: ticket.total_amount ?? undefined,
             dateReceived: ticket.date_received || ticket.createdAt || new Date().toISOString(),
             status: ticket.status || 'received',
+            operationType: ticket.operation_type || 'milling',
             notes: ticket.notes || '',
             qrCode: qrCode
           };
@@ -488,6 +491,7 @@ export function DailyWorkPage() {
         totalAmount: data.total_amount ?? undefined,
         dateReceived: data.date_received || data.createdAt || new Date().toISOString(),
         status: data.status || 'received',
+        operationType: data.operation_type || 'milling',
         notes: data.notes || '',
         qrCode: qrCode
       };
@@ -538,10 +542,20 @@ export function DailyWorkPage() {
 
     const weightOut = editForm.weightOut === '' ? undefined : parseFloat(editForm.weightOut);
     const numberOfBoxes = Math.max(0, parseInt(editForm.numberOfBoxes || '0', 10));
-    const unitPrice = currentPrices?.milling_price_per_kg || 0;
+    
+    // Use appropriate price based on operation type
+    let unitPrice = 0;
+    const operationType = scannedTicket.operationType || 'milling';
+    
+    if (operationType === 'milling') {
+      unitPrice = currentPrices?.milling_price_per_kg || 0;
+    } else if (operationType === 'sale') {
+      unitPrice = currentPrices?.olive_buying_price_per_kg || 0;
+    }
 
     if (unitPrice <= 0) {
-      toast({ variant: 'destructive', title: t('common.error'), description: 'لا يوجد سعر محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.' });
+      const priceType = operationType === 'milling' ? 'سعر العصر' : 'سعر شراء الزيتون';
+      toast({ variant: 'destructive', title: t('common.error'), description: `لا يوجد ${priceType} محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.` });
       return;
     }
 
@@ -668,14 +682,17 @@ export function DailyWorkPage() {
       }
 
       const ticketNumber = generateDailyTicketNumber();
+      console.log('Creating ticket with operation type:', newTicket.operationType);
       const payload: any = {
         clientId: clientId,
         ticket_number: ticketNumber,
         weight_in: weightIn,
         net_weight: weightIn,
+        operation_type: newTicket.operationType,
         notes: newTicket.notes || undefined,
         status: 'received',
       };
+      console.log('Ticket payload:', payload);
 
       const response = await api.post('/batches', payload);
       const createdTicket = getPayload<any>(response);
@@ -700,6 +717,7 @@ export function DailyWorkPage() {
         numberOfBoxes: 0,
         dateReceived: new Date().toISOString(),
         status: 'received',
+        operationType: newTicket.operationType as 'milling' | 'sale',
         notes: newTicket.notes,
         qrCode: qrCode
       };
@@ -722,6 +740,7 @@ export function DailyWorkPage() {
         firstname: '', 
         lastname: '', 
         weightIn: '', 
+        operationType: 'milling',
         notes: '' 
       });
       setSelectedClient(null);
@@ -958,16 +977,30 @@ export function DailyWorkPage() {
   };
 
   // Calculate total amount from edit form
-  const calculateEditTotalAmount = () => {
+  const calculateEditTotalAmount = (operationType = 'milling') => {
     const netWeight = calculateEditNetWeight();
-    const unitPrice = currentPrices?.milling_price_per_kg || 0;
+    let unitPrice = 0;
+    
+    if (operationType === 'milling') {
+      unitPrice = currentPrices?.milling_price_per_kg || 0;
+    } else if (operationType === 'sale') {
+      unitPrice = currentPrices?.olive_buying_price_per_kg || 0;
+    }
+    
     const calculatedAmount = netWeight * unitPrice;
     return Math.max(40, +calculatedAmount.toFixed(2));
   };
 
-  const isMinimumPriceApplied = () => {
+  const isMinimumPriceApplied = (operationType = 'milling') => {
     const netWeight = calculateEditNetWeight();
-    const unitPrice = currentPrices?.milling_price_per_kg || 0;
+    let unitPrice = 0;
+    
+    if (operationType === 'milling') {
+      unitPrice = currentPrices?.milling_price_per_kg || 0;
+    } else if (operationType === 'sale') {
+      unitPrice = currentPrices?.olive_buying_price_per_kg || 0;
+    }
+    
     return (netWeight * unitPrice) < 40;
   };
 
@@ -1099,6 +1132,23 @@ export function DailyWorkPage() {
                   ) : null}
                 </div>
 
+                {/* Operation Type */}
+                <div className="space-y-2">
+                  <Label htmlFor="operationType">نوع العملية *</Label>
+                  <Select value={newTicket.operationType} onValueChange={(value: 'milling' | 'sale') => {
+                    console.log('Operation type selected:', value);
+                    setNewTicket((prev) => ({ ...prev, operationType: value }));
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر نوع العملية" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="milling">عصر</SelectItem>
+                      <SelectItem value="sale">بيع</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Weight In */}
                 <div className="space-y-2">
                   <Label htmlFor="weightIn">الوزن الداخل (كيلو) *</Label>
@@ -1139,6 +1189,7 @@ export function DailyWorkPage() {
                         firstname: '',
                         lastname: '',
                         weightIn: '',
+                        operationType: 'milling',
                         notes: '',
                       });
                       setSelectedClient(null);
@@ -1281,6 +1332,13 @@ export function DailyWorkPage() {
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
                               {new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}
+                            </span>
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                              ticket.operationType === 'sale' 
+                                ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200'
+                                : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200'
+                            }`}>
+                              {ticket.operationType === 'sale' ? 'بيع' : 'عصر'}
                             </span>
                           </div>
                         </div>
@@ -1573,18 +1631,57 @@ export function DailyWorkPage() {
               </div>
             </div>
 
-            {/* Display current pricing information */}
+            {/* Display current pricing information and operation type */}
             <div className="mb-6">
               <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <div className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">السعر المستخدم للحساب:</div>
+                <div className="flex justify-between items-center mb-2">
+                  <div className="text-sm font-medium text-blue-800 dark:text-blue-200">السعر المستخدم للحساب:</div>
+                  <div className={`px-2 py-1 rounded text-xs font-medium ${
+                    scannedTicket?.operationType === 'sale' 
+                      ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                      : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  }`}>
+                    {scannedTicket?.operationType === 'sale' ? 'عملية بيع' : 'عملية عصر'}
+                  </div>
+                </div>
                 {loadingPrices ? (
                   <div className="flex items-center text-blue-700 dark:text-blue-300">
                     <RefreshCw className="h-4 w-4 animate-spin mr-2" />
                     جاري تحميل الأسعار...
                   </div>
-                ) : currentPrices && currentPrices.milling_price_per_kg > 0 ? (
-                  <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
-                    سعر العصر: {currentPrices.milling_price_per_kg} دينار/كيلو
+                ) : currentPrices ? (
+                  <div className="space-y-2">
+                    {scannedTicket?.operationType === 'sale' ? (
+                      currentPrices.olive_buying_price_per_kg > 0 ? (
+                        <div>
+                          <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                            سعر شراء الزيتون: {currentPrices.olive_buying_price_per_kg} دينار/كيلو
+                          </div>
+                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            هذا السعر مخصص لعمليات شراء الزيتون من العملاء
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-red-700 dark:text-red-400">
+                          لا يوجد سعر شراء الزيتون محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                        </div>
+                      )
+                    ) : (
+                      currentPrices.milling_price_per_kg > 0 ? (
+                        <div>
+                          <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                            سعر العصر: {currentPrices.milling_price_per_kg} دينار/كيلو
+                          </div>
+                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            هذا السعر مخصص لعمليات عصر الزيتون للعملاء
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-red-700 dark:text-red-400">
+                          لا يوجد سعر العصر محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                        </div>
+                      )
+                    )}
                   </div>
                 ) : (
                   <div className="text-red-700 dark:text-red-400">
@@ -1606,9 +1703,9 @@ export function DailyWorkPage() {
                 <div className="p-3 rounded bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
                   <div className="text-green-800 dark:text-green-200 font-medium">المبلغ الإجمالي</div>
                   <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                    {calculateEditTotalAmount().toFixed(2)} دينار
+                    {calculateEditTotalAmount(scannedTicket?.operationType).toFixed(2)} دينار
                   </div>
-                  {isMinimumPriceApplied() && (
+                  {isMinimumPriceApplied(scannedTicket?.operationType) && (
                     <div className="text-xs text-green-600 dark:text-green-400 mt-1">
                       تم تطبيق الحد الأدنى للسعر (40 دينار)
                     </div>

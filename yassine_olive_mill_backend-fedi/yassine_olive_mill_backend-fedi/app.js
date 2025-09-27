@@ -68,7 +68,6 @@ app.get('/', (req, res) => {
     endpoints: {
       clients: '/api/clients',
       batches: '/api/batches',
-      'processing-decisions': '/api/processing-decisions',
       'pressing-sessions': '/api/pressing-sessions',
       'oil-batches': '/api/oil-batches',
       'quality-tests': '/api/quality-tests',

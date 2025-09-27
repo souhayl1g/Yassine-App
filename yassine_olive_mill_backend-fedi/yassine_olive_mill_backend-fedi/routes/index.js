@@ -4,7 +4,6 @@ const router = express.Router();
 // Import all route modules
 import clientRoutes from "./clients.js"
 import batchRoutes from "./batches.js"
-import processingDecisionRoutes from "./processingDecisions.js"
 import pressingSessionRoutes from "./pressingSessions.js"
 import oilBatchRoutes from "./oilBatches.js"
 import qualityTestRoutes from "./qualityTests.js"
@@ -19,7 +18,6 @@ import containerRoutes from "./containers.js"
 // Mount routes
 router.use('/clients', clientRoutes);
 router.use('/batches', batchRoutes);
-router.use('/processing-decisions', processingDecisionRoutes);
 router.use('/pressing-sessions', pressingSessionRoutes);
 router.use('/oil-batches', oilBatchRoutes);
 router.use('/quality-tests', qualityTestRoutes);
