@@ -20,7 +20,8 @@
     "roles": {
       "admin": "Admin",
       "operator": "Operator",
-      "scanner": "Scanner"
+      "scanner": "Scanner",
+      "presser": "Pressing Room Operator"
     }
   },
   "nav": {
@@ -32,6 +33,8 @@
     "sessions": "Work Sessions",
     "qr": "QR Scanner",
     "scanner": "Ticket Scanner",
+    "batchManagement": "Batch Management",
+    "pressingDisplay": "Pressing Room Display",
     "rooms": "Pressing Rooms",
     "history": "History",
     "settings": "Settings",

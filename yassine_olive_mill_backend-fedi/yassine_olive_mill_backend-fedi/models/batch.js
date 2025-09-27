@@ -48,6 +48,33 @@ export default (sequelize) => {
       type: DataTypes.ENUM('received', 'in_process', 'completed'),
       allowNull: false,
       defaultValue: 'received'
+    },
+    pressing_room_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'pressing_rooms',
+        key: 'id'
+      }
+    },
+    session_start_time: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    estimated_time: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 60,
+      comment: 'Estimated processing time in minutes'
+    },
+    ticket_number: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    number_of_bidons: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0
     }
   }, {
     tableName: 'batches',
@@ -57,6 +84,7 @@ export default (sequelize) => {
   Batch.associate = (models) => {
     Batch.belongsTo(models.Client, { foreignKey: 'clientId', as: 'client' });
     Batch.belongsTo(models.Price, { foreignKey: 'priceId', as: 'price' });
+    Batch.belongsTo(models.PressingRoom, { foreignKey: 'pressing_room_id', as: 'pressingRoom' });
     Batch.hasMany(models.ProcessingDecision, { foreignKey: 'batchId', as: 'processingDecisions' });
     Batch.hasMany(models.OilBatch, { foreignKey: 'batchId', as: 'oilBatches' });
     Batch.hasMany(models.Invoice, { foreignKey: 'batchId', as: 'invoices' });
