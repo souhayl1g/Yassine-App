@@ -11,6 +11,14 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
 
+  // Helper function to get redirect path based on user role
+  const getRedirectPath = (userRole: string) => {
+    if (userRole === 'scanner') {
+      return '/scanner';
+    }
+    return '/dashboard';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -24,7 +32,7 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
   }
 
   if (roles && !roles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getRedirectPath(user.role)} replace />;
   }
 
   return <>{children}</>;

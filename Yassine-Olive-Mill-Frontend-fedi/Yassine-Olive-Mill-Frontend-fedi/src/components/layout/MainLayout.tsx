@@ -22,14 +22,13 @@ import {
 import { cn } from '@/lib/utils';
 
 const navigationItems = [
-  { key: 'dailyWork', icon: Coffee, href: '/', roles: ['admin', 'operator', 'scanner'] },
+  { key: 'dailyWork', icon: Coffee, href: '/', roles: ['admin', 'operator'] },
   { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard', roles: ['admin', 'operator'] },
   { key: 'clients', icon: Users, href: '/clients', roles: ['admin', 'operator'] },
   { key: 'tickets', icon: FileText, href: '/tickets', roles: ['admin', 'operator'] },
   { key: 'containers', icon: Container, href: '/containers', roles: ['admin', 'operator'] },
   { key: 'sessions', icon: Clock, href: '/sessions', roles: ['admin', 'operator'] },
-  { key: 'qr', icon: QrCode, href: '/qr', roles: ['admin', 'operator'] },
-  { key: 'scanner', icon: QrCode, href: '/scanner', roles: ['scanner'] },
+  { key: 'scanner', icon: QrCode, href: '/scanner', roles: ['admin', 'operator', 'scanner'] },
   { key: 'rooms', icon: Building2, href: '/rooms', roles: ['admin', 'operator'] },
   { key: 'history', icon: History, href: '/history', roles: ['admin', 'operator'] },
   { key: 'settings', icon: Settings, href: '/settings', roles: ['admin'] },

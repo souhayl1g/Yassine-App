@@ -45,10 +45,18 @@ export const AuthPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Helper function to get redirect path based on user role
+  const getRedirectPath = (userRole: string) => {
+    if (userRole === 'scanner') {
+      return '/scanner';
+    }
+    return '/dashboard';
+  };
+
   // Redirect if already authenticated
   useEffect(() => {
     if (user) {
-      navigate('/dashboard');
+      navigate(getRedirectPath(user.role));
     }
   }, [user, navigate]);
 
@@ -81,7 +89,9 @@ export const AuthPage: React.FC = () => {
         title: t('common.success'),
         description: t('common.welcome'),
       });
-      navigate('/dashboard');
+      // Get the user from auth context to determine redirect path
+      const currentUser = JSON.parse(localStorage.getItem('olive-mill-user') || '{}');
+      navigate(getRedirectPath(currentUser.role || 'operator'));
     } else {
       toast({
         variant: 'destructive',
@@ -106,7 +116,9 @@ export const AuthPage: React.FC = () => {
         title: t('common.success'),
         description: t('common.welcome'),
       });
-      navigate('/dashboard');
+      // Get the user from auth context to determine redirect path
+      const currentUser = JSON.parse(localStorage.getItem('olive-mill-user') || '{}');
+      navigate(getRedirectPath(currentUser.role || data.role));
     } else {
       toast({
         variant: 'destructive',
