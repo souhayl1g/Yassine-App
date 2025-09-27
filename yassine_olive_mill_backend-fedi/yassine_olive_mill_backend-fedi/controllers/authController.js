@@ -15,12 +15,30 @@ const getConfig = async () => {
   return JSON.parse(configFile);
 };
 
-const ALLOWED_ROLES = ['admin', 'manager', 'operator', 'scanner'];
+const EN_WHITELIST = ['admin', 'manager', 'employee', 'scanner'];
 
-const normalizeRole = (role) => {
-  if (!role) return null;
-  const normalized = String(role).trim().toLowerCase();
-  return ALLOWED_ROLES.includes(normalized) ? normalized : null;
+const AR_TO_EN = {
+  'مدير': 'manager',
+  'مشغل': 'employee',
+  'ماسح': 'scanner',
+  'مسؤول': 'admin',
+  'مدير النظام': 'admin',
+};
+
+const EN_TO_AR = {
+  admin: 'مدير النظام',
+  manager: 'مدير',
+  employee: 'مشغل',
+  scanner: 'ماسح',
+};
+
+const normalizeRole = (raw) => {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  const lower = s.toLowerCase();
+  if (EN_WHITELIST.includes(lower)) return lower;           // English input
+  if (AR_TO_EN[s]) return AR_TO_EN[s];                      // Arabic input
+  return null;
 };
 
 const generateToken = async (user) => {
@@ -40,7 +58,7 @@ const generateToken = async (user) => {
 const register = async (req, res) => {
   try {
     console.log('Registration request:', req.body);
-    const { email, password, role = 'operator', firstname, lastname } = req.body;
+    const { email, password, role = 'employee', firstname, lastname } = req.body;
 
     if (!email || !password) {
       console.log('Missing required fields');
@@ -93,8 +111,8 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Normalize role if needed
-    if (!ALLOWED_ROLES.includes(user.role)) {
+    // If your DB has old Arabic roles, normalize them on the fly
+    if (!EN_WHITELIST.includes(user.role)) {
       const fixed = normalizeRole(user.role);
       if (fixed) {
         user.role = fixed;
@@ -109,7 +127,8 @@ const login = async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role,
+        role: user.role,               // EN
+        role_ar: EN_TO_AR[user.role],  // AR label for UI
         firstname: user.firstname,
         lastname: user.lastname,
       },
@@ -125,7 +144,10 @@ const getProfile = async (req, res) => {
     const user = await User.findByPk(req.user.id, { attributes: { exclude: ['password'] } });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    res.json(user.toJSON());
+    res.json({
+      ...user.toJSON(),
+      role_ar: EN_TO_AR[user.role] || user.role, // convenience
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ message: 'Error fetching profile', error: error.message });

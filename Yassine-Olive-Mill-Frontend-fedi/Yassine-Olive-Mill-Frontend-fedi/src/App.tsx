@@ -13,6 +13,7 @@ import { DailyWorkPage } from "@/pages/DailyWorkPage";
 import { ClientsPage } from "@/pages/ClientsPage";
 import { TicketsPage } from "@/pages/TicketsPage";
 import { QRScannerPage } from "@/pages/QRScannerPage";
+import { ScannerPage } from "@/pages/ScannerPage";
 import { RoomsPage } from "@/pages/RoomsPage";
 import { HistoryPage } from "@/pages/HistoryPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -54,6 +55,7 @@ const App = () => {
                 <Route path="/containers" element={<ProtectedRoute roles={['admin', 'operator']}><ContainersPage /></ProtectedRoute>} />
                 <Route path="/sessions" element={<ProtectedRoute roles={['admin', 'operator']}><SessionsPage /></ProtectedRoute>} />
                 <Route path="/qr" element={<QRScannerPage />} />
+                <Route path="/scanner" element={<ScannerPage />} />
                 <Route path="/rooms" element={<ProtectedRoute roles={['admin', 'operator']}><RoomsPage /></ProtectedRoute>} />
                 <Route path="/history" element={<ProtectedRoute roles={['admin', 'operator']}><HistoryPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute roles={['admin']}><SettingsPage /></ProtectedRoute>} />

@@ -21,9 +21,9 @@ export default (sequelize) => {
       allowNull: false
     },
     role: {
-      type: DataTypes.ENUM('admin', 'manager', 'operator', 'scanner'),
+      type: DataTypes.ENUM('admin', 'manager', 'employee', 'scanner'),
       allowNull: false,
-      defaultValue: 'operator'
+      defaultValue: 'employee'
     },
     firstname: {
       type: DataTypes.STRING,
