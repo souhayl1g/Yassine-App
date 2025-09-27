@@ -13,7 +13,7 @@ import { DailyWorkPage } from "@/pages/DailyWorkPage";
 import { ClientsPage } from "@/pages/ClientsPage";
 import { TicketsPage } from "@/pages/TicketsPage";
 import { QRScannerPage } from "@/pages/QRScannerPage";
-import { ScannerPage } from "@/pages/ScannerPage";
+import { ScannerPage } from "./pages/ScannerPage";
 import { RoomsPage } from "@/pages/RoomsPage";
 import { HistoryPage } from "@/pages/HistoryPage";
 import { SettingsPage } from "@/pages/SettingsPage";
