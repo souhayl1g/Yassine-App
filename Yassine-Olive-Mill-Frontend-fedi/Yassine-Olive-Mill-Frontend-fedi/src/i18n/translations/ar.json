@@ -20,7 +20,8 @@
     "roles": {
       "admin": "مدير",
       "operator": "مشغل",
-      "scanner": "ماسح"
+      "scanner": "ماسح",
+      "presser": "مشغل غرفة العصر"
     }
   },
   "nav": {
@@ -32,6 +33,8 @@
     "sessions": "جلسات العمل",
     "qr": "مسح QR",
     "scanner": "ماسح التذاكر",
+    "batchManagement": "إدارة الدفعات",
+    "pressingDisplay": "شاشة غرف العصر",
     "rooms": "غرف العصر",
     "history": "سجل النظام",
     "settings": "الإعدادات",

@@ -1,7 +1,9 @@
 import db from "../models/index.js"
 import { Op } from 'sequelize';
 
-const { Batch, Client, Price, OilBatch, QualityTest } = db;
+
+const { Batch, Client, Price, OilBatch, QualityTest, PressingSession, PressingRoom } = db;
+
 
 const batchController = {
   // GET /api/batches
@@ -21,6 +23,14 @@ const batchController = {
         include: [
           { model: Client, as: 'client', attributes: ['id', 'firstname', 'lastname'] },
           { model: Price, as: 'price' },
+
+          { 
+            model: db.PressingRoom, 
+            as: 'pressingRoom', 
+            attributes: ['id', 'name'],
+            required: false // LEFT JOIN to include batches without pressing rooms
+          },
+
           { model: OilBatch, as: 'oilBatches' }
         ],
         order: [['date_received', 'DESC']]
@@ -185,6 +195,105 @@ const batchController = {
       res.json(updated);
     } catch (error) {
       console.error('Update batch error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  },
+
+  // PUT /api/batches/:id/assign-room
+  assignToRoom: async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: 'Invalid batch ID' });
+
+      const { pressing_room_id, estimated_time } = req.body;
+      if (!pressing_room_id) {
+        return res.status(400).json({ error: 'pressing_room_id is required' });
+      }
+
+      const batch = await Batch.findByPk(id, {
+        include: [
+          { model: Client, as: 'client', attributes: ['id', 'firstname', 'lastname'] }
+        ]
+      });
+      
+      if (!batch) return res.status(404).json({ error: 'Batch not found' });
+
+      // Check if room is already occupied
+      const activeSession = await PressingSession.findOne({
+        where: { 
+          pressing_roomID: parseInt(pressing_room_id),
+          finish: null 
+        }
+      });
+
+      if (activeSession) {
+        return res.status(400).json({ error: 'Pressing room is already occupied' });
+      }
+
+      // Create pressing session
+      const session = await PressingSession.create({
+        pressing_roomID: parseInt(pressing_room_id),
+        number_of_boxes: batch.number_of_boxes || 1,
+        start: new Date()
+      });
+
+      // Update batch with pressing room assignment
+      await batch.update({
+        pressing_room_id: parseInt(pressing_room_id),
+        session_start_time: new Date(),
+        estimated_time: estimated_time || 60,
+        status: 'in_process'
+      });
+
+      // Return updated batch with client info
+      const updatedBatch = await Batch.findByPk(id, {
+        include: [
+          { model: Client, as: 'client', attributes: ['id', 'firstname', 'lastname'] },
+          { model: Price, as: 'price' },
+          { model: db.PressingRoom, as: 'pressingRoom', attributes: ['id', 'name'] }
+        ]
+      });
+
+      res.json({ batch: updatedBatch, session });
+    } catch (error) {
+      console.error('Assign batch to room error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  },
+
+  // PUT /api/batches/:id/complete-session
+  completeSession: async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: 'Invalid batch ID' });
+
+      const batch = await Batch.findByPk(id);
+      if (!batch) return res.status(404).json({ error: 'Batch not found' });
+
+      // Find and finish the active pressing session
+      if (batch.pressing_room_id) {
+        const activeSession = await PressingSession.findOne({
+          where: { 
+            pressing_roomID: batch.pressing_room_id,
+            finish: null 
+          }
+        });
+
+        if (activeSession) {
+          await activeSession.update({ finish: new Date() });
+        }
+      }
+
+      await batch.update({
+        pressing_room_id: null,
+        session_start_time: null,
+        estimated_time: null,
+        status: 'completed'
+      });
+
+      res.json(batch);
+    } catch (error) {
+      console.error('Complete batch session error:', error);
       res.status(400).json({ error: error.message });
     }
   },

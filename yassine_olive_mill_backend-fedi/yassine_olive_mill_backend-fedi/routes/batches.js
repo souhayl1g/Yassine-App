@@ -17,6 +17,12 @@ router.put('/:id', batchController.updateBatch);
 // PUT /api/batches/:id/status - Update batch status
 router.put('/:id/status', batchController.updateBatchStatus);
 
+// PUT /api/batches/:id/assign-room - Assign batch to pressing room
+router.put('/:id/assign-room', batchController.assignToRoom);
+
+// PUT /api/batches/:id/complete-session - Complete pressing session
+router.put('/:id/complete-session', batchController.completeSession);
+
 // DELETE /api/batches/:id - Delete batch
 router.delete('/:id', batchController.deleteBatch);
 
