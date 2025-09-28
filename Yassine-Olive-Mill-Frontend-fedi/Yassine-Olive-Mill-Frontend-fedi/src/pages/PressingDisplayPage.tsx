@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useFullscreen } from '@/contexts/FullscreenContext';
+import { api } from '@/integrations/api/client';
 import { 
   Factory, 
   Clock, 
@@ -28,7 +30,7 @@ interface PressingRoomData {
 export function PressingDisplayPage() {
   const [pressingRooms, setPressingRooms] = useState<PressingRoomData[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   // Initialize with 7 empty rooms
   const initializeRooms = () => {
@@ -40,51 +42,22 @@ export function PressingDisplayPage() {
     setPressingRooms(rooms);
   };
 
-  // Load data from API (simplified for now)
+  // Load data from API
   const loadPressingRooms = async () => {
     try {
-      // For now, let's simulate some data to test the display
-      const simulatedRooms: PressingRoomData[] = [
-        {
-          id: 1,
-          name: 'غرفة العصر 1',
-          status: 'busy',
-          currentBatch: {
-            id: '1',
-            clientName: 'أحمد محمد',
-            weightIn: 150,
-            numberOfBatches: 5,
-            sessionStartTime: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
-            estimatedTime: 60
-          }
-        },
-        {
-          id: 2,
-          name: 'غرفة العصر 2',
-          status: 'busy',
-          currentBatch: {
-            id: '2',
-            clientName: 'فاطمة علي',
-            weightIn: 200,
-            numberOfBatches: 8,
-            sessionStartTime: new Date(Date.now() - 75 * 60 * 1000).toISOString(), // 75 minutes ago
-            estimatedTime: 60
-          }
-        }
-      ];
-
-      // Fill remaining rooms as available
-      for (let i = 3; i <= 7; i++) {
-        simulatedRooms.push({
-          id: i,
-          name: `غرفة العصر ${i}`,
-          status: 'available'
-        });
+      console.log('Loading pressing rooms from API...');
+      const response = await api.get<PressingRoomData[]>('/api/pressing-rooms/display-data');
+      console.log('Pressing rooms response:', response);
+      
+      if (response && Array.isArray(response)) {
+        setPressingRooms(response);
+      } else {
+        console.warn('Invalid response format, falling back to initialization');
+        initializeRooms();
       }
-
-      setPressingRooms(simulatedRooms);
     } catch (error) {
       console.error('Error loading pressing rooms:', error);
+      // Fallback to empty rooms initialization
       initializeRooms();
     }
   };
@@ -125,31 +98,7 @@ export function PressingDisplayPage() {
     });
   };
 
-  // Fullscreen functionality
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
-        setIsFullscreen(true);
-      } else {
-        await document.exitFullscreen();
-        setIsFullscreen(false);
-      }
-    } catch (error) {
-      console.error('Fullscreen error:', error);
-      alert('فشل في تفعيل الشاشة الكاملة. تأكد من أن المتصفح يدعم هذه الميزة.');
-    }
-  };
-
-  // Listen for fullscreen changes
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+  // Fullscreen functionality is now handled by the context
 
   // Auto refresh data and time
   useEffect(() => {
@@ -172,20 +121,27 @@ export function PressingDisplayPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6 relative">
+      {/* Fullscreen Button - Absolute position relative to page */}
+      <button
+        onClick={() => {
+          console.log('Fullscreen button clicked');
+          toggleFullscreen().catch(error => {
+            console.error('Fullscreen error:', error);
+            alert('فشل في تفعيل الشاشة الكاملة. تأكد من أن المتصفح يدعم هذه الميزة.');
+          });
+        }}
+        className="absolute top-4 right-4 z-40 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-3 transition-all duration-200 flex items-center gap-2 text-white shadow-lg cursor-pointer"
+        title={isFullscreen ? "خروج من الشاشة الكاملة" : "شاشة كاملة"}
+      >
+        {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+        <span className="text-sm font-medium">
+          {isFullscreen ? "خروج" : "شاشة كاملة"}
+        </span>
+      </button>
+
       {/* Header */}
-      <div className="mb-8 text-center relative">
-        {/* Fullscreen Button */}
-        <button
-          onClick={toggleFullscreen}
-          className="absolute top-0 right-4 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg p-3 transition-all duration-200 flex items-center gap-2 text-white shadow-lg"
-          title={isFullscreen ? "خروج من الشاشة الكاملة" : "شاشة كاملة"}
-        >
-          {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-          <span className="text-sm font-medium">
-            {isFullscreen ? "خروج" : "شاشة كاملة"}
-          </span>
-        </button>
+      <div className="mb-8 text-center">
         
         <h1 className="text-5xl font-bold text-white mb-2 drop-shadow-lg">
           🫒 معصرة ياسين وأبوه

@@ -65,12 +65,12 @@ export function DashboardPage() {
       onClick: () => navigate('/clients'),
       roles: ['admin', 'operator']
     },
-    {
-      key: 'scanQR',
-      icon: QrCode,
-      onClick: () => navigate('/qr'),
-      roles: ['admin', 'operator', 'scanner']
-    },
+    // {
+    //   key: 'scanQR',
+    //   icon: QrCode,
+    //   onClick: () => navigate('/qr'),
+    //   roles: ['admin', 'operator', 'scanner']
+    // },
   ];
 
   const filteredActions = quickActions.filter(action => 

@@ -169,6 +169,7 @@ const batchController = {
         weightOut: 'weight_out',
         netWeight: 'net_weight',
         numberOfBoxes: 'number_of_boxes',
+        numberOfBidons: 'number_of_bidons',
         unitPrice: 'unit_price',
         totalAmount: 'total_amount',
         operationType: 'operation_type',

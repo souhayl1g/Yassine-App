@@ -20,6 +20,8 @@ interface ScannedTicketData {
   clientName: string;
   weightIn: number;
   status: string;
+  numberOfBoxes?: number;
+  numberOfBidons?: number;
 }
 
 export function ScannerPage() {
@@ -31,7 +33,7 @@ export function ScannerPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Form state
-  const [numberOfBatches, setNumberOfBatches] = useState('');
+  const [numberOfBoxes, setNumberOfBoxes] = useState('');
   const [numberOfBidons, setNumberOfBidons] = useState('');
 
   // Camera refs
@@ -142,6 +144,14 @@ export function ScannerPage() {
       const ticket = await fetchTicketByCode(ticketId);
       setScannedTicket(ticket);
       
+      // Pre-populate form fields with existing values if they exist
+      if (ticket.numberOfBoxes !== undefined && ticket.numberOfBoxes > 0) {
+        setNumberOfBoxes(String(ticket.numberOfBoxes));
+      }
+      if (ticket.numberOfBidons !== undefined && ticket.numberOfBidons > 0) {
+        setNumberOfBidons(String(ticket.numberOfBidons));
+      }
+      
       // Stop scanning after successful scan
       stopCamera();
       
@@ -180,7 +190,9 @@ export function ScannerPage() {
           ? `${data.client.firstname || ''} ${data.client.lastname || ''}`.trim()
           : `عميل #${data.clientId}`,
         weightIn: data.weight_in ?? 0,
-        status: data.status || 'received'
+        status: data.status || 'received',
+        numberOfBoxes: data.number_of_boxes || undefined,
+        numberOfBidons: data.number_of_bidons || undefined
       };
     } catch (e: any) {
       const errorMessage = e?.response?.status === 404 
@@ -195,14 +207,14 @@ export function ScannerPage() {
   const handleSaveUpdate = async () => {
     if (!scannedTicket) return;
 
-    const batches = parseInt(numberOfBatches || '0', 10);
+    const boxes = parseInt(numberOfBoxes || '0', 10);
     const bidons = parseInt(numberOfBidons || '0', 10);
 
-    if (batches <= 0 && bidons <= 0) {
+    if (boxes <= 0 && bidons <= 0) {
       toast({ 
         variant: 'destructive', 
         title: 'خطأ', 
-        description: 'يرجى إدخال عدد الدفعات أو عدد البيدونات' 
+        description: 'يرجى إدخال عدد الصناديق أو عدد البيدونات' 
       });
       return;
     }
@@ -210,8 +222,8 @@ export function ScannerPage() {
     setIsSaving(true);
     try {
       const payload = {
-        number_of_boxes: batches,
-        number_of_bidons: bidons,
+        numberOfBoxes: boxes,
+        numberOfBidons: bidons,
         status: 'in_process'
       };
 
@@ -239,7 +251,7 @@ export function ScannerPage() {
   // Reset scanner for new scan
   const resetScanner = () => {
     setScannedTicket(null);
-    setNumberOfBatches('');
+    setNumberOfBoxes('');
     setNumberOfBidons('');
     setIsCameraActive(true);
     setTimeout(() => {
@@ -285,30 +297,42 @@ export function ScannerPage() {
                 <span className="text-gray-600 dark:text-gray-400">الوزن الداخل:</span>
                 <span className="font-medium">{scannedTicket.weightIn} كيلو</span>
               </div>
+              {(scannedTicket.numberOfBoxes !== undefined && scannedTicket.numberOfBoxes > 0) && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">عدد الصناديق الحالي:</span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400">{scannedTicket.numberOfBoxes}</span>
+                </div>
+              )}
+              {(scannedTicket.numberOfBidons !== undefined && scannedTicket.numberOfBidons > 0) && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">عدد البيدونات الحالي:</span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400">{scannedTicket.numberOfBidons}</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Input Form */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="batches" className="flex items-center gap-2 text-lg">
-                <Layers className="h-5 w-5" />
-                عدد الدفعات
+              <Label htmlFor="boxes" className="flex items-center gap-2 text-lg">
+                <Box className="h-5 w-5" />
+                عدد الصناديق
               </Label>
               <Input
-                id="batches"
+                id="boxes"
                 type="number"
                 min="0"
-                value={numberOfBatches}
-                onChange={(e) => setNumberOfBatches(e.target.value)}
-                placeholder="أدخل عدد الدفعات"
+                value={numberOfBoxes}
+                onChange={(e) => setNumberOfBoxes(e.target.value)}
+                placeholder="أدخل عدد الصناديق"
                 className="text-lg p-3"
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="bidons" className="flex items-center gap-2 text-lg">
-                <Box className="h-5 w-5" />
+                <Layers className="h-5 w-5" />
                 عدد البيدونات
               </Label>
               <Input

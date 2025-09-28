@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { FullscreenProvider } from "@/contexts/FullscreenContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MainLayout } from "./components/layout/MainLayout";
 import { AuthPage } from "@/pages/auth/AuthPage";
@@ -38,15 +39,16 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true
-          }}
-        >
+        <FullscreenProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true
+            }}
+          >
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
@@ -56,7 +58,7 @@ const App = () => {
                 <Route path="/tickets" element={<ProtectedRoute roles={['admin', 'operator']}><TicketsPage /></ProtectedRoute>} />
                 <Route path="/containers" element={<ProtectedRoute roles={['admin', 'operator']}><ContainersPage /></ProtectedRoute>} />
                 <Route path="/sessions" element={<ProtectedRoute roles={['admin', 'operator']}><SessionsPage /></ProtectedRoute>} />
-                <Route path="/qr" element={<QRScannerPage />} />
+                {/* <Route path="/qr" element={<QRScannerPage />} /> */}
                 <Route path="/scanner" element={<ScannerPage />} />
                 <Route path="/batch-management" element={<ProtectedRoute roles={['admin', 'operator', 'presser']}><BatchManagementPage /></ProtectedRoute>} />
                 <Route path="/pressing-display" element={<PressingDisplayPage />} />
@@ -66,7 +68,8 @@ const App = () => {
               </Route>
             </Routes>
           </BrowserRouter>
-        </TooltipProvider>
+          </TooltipProvider>
+        </FullscreenProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -78,6 +78,84 @@ const pressingRoomController = {
     }
   },
 
+  // GET /api/pressing-rooms/display-data - get rooms with detailed session info for display
+  getPressingRoomsDisplayData: async (req, res) => {
+    try {
+      const rooms = await PressingRoom.findAll({
+        order: [["id", "ASC"]],
+      });
+
+      // Get active sessions with detailed information
+      const activeSessions = await PressingSession.findAll({ 
+        where: { finish: null },
+        include: [
+          {
+            model: db.OilBatch,
+            as: 'oilBatches',
+            include: [
+              {
+                model: db.Batch,
+                as: 'batch',
+                include: [
+                  {
+                    model: db.Client,
+                    as: 'client',
+                    attributes: ['id', 'firstname', 'lastname']
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      });
+
+      // Create a map of room ID to session data
+      const sessionMap = new Map();
+      activeSessions.forEach(session => {
+        if (session.pressing_roomID) {
+          // Calculate total weight and get client info from all batches in this session
+          let totalWeight = 0;
+          let clientName = 'غير محدد';
+          let ticketId = null;
+
+          if (session.oilBatches && session.oilBatches.length > 0) {
+            session.oilBatches.forEach(oilBatch => {
+              if (oilBatch.batch) {
+                totalWeight += oilBatch.batch.weight_in || 0;
+                if (oilBatch.batch.client && !ticketId) {
+                  clientName = `${oilBatch.batch.client.firstname} ${oilBatch.batch.client.lastname}`;
+                  ticketId = oilBatch.batch.id;
+                }
+              }
+            });
+          }
+
+          sessionMap.set(session.pressing_roomID, {
+            id: ticketId || session.id.toString(),
+            clientName: clientName,
+            weightIn: totalWeight,
+            numberOfBatches: session.oilBatches ? session.oilBatches.length : 0,
+            sessionStartTime: session.start,
+            estimatedTime: 60 // Default 60 minutes, could be configurable
+          });
+        }
+      });
+
+      // Map rooms with their status and active session data
+      const roomsWithStatus = rooms.map((room) => ({
+        id: room.id,
+        name: room.name,
+        status: sessionMap.has(room.id) ? 'busy' : 'available',
+        currentBatch: sessionMap.get(room.id) || undefined
+      }));
+
+      res.json(roomsWithStatus);
+    } catch (error) {
+      console.error("Get pressing rooms display data error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
   // DELETE /api/pressing-rooms/:id
   deletePressingRoom: async (req, res) => {
     try {
