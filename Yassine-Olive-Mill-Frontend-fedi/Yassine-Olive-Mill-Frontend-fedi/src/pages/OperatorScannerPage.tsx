@@ -27,7 +27,14 @@ interface ScannedTicketData {
   numberOfBidons?: number;
 }
 
-export function ScannerPage() {
+interface PressingRoom {
+  id: number;
+  name: string;
+  capacity: number;
+  status: 'active' | 'inactive';
+}
+
+export function OperatorScannerPage() {
   const { toast } = useToast();
 
   // Scanner state
@@ -35,9 +42,16 @@ export function ScannerPage() {
   const [scannedTicket, setScannedTicket] = useState<ScannedTicketData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Flow state
+  const [currentStep, setCurrentStep] = useState<'scanner' | 'ticket-info' | 'room-selection' | 'boxes-input'>('scanner');
+  
+  // Pressing room state
+  const [pressingRooms, setPressingRooms] = useState<PressingRoom[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<PressingRoom | null>(null);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  
   // Form state
-  const [numberOfBoxes, setNumberOfBoxes] = useState('');
-  const [numberOfBidons, setNumberOfBidons] = useState('');
+  const [numberOfBoxesToProcess, setNumberOfBoxesToProcess] = useState('1');
 
   // Camera refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -119,10 +133,10 @@ export function ScannerPage() {
       qrScannerRef.current = null;
     }
 
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
+    if (videoRef.current && (videoRef.current as any).srcObject) {
+      const stream = (videoRef.current as any).srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
+      (videoRef.current as any).srcObject = null;
     }
 
     setIsCameraActive(false);
@@ -147,21 +161,37 @@ export function ScannerPage() {
       const ticket = await fetchTicketByCode(ticketId);
       setScannedTicket(ticket);
       
-      // Pre-populate form fields with existing values if they exist
-      if (ticket.numberOfBoxes !== undefined && ticket.numberOfBoxes > 0) {
-        setNumberOfBoxes(String(ticket.numberOfBoxes));
-      }
-      if (ticket.numberOfBidons !== undefined && ticket.numberOfBidons > 0) {
-        setNumberOfBidons(String(ticket.numberOfBidons));
-      }
-      
       // Stop scanning after successful scan
       stopCamera();
+      
+      // Move to ticket info step
+      setCurrentStep('ticket-info');
       
       toast({ title: 'نجح', description: 'تم مسح رمز QR بنجاح' });
     } catch (error: any) {
       console.error('QR scan error:', error);
       toast({ variant: 'destructive', title: 'خطأ', description: error.message || 'فشل قراءة رمز QR' });
+    }
+  };
+
+  // Fetch pressing rooms with their status
+  const fetchPressingRooms = async (): Promise<PressingRoom[]> => {
+    try {
+      setIsLoadingRooms(true);
+      const res = await api.get<PressingRoom[]>('/pressing-rooms');
+      const rooms = getPayload<PressingRoom[]>(res);
+      setPressingRooms(rooms);
+      return rooms;
+    } catch (error: any) {
+      console.error('Failed to fetch pressing rooms:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'فشل في جلب غرف العصر',
+      });
+      return [];
+    } finally {
+      setIsLoadingRooms(false);
     }
   };
 
@@ -206,45 +236,74 @@ export function ScannerPage() {
     }
   };
 
-  // Update batch with scanner data
-  const handleSaveUpdate = async () => {
-    if (!scannedTicket) return;
+  // Handle proceeding to room selection
+  const handleProceedToRoomSelection = async () => {
+    await fetchPressingRooms();
+    setCurrentStep('room-selection');
+  };
 
-    const boxes = parseInt(numberOfBoxes || '0', 10);
-    const bidons = parseInt(numberOfBidons || '0', 10);
+  // Handle room selection
+  const handleRoomSelection = (room: PressingRoom) => {
+    if (room.status === 'active') {
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'هذه الغرفة مشغولة حالياً',
+      });
+      return;
+    }
+    setSelectedRoom(room);
+    setCurrentStep('boxes-input');
+  };
 
-    if (boxes <= 0 && bidons <= 0) {
+  // Create pressing session
+  const handleCreatePressingSession = async () => {
+    if (!scannedTicket || !selectedRoom) return;
+
+    const boxesToProcess = parseInt(numberOfBoxesToProcess || '1', 10);
+
+    if (boxesToProcess <= 0) {
       toast({ 
         variant: 'destructive', 
         title: 'خطأ', 
-        description: 'يرجى إدخال عدد الصناديق أو عدد البيدونات' 
+        description: 'يرجى إدخال عدد صحيح من الصناديق' 
+      });
+      return;
+    }
+
+    if (scannedTicket.numberOfBoxes && boxesToProcess > scannedTicket.numberOfBoxes) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: `لا يمكن معالجة أكثر من ${scannedTicket.numberOfBoxes} صندوق` 
       });
       return;
     }
 
     setIsSaving(true);
     try {
-      const payload = {
-        numberOfBoxes: boxes,
-        numberOfBidons: bidons,
-        status: 'in_process'
+      // Create pressing session
+      const sessionPayload = {
+        pressing_roomID: selectedRoom.id,
+        number_of_boxes: boxesToProcess,
+        status: 'active'
       };
 
-      await api.put(`/batches/${scannedTicket.id}`, payload);
+      await api.post('/pressing-sessions', sessionPayload);
 
       toast({ 
         title: 'نجح', 
-        description: 'تم تحديث التذكرة بنجاح' 
+        description: `تم إنشاء جلسة عصر في ${selectedRoom.name} بنجاح` 
       });
       
       // Reset for next scan
       resetScanner();
     } catch (error: any) {
-      console.error('Update failed:', error);
+      console.error('Create pressing session failed:', error);
       toast({
         variant: 'destructive',
         title: 'خطأ',
-        description: error?.message || 'فشل في تحديث التذكرة',
+        description: error?.message || 'فشل في إنشاء جلسة العصر',
       });
     } finally {
       setIsSaving(false);
@@ -254,8 +313,10 @@ export function ScannerPage() {
   // Reset scanner for new scan
   const resetScanner = () => {
     setScannedTicket(null);
-    setNumberOfBoxes('');
-    setNumberOfBidons('');
+    setSelectedRoom(null);
+    setPressingRooms([]);
+    setNumberOfBoxesToProcess('1');
+    setCurrentStep('scanner');
     setIsCameraActive(true);
     setTimeout(() => {
       initializeCamera();
@@ -264,28 +325,31 @@ export function ScannerPage() {
 
   // Start camera when component mounts
   useEffect(() => {
-    initializeCamera();
+    if (currentStep === 'scanner') {
+      initializeCamera();
+    }
     return () => {
       stopCamera();
     };
-  }, []);
+  }, [currentStep]);
 
-  if (scannedTicket) {
-    // Show update form when ticket is scanned
+  // Ticket Info Step
+  if (currentStep === 'ticket-info' && scannedTicket) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
         <div className="max-w-md mx-auto space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-              تحديث التذكرة
+              ماسح التذاكر (المشغل)
             </h1>
+            <p className="text-gray-600 dark:text-gray-300">معلومات التذكرة</p>
           </div>
 
           {/* Ticket Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
             <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-4 text-lg">
-              بيانات التذكرة
+              بيانات العميل (للقراءة فقط)
             </h3>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
@@ -300,53 +364,12 @@ export function ScannerPage() {
                 <span className="text-gray-600 dark:text-gray-400">الوزن الداخل:</span>
                 <span className="font-medium">{scannedTicket.weightIn} كيلو</span>
               </div>
-              {(scannedTicket.numberOfBoxes !== undefined && scannedTicket.numberOfBoxes > 0) && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">عدد الصناديق الحالي:</span>
-                  <span className="font-medium text-blue-600 dark:text-blue-400">{scannedTicket.numberOfBoxes}</span>
-                </div>
-              )}
-              {(scannedTicket.numberOfBidons !== undefined && scannedTicket.numberOfBidons > 0) && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">عدد البيدونات الحالي:</span>
-                  <span className="font-medium text-blue-600 dark:text-blue-400">{scannedTicket.numberOfBidons}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Input Form */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="boxes" className="flex items-center gap-2 text-lg">
-                <Box className="h-5 w-5" />
-                عدد الصناديق
-              </Label>
-              <Input
-                id="boxes"
-                type="number"
-                min="0"
-                value={numberOfBoxes}
-                onChange={(e) => setNumberOfBoxes(e.target.value)}
-                placeholder="أدخل عدد الصناديق"
-                className="text-lg p-3"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="bidons" className="flex items-center gap-2 text-lg">
-                <Layers className="h-5 w-5" />
-                عدد البيدونات
-              </Label>
-              <Input
-                id="bidons"
-                type="number"
-                min="0"
-                value={numberOfBidons}
-                onChange={(e) => setNumberOfBidons(e.target.value)}
-                placeholder="أدخل عدد البيدونات"
-                className="text-lg p-3"
-              />
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">عدد الصناديق المتبقية:</span>
+                <span className="font-medium text-blue-600 dark:text-blue-400">
+                  {scannedTicket.numberOfBoxes || 0}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -356,25 +379,171 @@ export function ScannerPage() {
               variant="outline"
               onClick={resetScanner}
               className="flex-1 text-lg py-3"
-              disabled={isSaving}
             >
               <RotateCcw className="h-5 w-5 mr-2" />
               مسح جديد
             </OliveButton>
             <OliveButton
-              onClick={handleSaveUpdate}
+              onClick={handleProceedToRoomSelection}
+              className="flex-1 text-lg py-3"
+            >
+              متابعة لاختيار الغرفة
+            </OliveButton>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Room Selection Step
+  if (currentStep === 'room-selection') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
+        <div className="max-w-md mx-auto space-y-6">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+              اختيار غرفة العصر
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300">اختر غرفة عصر متاحة</p>
+          </div>
+
+          {/* Rooms List */}
+          <div className="space-y-3">
+            {isLoadingRooms ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-600 dark:text-gray-300">جاري تحميل الغرف...</p>
+              </div>
+            ) : pressingRooms.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-600 dark:text-gray-300">لا توجد غرف متاحة</p>
+              </div>
+            ) : (
+              pressingRooms.map((room) => (
+                <div
+                  key={room.id}
+                  className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg border cursor-pointer transition-all ${
+                    room.status === 'active' 
+                      ? 'border-red-300 bg-red-50 dark:bg-red-900/20 cursor-not-allowed opacity-60' 
+                      : 'border-green-300 bg-green-50 dark:bg-green-900/20 hover:shadow-xl'
+                  }`}
+                  onClick={() => handleRoomSelection(room)}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="font-semibold text-lg">{room.name}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        السعة: {room.capacity || 'غير محدد'}
+                      </p>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      room.status === 'active' 
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' 
+                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    }`}>
+                      {room.status === 'active' ? 'مشغولة' : 'متاحة'}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Back Button */}
+          <OliveButton
+            variant="outline"
+            onClick={() => setCurrentStep('ticket-info')}
+            className="w-full text-lg py-3"
+          >
+            <RotateCcw className="h-5 w-5 mr-2" />
+            العودة لمعلومات التذكرة
+          </OliveButton>
+        </div>
+      </div>
+    );
+  }
+
+  // Boxes Input Step
+  if (currentStep === 'boxes-input' && selectedRoom) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
+        <div className="max-w-md mx-auto space-y-6">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+              عدد الصناديق للمعالجة
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300">غرفة العصر: {selectedRoom.name}</p>
+          </div>
+
+          {/* Selected Room Info */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
+            <h3 className="font-semibold text-green-800 dark:text-green-200 mb-4 text-lg">
+              معلومات الغرفة المختارة
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">اسم الغرفة:</span>
+                <span className="font-medium">{selectedRoom.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">الحالة:</span>
+                <span className="font-medium text-green-600 dark:text-green-400">متاحة</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Boxes Input */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="boxesToProcess" className="flex items-center gap-2 text-lg">
+                <Box className="h-5 w-5" />
+                عدد الصناديق للمعالجة
+              </Label>
+              <Input
+                id="boxesToProcess"
+                type="number"
+                min="1"
+                max={scannedTicket?.numberOfBoxes || 999}
+                value={numberOfBoxesToProcess}
+                onChange={(e) => setNumberOfBoxesToProcess(e.target.value)}
+                placeholder="أدخل عدد الصناديق"
+                className="text-lg p-3"
+              />
+              {scannedTicket?.numberOfBoxes && (
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  الحد الأقصى: {scannedTicket.numberOfBoxes} صندوق
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <OliveButton
+              variant="outline"
+              onClick={() => setCurrentStep('room-selection')}
+              className="flex-1 text-lg py-3"
+              disabled={isSaving}
+            >
+              <RotateCcw className="h-5 w-5 mr-2" />
+              العودة للغرف
+            </OliveButton>
+            <OliveButton
+              onClick={handleCreatePressingSession}
               className="flex-1 text-lg py-3"
               disabled={isSaving}
             >
               {isSaving ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  جاري الحفظ...
+                  جاري الإنشاء...
                 </>
               ) : (
                 <>
                   <Save className="h-5 w-5 mr-2" />
-                  حفظ التحديث
+                  إنشاء جلسة العصر
                 </>
               )}
             </OliveButton>
@@ -391,7 +560,7 @@ export function ScannerPage() {
         {/* Header */}
         <div className="p-4 text-center bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-            ماسح التذاكر
+            ماسح التذاكر (المشغل)
           </h1>
           <p className="text-gray-600 dark:text-gray-300 mt-1">
             وجه الكاميرا نحو رمز QR

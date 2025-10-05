@@ -26,6 +26,11 @@ export default (sequelize) => {
         model: 'pressing_rooms',
         key: 'id'
       }
+    },
+    status: {
+      type: DataTypes.ENUM('waiting', 'done', 'active'),
+      allowNull: false,
+      defaultValue: 'waiting'
     }
   }, {
     tableName: 'pressing_sessions',

@@ -33,6 +33,7 @@
     "sessions": "Work Sessions",
     "qr": "QR Scanner",
     "scanner": "Ticket Scanner",
+    "operatorScanner": "Operator Scanner",
     "batchManagement": "Batch Management",
     "pressingDisplay": "Pressing Room Display",
     "rooms": "Pressing Rooms",

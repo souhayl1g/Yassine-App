@@ -23,6 +23,7 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import ContainersPage from "@/pages/ContainersPage";
 import SessionsPage from "@/pages/SessionsPage";
 import "./i18n";
+import { OperatorScannerPage } from "@/pages/OperatorScannerPage";
 
 const queryClient = new QueryClient();
 
@@ -60,6 +61,7 @@ const App = () => {
                 <Route path="/sessions" element={<ProtectedRoute roles={['admin', 'operator']}><SessionsPage /></ProtectedRoute>} />
                 {/* <Route path="/qr" element={<QRScannerPage />} /> */}
                 <Route path="/scanner" element={<ScannerPage />} />
+                <Route path="/operator-scanner" element={<ProtectedRoute roles={['operator']}><OperatorScannerPage /></ProtectedRoute>} />
                 <Route path="/batch-management" element={<ProtectedRoute roles={['admin', 'operator', 'presser']}><BatchManagementPage /></ProtectedRoute>} />
                 <Route path="/pressing-display" element={<PressingDisplayPage />} />
                 <Route path="/rooms" element={<ProtectedRoute roles={['admin', 'operator']}><RoomsPage /></ProtectedRoute>} />
