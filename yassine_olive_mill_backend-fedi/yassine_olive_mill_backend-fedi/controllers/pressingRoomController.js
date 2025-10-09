@@ -163,6 +163,8 @@ const pressingRoomController = {
 
           sessionMap.set(session.pressing_roomID, {
             id: ticketId,
+            sessionId: session.id, // Add the actual pressing session ID
+            batchId: session.batch?.id, // Add the actual batch database ID
             clientName: clientName,
             weightIn: weightIn,
             numberOfBatches: session.number_of_boxes, // Using number_of_boxes from session

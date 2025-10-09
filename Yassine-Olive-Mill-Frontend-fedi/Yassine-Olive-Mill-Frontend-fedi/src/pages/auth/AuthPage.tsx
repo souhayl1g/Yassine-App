@@ -50,6 +50,12 @@ export const AuthPage: React.FC = () => {
     if (userRole === 'scanner') {
       return '/scanner';
     }
+    if (userRole === 'operator') {
+      return '/operator-scanner';
+    }
+    if (userRole === 'employee') {
+      return '/employee-scanner';
+    }
     return '/dashboard';
   };
 

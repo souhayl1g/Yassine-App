@@ -78,10 +78,17 @@ export default (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true
     },
+    bidons_brought: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Number of bidons brought by client (entered in scanner user page)'
+    },
     number_of_bidons: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      defaultValue: 0
+      defaultValue: 0,
+      comment: 'Final number of bidons produced (entered in employee scanning page)'
     },
     boxes_loaded_to_pressing: {
       type: DataTypes.INTEGER,

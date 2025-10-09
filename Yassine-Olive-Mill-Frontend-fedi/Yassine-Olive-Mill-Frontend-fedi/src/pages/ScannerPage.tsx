@@ -195,7 +195,7 @@ export function ScannerPage() {
         weightIn: data.weight_in ?? 0,
         status: data.status || 'received',
         numberOfBoxes: data.number_of_boxes || undefined,
-        numberOfBidons: data.number_of_bidons || undefined
+        numberOfBidons: data.bidons_brought || undefined  // Changed from number_of_bidons to bidons_brought
       };
     } catch (e: any) {
       const errorMessage = e?.response?.status === 404 
@@ -226,7 +226,7 @@ export function ScannerPage() {
     try {
       const payload = {
         numberOfBoxes: boxes,
-        numberOfBidons: bidons,
+        bidons_brought: bidons,  // Changed from numberOfBidons to bidons_brought
         status: 'in_process'
       };
 

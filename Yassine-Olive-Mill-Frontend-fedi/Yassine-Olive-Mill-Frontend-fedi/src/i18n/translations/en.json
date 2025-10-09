@@ -34,6 +34,7 @@
     "qr": "QR Scanner",
     "scanner": "Ticket Scanner",
     "operatorScanner": "Operator Scanner",
+    "employeeScanner": "Room Scanner",
     "batchManagement": "Batch Management",
     "pressingDisplay": "Pressing Room Display",
     "rooms": "Pressing Rooms",

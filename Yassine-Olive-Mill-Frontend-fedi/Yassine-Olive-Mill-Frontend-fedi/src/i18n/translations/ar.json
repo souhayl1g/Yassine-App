@@ -34,6 +34,7 @@
     "qr": "مسح QR",
     "scanner": "ماسح التذاكر",
     "operatorScanner": "ماسح المشغل",
+    "employeeScanner": "ماسح الغرف",
     "batchManagement": "إدارة الدفعات",
     "pressingDisplay": "شاشة غرف العصر",
     "rooms": "غرف العصر",

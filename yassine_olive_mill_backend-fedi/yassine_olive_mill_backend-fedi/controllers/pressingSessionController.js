@@ -189,6 +189,78 @@ const pressingSessionController = {
       console.error('Update pressing session status error:', error);
       res.status(400).json({ error: error.message });
     }
+  },
+
+  // PUT /api/pressing-sessions/:id
+  updatePressingSession: async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'Invalid pressing session ID' });
+      }
+
+      const session = await PressingSession.findByPk(id);
+      if (!session) {
+        return res.status(404).json({ error: 'Pressing session not found' });
+      }
+
+      // Prepare update data
+      const updateData = {};
+      const allowedFields = ['status', 'finish', 'oil_bidons_produced', 'number_of_boxes'];
+      
+      for (const field of allowedFields) {
+        if (req.body.hasOwnProperty(field)) {
+          updateData[field] = req.body[field];
+        }
+      }
+
+      // Handle status transitions
+      if (updateData.status) {
+        const validStatuses = ['waiting', 'done', 'active'];
+        if (!validStatuses.includes(updateData.status)) {
+          return res.status(400).json({ error: 'Invalid status. Must be one of: waiting, done, active' });
+        }
+
+        // If setting to active, check if room is already in use
+        if (updateData.status === 'active' && session.status !== 'active') {
+          const activeSession = await PressingSession.findOne({
+            where: { 
+              pressing_roomID: session.pressing_roomID,
+              status: 'active',
+              id: { [db.Sequelize.Op.ne]: id }
+            }
+          });
+
+          if (activeSession) {
+            return res.status(400).json({ error: 'Pressing room is already in use by another session' });
+          }
+        }
+
+        // Auto-set finish time when setting to done
+        if (updateData.status === 'done' && !session.finish && !updateData.finish) {
+          updateData.finish = new Date();
+        }
+      }
+
+      // Handle finish time
+      if (updateData.finish) {
+        updateData.finish = new Date(updateData.finish);
+      }
+
+      await session.update(updateData);
+
+      const updatedSession = await PressingSession.findByPk(id, {
+        include: [
+          { model: PressingRoom, as: 'pressingRoom' },
+          { model: OilBatch, as: 'oilBatches' }
+        ]
+      });
+
+      res.json(updatedSession);
+    } catch (error) {
+      console.error('Update pressing session error:', error);
+      res.status(400).json({ error: error.message });
+    }
   }
 };
 

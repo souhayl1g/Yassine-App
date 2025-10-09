@@ -170,6 +170,7 @@ const batchController = {
         netWeight: 'net_weight',
         numberOfBoxes: 'number_of_boxes',
         numberOfBidons: 'number_of_bidons',
+        bidons_brought: 'bidons_brought',  // Add support for bidons_brought field
         boxesLoadedToPressing: 'boxes_loaded_to_pressing',
         unitPrice: 'unit_price',
         totalAmount: 'total_amount',

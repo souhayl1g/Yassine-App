@@ -31,7 +31,7 @@ interface ScannedTicketData {
 interface PressingRoom {
   id: number;
   name: string;
-  capacity: number;
+  capacity?: number;
   status: 'active' | 'inactive';
   currentSession?: {
     id: number;
@@ -92,8 +92,8 @@ export function OperatorScannerPage() {
     if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
       toast({
         variant: 'destructive',
-        title: 'خطأ في الأمان',
-        description: 'الكاميرا تتطلب HTTPS للعمل. يرجى استخدام https:// أو localhost',
+        title: 'Security Error',
+        description: 'Camera requires HTTPS to work. Please use https:// or localhost',
       });
       setIsCameraActive(false);
       return;
@@ -130,19 +130,19 @@ export function OperatorScannerPage() {
     } catch (error: any) {
       console.error('Error accessing camera:', error);
       
-      let errorMessage = 'لا يمكن الوصول إلى الكاميرا. يرجى التحقق من الأذونات.';
+      let errorMessage = 'Cannot access camera. Please check permissions.';
       
       if (error.name === 'NotAllowedError') {
-        errorMessage = 'تم رفض إذن الوصول إلى الكاميرا. يرجى السماح بالوصول إلى الكاميرا في إعدادات المتصفح.';
+        errorMessage = 'Camera access denied. Please allow camera access in browser settings.';
       } else if (error.name === 'NotFoundError') {
-        errorMessage = 'لم يتم العثور على كاميرا. يرجى التأكد من وجود كاميرا متصلة.';
+        errorMessage = 'No camera found. Please make sure a camera is connected.';
       } else if (error.name === 'SecurityError' || error.message.includes('https')) {
-        errorMessage = 'الكاميرا تتطلب HTTPS للعمل. يرجى استخدام https://localhost:5173';
+        errorMessage = 'Camera requires HTTPS to work. Please use https://localhost:5173';
       }
       
       toast({
         variant: 'destructive',
-        title: 'خطأ في الكاميرا',
+        title: 'Camera Error',
         description: errorMessage,
       });
       setIsCameraActive(false);
@@ -179,7 +179,7 @@ export function OperatorScannerPage() {
 
       const ticketId = qrData.id || qrData.ticketId;
       if (!ticketId) {
-        throw new Error('لم يتم العثور على معرف التذكرة في رمز QR');
+        throw new Error('Ticket ID not found in QR code');
       }
 
       const ticket = await fetchTicketByCode(ticketId);
@@ -191,10 +191,10 @@ export function OperatorScannerPage() {
       // Move to ticket info step
       setCurrentStep('ticket-info');
       
-      toast({ title: 'نجح', description: 'تم مسح رمز QR بنجاح' });
+      toast({ title: 'Success', description: 'QR code scanned successfully' });
     } catch (error: any) {
       console.error('QR scan error:', error);
-      toast({ variant: 'destructive', title: 'خطأ', description: error.message || 'فشل قراءة رمز QR' });
+      toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to read QR code' });
     }
   };
 
@@ -210,8 +210,8 @@ export function OperatorScannerPage() {
       console.error('Failed to fetch pressing rooms:', error);
       toast({
         variant: 'destructive',
-        title: 'خطأ',
-        description: 'فشل في جلب غرف العصر',
+        title: 'Error',
+        description: 'Failed to fetch pressing rooms',
       });
       return [];
     } finally {
@@ -229,7 +229,7 @@ export function OperatorScannerPage() {
       const num = parseInt(code.replace(/\D+/g, ''), 10);
       idOrCode = isNaN(num) ? code : String(num);
     } else {
-      throw new Error('معرف التذكرة غير صالح');
+      throw new Error('Invalid ticket ID');
     }
 
     try {
@@ -237,7 +237,7 @@ export function OperatorScannerPage() {
       const data = getPayload<any>(res);
 
       if (!data || !data.id) {
-        throw new Error('التذكرة غير موجودة');
+        throw new Error('Ticket not found');
       }
 
       return {
@@ -245,7 +245,7 @@ export function OperatorScannerPage() {
         ticketNumber: data.ticket_number || `#${data.id}`,
         clientName: data.client
           ? `${data.client.firstname || ''} ${data.client.lastname || ''}`.trim()
-          : `عميل #${data.clientId}`,
+          : `Client #${data.clientId}`,
         weightIn: data.weight_in ?? 0,
         status: data.status || 'received',
         numberOfBoxes: data.number_of_boxes || undefined,
@@ -254,8 +254,8 @@ export function OperatorScannerPage() {
       };
     } catch (e: any) {
       const errorMessage = e?.response?.status === 404 
-        ? 'التذكرة غير موجودة في النظام'
-        : e?.message || 'فشل جلب التذكرة';
+        ? 'Ticket not found in system'
+        : e?.message || 'Failed to fetch ticket';
       
       throw new Error(errorMessage);
     }
@@ -272,8 +272,8 @@ export function OperatorScannerPage() {
     if (room.status === 'active') {
       toast({
         variant: 'destructive',
-        title: 'خطأ',
-        description: 'هذه الغرفة مشغولة حالياً',
+        title: 'Error',
+        description: 'This room is currently busy',
       });
       return;
     }
@@ -290,8 +290,8 @@ export function OperatorScannerPage() {
     if (boxesToProcess <= 0) {
       toast({ 
         variant: 'destructive', 
-        title: 'خطأ', 
-        description: 'يرجى إدخال عدد صحيح من الصناديق' 
+        title: 'Error', 
+        description: 'Please enter a valid number of boxes' 
       });
       return;
     }
@@ -303,8 +303,8 @@ export function OperatorScannerPage() {
     if (boxesToProcess > availableBoxes) {
       toast({ 
         variant: 'destructive', 
-        title: 'خطأ', 
-        description: `لا يمكن تحميل أكثر من ${availableBoxes} صندوق. المتاح: ${availableBoxes} من أصل ${totalBoxes}` 
+        title: 'Error', 
+        description: `Cannot load more than ${availableBoxes} boxes. Available: ${availableBoxes} out of ${totalBoxes}` 
       });
       return;
     }
@@ -327,8 +327,8 @@ export function OperatorScannerPage() {
       await api.post('/pressing-sessions', sessionPayload);
 
       toast({ 
-        title: 'نجح', 
-        description: `تم تحميل ${boxesToProcess} صندوق في ${selectedRoom.name} وإنشاء جلسة العصر بنجاح` 
+        title: 'Success', 
+        description: `Successfully loaded ${boxesToProcess} boxes in ${selectedRoom.name} and created pressing session` 
       });
       
       // Reset for next scan
@@ -337,8 +337,8 @@ export function OperatorScannerPage() {
       console.error('Create pressing session failed:', error);
       toast({
         variant: 'destructive',
-        title: 'خطأ',
-        description: error?.response?.data?.error || error?.message || 'فشل في إنشاء جلسة العصر',
+        title: 'Error',
+        description: error?.response?.data?.error || error?.message || 'Failed to create pressing session',
       });
     } finally {
       setIsSaving(false);
@@ -482,7 +482,7 @@ export function OperatorScannerPage() {
                       <div>
                         <h3 className="font-semibold text-lg">{room.name}</h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          السعة: {room.capacity || 'غير محدد'}
+                          السعة: {room.capacity || 'N/A'}
                         </p>
                       </div>
                       <div className={`px-3 py-1 rounded-full text-sm font-medium ${

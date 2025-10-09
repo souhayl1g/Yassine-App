@@ -39,6 +39,11 @@ export default (sequelize) => {
       type: DataTypes.ENUM('waiting', 'done', 'active'),
       allowNull: false,
       defaultValue: 'waiting'
+    },
+    oil_bidons_produced: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0
     }
   }, {
     tableName: 'pressing_sessions',

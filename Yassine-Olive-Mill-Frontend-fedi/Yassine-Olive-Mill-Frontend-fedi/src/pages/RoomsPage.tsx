@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OliveCard, OliveCardHeader, OliveCardContent, OliveCardTitle } from '@/components/ui/olive-card';
 import { OliveButton } from '@/components/ui/olive-button';
@@ -17,10 +17,14 @@ import {
   Clock,
   Plus,
   RotateCw,
-  AlertCircle
+  AlertCircle,
+  QrCode,
+  Printer
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
+import QRCode from 'qrcode';
+import { useReactToPrint } from 'react-to-print';
 
 interface CurrentBatch {
   id: string;
@@ -49,6 +53,12 @@ export function RoomsPage() {
     name: '',
     status: 'inactive' as 'active' | 'inactive' | 'maintenance'
   });
+  
+  // QR Code state
+  const [selectedRoomForQR, setSelectedRoomForQR] = useState<Room | null>(null);
+  const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const printRef = useRef<HTMLDivElement>(null);
 
   const loadRooms = async () => {
     try {
@@ -154,6 +164,37 @@ export function RoomsPage() {
     });
     loadRooms(); // Refresh the data
   };
+
+  // Generate QR code for room
+  const generateQRCode = async (room: Room) => {
+    try {
+      const qrData = JSON.stringify({ id: room.id, type: 'room' });
+      const dataUrl = await QRCode.toDataURL(qrData, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+      setQrCodeDataUrl(dataUrl);
+      setSelectedRoomForQR(room);
+      setIsQRDialogOpen(true);
+    } catch (error) {
+      console.error('Failed to generate QR code:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'فشل في إنشاء رمز QR',
+      });
+    }
+  };
+
+  // Print QR code
+  const handlePrint = useReactToPrint({
+    content: () => printRef.current,
+    documentTitle: `QR-${selectedRoomForQR?.name || 'Room'}`,
+  });
 
   const activeRoomsCount = rooms.filter(room => room.status === 'busy').length;
   const totalBoxes = rooms.reduce((sum, room) => {
@@ -295,14 +336,25 @@ export function RoomsPage() {
                       {getStatusText(room.status)}
                     </Badge>
                   </div>
-                  <OliveButton
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleMaintenance(room.id)}
-                    className="text-muted-foreground hover:text-warning"
-                  >
-                    <Settings className="h-4 w-4" />
-                  </OliveButton>
+                  <div className="flex gap-1">
+                    <OliveButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => generateQRCode(room)}
+                      className="text-muted-foreground hover:text-blue-600"
+                      title="إنشاء رمز QR"
+                    >
+                      <QrCode className="h-4 w-4" />
+                    </OliveButton>
+                    <OliveButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleMaintenance(room.id)}
+                      className="text-muted-foreground hover:text-warning"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </OliveButton>
+                  </div>
                 </div>
               </OliveCardHeader>
 
@@ -426,14 +478,24 @@ export function RoomsPage() {
                   )}
 
                   {room.status === 'busy' && (
-                    <OliveButton 
-                      onClick={() => loadRooms()}
-                      className="flex-1 gap-2"
-                      variant="outline"
-                    >
-                      <RotateCw className="h-4 w-4" />
-                      تحديث الحالة
-                    </OliveButton>
+                    <>
+                      <OliveButton 
+                        onClick={() => generateQRCode(room)}
+                        className="flex-1 gap-2"
+                        variant="default"
+                      >
+                        <QrCode className="h-4 w-4" />
+                        مسح لإنهاء الجلسة
+                      </OliveButton>
+                      <OliveButton 
+                        onClick={() => loadRooms()}
+                        className="flex-1 gap-2"
+                        variant="outline"
+                      >
+                        <RotateCw className="h-4 w-4" />
+                        تحديث الحالة
+                      </OliveButton>
+                    </>
                   )}
 
                   {room.status === 'maintenance' && (
@@ -451,6 +513,61 @@ export function RoomsPage() {
           );
         })}
       </div>
+
+      {/* QR Code Dialog */}
+      <Dialog open={isQRDialogOpen} onOpenChange={setIsQRDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">
+              رمز QR - {selectedRoomForQR?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* QR Code Display */}
+            <div className="flex justify-center">
+              <div ref={printRef} className="bg-white p-8 rounded-lg shadow-sm">
+                <div className="text-center space-y-4">
+                  <h2 className="text-xl font-bold text-gray-800">
+                    {selectedRoomForQR?.name}
+                  </h2>
+                  <p className="text-gray-600 text-sm">
+                    رمز QR - غرفة العصر
+                  </p>
+                  {qrCodeDataUrl && (
+                    <img 
+                      src={qrCodeDataUrl} 
+                      alt={`QR Code for ${selectedRoomForQR?.name}`}
+                      className="mx-auto block"
+                    />
+                  )}
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <p>امسح هذا الرمز باستخدام تطبيق الموظف</p>
+                    <p>لعرض معلومات الغرفة وإنهاء الجلسات</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-4">
+              <OliveButton 
+                onClick={handlePrint} 
+                className="flex-1 gap-2"
+                variant="outline"
+              >
+                <Printer className="h-4 w-4" />
+                طباعة
+              </OliveButton>
+              <OliveButton 
+                onClick={() => setIsQRDialogOpen(false)} 
+                className="flex-1"
+              >
+                إغلاق
+              </OliveButton>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
