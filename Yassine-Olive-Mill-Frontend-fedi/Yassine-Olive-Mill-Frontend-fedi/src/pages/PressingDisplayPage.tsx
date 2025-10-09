@@ -32,33 +32,23 @@ export function PressingDisplayPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const { isFullscreen, toggleFullscreen } = useFullscreen();
 
-  // Initialize with 7 empty rooms
-  const initializeRooms = () => {
-    const rooms: PressingRoomData[] = Array.from({ length: 7 }, (_, i) => ({
-      id: i + 1,
-      name: `غرفة العصر ${i + 1}`,
-      status: 'available' as const
-    }));
-    setPressingRooms(rooms);
-  };
-
   // Load data from API
   const loadPressingRooms = async () => {
     try {
       console.log('Loading pressing rooms from API...');
-      const response = await api.get<PressingRoomData[]>('/api/pressing-rooms/display-data');
+      const response = await api.get<PressingRoomData[]>('/pressing-rooms/display-data');
       console.log('Pressing rooms response:', response);
       
       if (response && Array.isArray(response)) {
         setPressingRooms(response);
       } else {
-        console.warn('Invalid response format, falling back to initialization');
-        initializeRooms();
+        console.warn('Invalid response format, setting empty array');
+        setPressingRooms([]);
       }
     } catch (error) {
       console.error('Error loading pressing rooms:', error);
-      // Fallback to empty rooms initialization
-      initializeRooms();
+      // Set empty array on error
+      setPressingRooms([]);
     }
   };
 
@@ -87,14 +77,15 @@ export function PressingDisplayPage() {
 
   // Format current time
   const formatCurrentTime = (date: Date) => {
-    return date.toLocaleString('ar-TN', {
+    return date.toLocaleString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit'
+      second: '2-digit',
+      hour12: false
     });
   };
 
@@ -155,7 +146,7 @@ export function PressingDisplayPage() {
       </div>
 
       {/* Pressing Rooms Grid */}
-      <div className="grid grid-cols-7 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-4 mb-8">
         {pressingRooms.map((room) => {
           const isAvailable = room.status === 'available';
           const timeInfo = room.currentBatch 
@@ -304,7 +295,7 @@ export function PressingDisplayPage() {
 
       {/* Footer */}
       <div className="mt-8 text-center text-white/60 text-sm">
-        التحديث التلقائي كل 30 ثانية • آخر تحديث: {currentTime.toLocaleTimeString('ar-TN')}
+        التحديث التلقائي كل 30 ثانية • آخر تحديث: {currentTime.toLocaleTimeString('en-US', { hour12: false })}
       </div>
     </div>
   );

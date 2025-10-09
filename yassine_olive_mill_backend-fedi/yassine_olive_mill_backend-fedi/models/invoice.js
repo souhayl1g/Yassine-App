@@ -23,14 +23,7 @@ export default (sequelize) => {
         key: 'id'
       }
     },
-    processing_decisionId: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: 'processing_decisions',
-        key: 'id'
-      }
-    },
+
     amount: {
       type: DataTypes.INTEGER,
       allowNull: false

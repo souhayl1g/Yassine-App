@@ -23,6 +23,9 @@ router.put('/:id/assign-room', batchController.assignToRoom);
 // PUT /api/batches/:id/complete-session - Complete pressing session
 router.put('/:id/complete-session', batchController.completeSession);
 
+// PUT /api/batches/:id/load-boxes - Load boxes to pressing
+router.put('/:id/load-boxes', batchController.loadBoxesToPressing);
+
 // DELETE /api/batches/:id - Delete batch
 router.delete('/:id', batchController.deleteBatch);
 

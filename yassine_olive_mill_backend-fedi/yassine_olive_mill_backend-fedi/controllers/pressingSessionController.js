@@ -32,7 +32,7 @@ const pressingSessionController = {
   // POST /api/pressing-sessions
   startPressingSession: async (req, res) => {
     try {
-      const { pressing_roomID, number_of_boxes, status = 'waiting' } = req.body;
+      const { pressing_roomID, number_of_boxes, batch_id, status = 'waiting' } = req.body;
 
       const hasRoom = pressing_roomID !== undefined && pressing_roomID !== null;
       const hasBoxes = number_of_boxes !== undefined && number_of_boxes !== null;
@@ -61,6 +61,7 @@ const pressingSessionController = {
       const session = await PressingSession.create({
         pressing_roomID: parseInt(pressing_roomID),
         number_of_boxes: parseInt(number_of_boxes),
+        batch_id: batch_id ? parseInt(batch_id) : null,
         start: new Date(),
         status: status
       });

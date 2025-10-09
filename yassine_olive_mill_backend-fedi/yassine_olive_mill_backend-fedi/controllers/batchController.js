@@ -170,6 +170,7 @@ const batchController = {
         netWeight: 'net_weight',
         numberOfBoxes: 'number_of_boxes',
         numberOfBidons: 'number_of_bidons',
+        boxesLoadedToPressing: 'boxes_loaded_to_pressing',
         unitPrice: 'unit_price',
         totalAmount: 'total_amount',
         operationType: 'operation_type',
@@ -185,6 +186,27 @@ const batchController = {
         const snake = mapping[key] || key;
         updatable[snake] = req.body[key];
       });
+
+      // Validate boxes_loaded_to_pressing doesn't exceed number_of_boxes
+      if (updatable.boxes_loaded_to_pressing !== undefined) {
+        const currentBoxesLoaded = batch.boxes_loaded_to_pressing || 0;
+        const newBoxesLoaded = parseInt(updatable.boxes_loaded_to_pressing);
+        const totalBoxes = updatable.number_of_boxes !== undefined 
+          ? parseInt(updatable.number_of_boxes) 
+          : batch.number_of_boxes || 0;
+
+        if (newBoxesLoaded > totalBoxes) {
+          return res.status(400).json({ 
+            error: `Cannot load ${newBoxesLoaded} boxes to pressing. Maximum available: ${totalBoxes}` 
+          });
+        }
+
+        if (newBoxesLoaded < 0) {
+          return res.status(400).json({ 
+            error: 'Boxes loaded to pressing cannot be negative' 
+          });
+        }
+      }
 
       await batch.update(updatable);
       const updated = await Batch.findByPk(id, { 
@@ -295,6 +317,58 @@ const batchController = {
       res.json(batch);
     } catch (error) {
       console.error('Complete batch session error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  },
+
+  // PUT /api/batches/:id/load-boxes
+  loadBoxesToPressing: async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { boxesToLoad } = req.body;
+
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'Invalid batch ID' });
+      }
+
+      if (!boxesToLoad || boxesToLoad <= 0) {
+        return res.status(400).json({ error: 'Number of boxes to load must be positive' });
+      }
+
+      const batch = await Batch.findByPk(id);
+      if (!batch) {
+        return res.status(404).json({ error: 'Batch not found' });
+      }
+
+      const totalBoxes = batch.number_of_boxes || 0;
+      const currentlyLoaded = batch.boxes_loaded_to_pressing || 0;
+      const newTotalLoaded = currentlyLoaded + parseInt(boxesToLoad);
+
+      if (newTotalLoaded > totalBoxes) {
+        return res.status(400).json({ 
+          error: `Cannot load ${boxesToLoad} more boxes. Available: ${totalBoxes - currentlyLoaded}, Would exceed total: ${totalBoxes}` 
+        });
+      }
+
+      await batch.update({
+        boxes_loaded_to_pressing: newTotalLoaded,
+        status: newTotalLoaded > 0 ? 'in_process' : batch.status
+      });
+
+      const updatedBatch = await Batch.findByPk(id, {
+        include: [
+          { model: Client, as: 'client' },
+          { model: Price, as: 'price' },
+          { model: PressingRoom, as: 'pressingRoom' }
+        ]
+      });
+
+      res.json({
+        batch: updatedBatch,
+        message: `Successfully loaded ${boxesToLoad} boxes to pressing. Total loaded: ${newTotalLoaded}/${totalBoxes}`
+      });
+    } catch (error) {
+      console.error('Load boxes to pressing error:', error);
       res.status(400).json({ error: error.message });
     }
   },

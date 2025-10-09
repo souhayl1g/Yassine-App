@@ -188,7 +188,7 @@ const dashboardController = {
           id: `batch-${b.id}`,
           type: 'ticket',
           action: 'create',
-          description: `إنشاء دفعة (تذكرة) #${b.id}`,
+          description: `Created batch (ticket) #${b.id}`,
           user: 'system',
           timestamp: b.createdAt,
           details: { batchId: b.id, number_of_boxes: b.number_of_boxes }
@@ -199,7 +199,7 @@ const dashboardController = {
           id: `session-${s.id}`,
           type: 'room',
           action: s.finish ? 'stop_batch' : 'start_batch',
-          description: s.finish ? `إنهاء جلسة #${s.id}` : `بدء جلسة #${s.id}`,
+          description: s.finish ? `Ended session #${s.id}` : `Started session #${s.id}`,
           user: 'system',
           timestamp: s.createdAt,
           details: { pressing_roomID: s.pressing_roomID, number_of_boxes: s.number_of_boxes }
@@ -210,7 +210,7 @@ const dashboardController = {
           id: `client-${c.id}`,
           type: 'client',
           action: 'create',
-          description: `تسجيل عميل: ${c.firstname} ${c.lastname}`,
+          description: `Registered client: ${c.firstname} ${c.lastname}`,
           user: 'system',
           timestamp: c.createdAt,
           details: { clientId: c.id }

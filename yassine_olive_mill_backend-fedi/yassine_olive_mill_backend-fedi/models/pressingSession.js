@@ -27,6 +27,14 @@ export default (sequelize) => {
         key: 'id'
       }
     },
+    batch_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'batches',
+        key: 'id'
+      }
+    },
     status: {
       type: DataTypes.ENUM('waiting', 'done', 'active'),
       allowNull: false,
@@ -39,6 +47,7 @@ export default (sequelize) => {
 
   PressingSession.associate = (models) => {
     PressingSession.belongsTo(models.PressingRoom, { foreignKey: 'pressing_roomID', as: 'pressingRoom' });
+    PressingSession.belongsTo(models.Batch, { foreignKey: 'batch_id', as: 'batch' });
     PressingSession.hasMany(models.OilBatch, { foreignKey: 'pressing_sessionId', as: 'oilBatches' });
   };
 

@@ -10,14 +10,49 @@ const pressingRoomController = {
         order: [["createdAt", "ASC"]],
       });
 
-      // compute derived status from active sessions
-      const activeSessions = await PressingSession.findAll({ where: { finish: null } });
-      const activeRoomIds = new Set(activeSessions.map((s) => s.pressing_roomID));
+      // Get active sessions with detailed information
+      const activeSessions = await PressingSession.findAll({ 
+        where: { finish: null },
+        include: [
+          {
+            model: db.Batch,
+            as: 'batch',
+            include: [
+              {
+                model: db.Client,
+                as: 'client',
+                attributes: ['id', 'firstname', 'lastname']
+              }
+            ]
+          }
+        ]
+      });
 
-      const roomsWithStatus = rooms.map((room) => ({
-        ...room.toJSON(),
-        status: activeRoomIds.has(room.id) ? "active" : "inactive",
-      }));
+      // Create a map of room ID to session details
+      const sessionMap = new Map();
+      activeSessions.forEach((session) => {
+        if (session.pressing_roomID) {
+          sessionMap.set(session.pressing_roomID, {
+            id: session.id,
+            startTime: session.start,
+            numberOfBoxes: session.number_of_boxes,
+            status: session.status,
+            batch: session.batch,
+            occupantName: session.batch?.client 
+              ? `${session.batch.client.firstname || ''} ${session.batch.client.lastname || ''}`.trim()
+              : 'Unknown'
+          });
+        }
+      });
+
+      const roomsWithStatus = rooms.map((room) => {
+        const sessionInfo = sessionMap.get(room.id);
+        return {
+          ...room.toJSON(),
+          status: sessionInfo ? "active" : "inactive",
+          currentSession: sessionInfo || null
+        };
+      });
 
       res.json(roomsWithStatus);
     } catch (error) {
@@ -87,22 +122,21 @@ const pressingRoomController = {
 
       // Get active sessions with detailed information
       const activeSessions = await PressingSession.findAll({ 
-        where: { finish: null },
+        where: { 
+          finish: null,
+          status: 'active' // Only get actively running sessions
+        },
         include: [
           {
-            model: db.OilBatch,
-            as: 'oilBatches',
+            model: db.Batch,
+            as: 'batch',
+            required: false, // LEFT JOIN to allow sessions without batches
             include: [
               {
-                model: db.Batch,
-                as: 'batch',
-                include: [
-                  {
-                    model: db.Client,
-                    as: 'client',
-                    attributes: ['id', 'firstname', 'lastname']
-                  }
-                ]
+                model: db.Client,
+                as: 'client',
+                required: false,
+                attributes: ['id', 'firstname', 'lastname']
               }
             ]
           }
@@ -113,36 +147,33 @@ const pressingRoomController = {
       const sessionMap = new Map();
       activeSessions.forEach(session => {
         if (session.pressing_roomID) {
-          // Calculate total weight and get client info from all batches in this session
-          let totalWeight = 0;
-          let clientName = 'غير محدد';
-          let ticketId = null;
+          let clientName = 'Unknown';
+          let ticketId = session.id.toString();
+          let weightIn = 0;
 
-          if (session.oilBatches && session.oilBatches.length > 0) {
-            session.oilBatches.forEach(oilBatch => {
-              if (oilBatch.batch) {
-                totalWeight += oilBatch.batch.weight_in || 0;
-                if (oilBatch.batch.client && !ticketId) {
-                  clientName = `${oilBatch.batch.client.firstname} ${oilBatch.batch.client.lastname}`;
-                  ticketId = oilBatch.batch.id;
-                }
-              }
-            });
+          // Get batch information if available
+          if (session.batch) {
+            weightIn = session.batch.weight_in || 0;
+            ticketId = session.batch.ticket_number || session.batch.id.toString();
+            
+            if (session.batch.client) {
+              clientName = `${session.batch.client.firstname || ''} ${session.batch.client.lastname || ''}`.trim();
+            }
           }
 
           sessionMap.set(session.pressing_roomID, {
-            id: ticketId || session.id.toString(),
+            id: ticketId,
             clientName: clientName,
-            weightIn: totalWeight,
-            numberOfBatches: session.oilBatches ? session.oilBatches.length : 0,
+            weightIn: weightIn,
+            numberOfBatches: session.number_of_boxes, // Using number_of_boxes from session
             sessionStartTime: session.start,
-            estimatedTime: 60 // Default 60 minutes, could be configurable
+            estimatedTime: session.batch?.estimated_time || 60 // Use batch estimated time or default 60 minutes
           });
         }
       });
 
-      // Map rooms with their status and active session data
-      const roomsWithStatus = rooms.map((room) => ({
+      // Map actual rooms from database with their session status
+      const roomsWithStatus = rooms.map(room => ({
         id: room.id,
         name: room.name,
         status: sessionMap.has(room.id) ? 'busy' : 'available',

@@ -82,7 +82,12 @@ export default (sequelize) => {
       type: DataTypes.INTEGER,
       allowNull: true,
       defaultValue: 0
-
+    },
+    boxes_loaded_to_pressing: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Number of boxes loaded into pressing (cannot exceed number_of_boxes)'
     }
   }, {
     tableName: 'batches',
@@ -95,6 +100,7 @@ export default (sequelize) => {
     Batch.belongsTo(models.PressingRoom, { foreignKey: 'pressing_room_id', as: 'pressingRoom' });
     Batch.hasMany(models.OilBatch, { foreignKey: 'batchId', as: 'oilBatches' });
     Batch.hasMany(models.Invoice, { foreignKey: 'batchId', as: 'invoices' });
+    Batch.hasMany(models.PressingSession, { foreignKey: 'batch_id', as: 'pressingSessions' });
   };
 
   return Batch;

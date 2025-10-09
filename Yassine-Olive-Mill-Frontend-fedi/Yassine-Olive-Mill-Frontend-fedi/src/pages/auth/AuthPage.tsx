@@ -24,7 +24,7 @@ const signupSchema = loginSchema.extend({
   firstname: z.string().min(2, 'validation.minLength'),
   lastname: z.string().min(2, 'validation.minLength'),
   phone: z.string().optional(),
-  role: z.enum(['admin', 'operator', 'scanner'], {
+  role: z.enum(['admin', 'operator', 'scanner', 'employee'], {
     required_error: 'validation.roleRequired',
   }),
   confirmPassword: z.string(),
@@ -77,7 +77,7 @@ export const AuthPage: React.FC = () => {
       firstname: '',
       lastname: '',
       phone: '',
-      role: 'operator',
+      role: 'scanner',
     },
   });
 
@@ -91,7 +91,7 @@ export const AuthPage: React.FC = () => {
       });
       // Get the user from auth context to determine redirect path
       const currentUser = JSON.parse(localStorage.getItem('olive-mill-user') || '{}');
-      navigate(getRedirectPath(currentUser.role || 'operator'));
+      navigate(getRedirectPath(currentUser.role || 'scanner'));
     } else {
       toast({
         variant: 'destructive',
@@ -298,7 +298,7 @@ export const AuthPage: React.FC = () => {
                   <Label htmlFor="role">{t('auth.role')}</Label>
                   <Select
                     value={signupForm.watch('role')}
-                    onValueChange={(value) => signupForm.setValue('role', value as 'admin' | 'operator' | 'scanner')}
+                    onValueChange={(value) => signupForm.setValue('role', value as 'admin' | 'operator' | 'scanner' | 'employee')}
                   >
                     <SelectTrigger className="olive-input">
                       <SelectValue placeholder={t('auth.selectRole')} />
@@ -307,6 +307,7 @@ export const AuthPage: React.FC = () => {
                       <SelectItem value="admin">{t('auth.roles.admin')}</SelectItem>
                       <SelectItem value="operator">{t('auth.roles.operator')}</SelectItem>
                       <SelectItem value="scanner">{t('auth.roles.scanner')}</SelectItem>
+                      <SelectItem value="employee">{t('auth.roles.employee')}</SelectItem>
                     </SelectContent>
                   </Select>
                   {signupForm.formState.errors.role && (

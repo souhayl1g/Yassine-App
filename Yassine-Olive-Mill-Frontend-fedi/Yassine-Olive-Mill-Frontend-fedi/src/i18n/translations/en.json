@@ -21,7 +21,7 @@
       "admin": "Admin",
       "operator": "Operator",
       "scanner": "Scanner",
-      "presser": "Pressing Room Operator"
+      "employee": "Employee"
     }
   },
   "nav": {

@@ -42,7 +42,7 @@ interface PressingRoom {
   } | null;
 }
 
-export function OperatorScannerPage() {
+export function EmployeeScannerPage() {
   const { toast } = useToast();
 
   // Scanner state
@@ -51,7 +51,7 @@ export function OperatorScannerPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Flow state
-  const [currentStep, setCurrentStep] = useState<'scanner' | 'ticket-info' | 'room-selection' | 'boxes-input'>('scanner');
+  const [currentStep, setCurrentStep] = useState<'scanner' | 'ticket-info' | 'bidons-input'>('scanner');
   
   // Pressing room state
   const [pressingRooms, setPressingRooms] = useState<PressingRoom[]>([]);
@@ -371,19 +371,19 @@ export function OperatorScannerPage() {
   // Ticket Info Step
   if (currentStep === 'ticket-info' && scannedTicket) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 p-4">
         <div className="max-w-md mx-auto space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-              ماسح التذاكر (المشغل)
+              ماسح التذاكر (الموظف)
             </h1>
             <p className="text-gray-600 dark:text-gray-300">معلومات التذكرة</p>
           </div>
 
           {/* Ticket Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
-            <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-4 text-lg">
+            <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-4 text-lg">
               بيانات العميل (للقراءة فقط)
             </h3>
             <div className="space-y-3 text-sm">
@@ -401,7 +401,7 @@ export function OperatorScannerPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">إجمالي الصناديق:</span>
-                <span className="font-medium text-blue-600 dark:text-blue-400">
+                <span className="font-medium text-purple-600 dark:text-purple-400">
                   {scannedTicket.numberOfBoxes || 0}
                 </span>
               </div>
@@ -445,7 +445,7 @@ export function OperatorScannerPage() {
   // Room Selection Step
   if (currentStep === 'room-selection') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 p-4">
         <div className="max-w-md mx-auto space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
@@ -459,7 +459,7 @@ export function OperatorScannerPage() {
           <div className="space-y-3">
             {isLoadingRooms ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
                 <p className="text-gray-600 dark:text-gray-300">جاري تحميل الغرف...</p>
               </div>
             ) : pressingRooms.length === 0 ? (
@@ -473,7 +473,7 @@ export function OperatorScannerPage() {
                   className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg border cursor-pointer transition-all ${
                     room.status === 'active' 
                       ? 'border-red-300 bg-red-50 dark:bg-red-900/20 cursor-not-allowed opacity-60' 
-                      : 'border-green-300 bg-green-50 dark:bg-green-900/20 hover:shadow-xl'
+                      : 'border-purple-300 bg-purple-50 dark:bg-purple-900/20 hover:shadow-xl'
                   }`}
                   onClick={() => handleRoomSelection(room)}
                 >
@@ -488,7 +488,7 @@ export function OperatorScannerPage() {
                       <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                         room.status === 'active' 
                           ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' 
-                          : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
                       }`}>
                         {room.status === 'active' ? 'مشغولة' : 'متاحة'}
                       </div>
@@ -512,7 +512,7 @@ export function OperatorScannerPage() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600 dark:text-gray-400">عدد الصناديق:</span>
-                            <span className="font-medium text-blue-600 dark:text-blue-400">
+                            <span className="font-medium text-purple-600 dark:text-purple-400">
                               {room.currentSession.numberOfBoxes}
                             </span>
                           </div>
@@ -542,7 +542,7 @@ export function OperatorScannerPage() {
   // Boxes Input Step
   if (currentStep === 'boxes-input' && selectedRoom) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 p-4">
         <div className="max-w-md mx-auto space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
@@ -554,7 +554,7 @@ export function OperatorScannerPage() {
 
           {/* Selected Room Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
-            <h3 className="font-semibold text-green-800 dark:text-green-200 mb-4 text-lg">
+            <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-4 text-lg">
               معلومات الغرفة المختارة
             </h3>
             <div className="space-y-2 text-sm">
@@ -564,7 +564,7 @@ export function OperatorScannerPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">الحالة:</span>
-                <span className="font-medium text-green-600 dark:text-green-400">متاحة</span>
+                <span className="font-medium text-purple-600 dark:text-purple-400">متاحة</span>
               </div>
             </div>
           </div>
@@ -635,12 +635,12 @@ export function OperatorScannerPage() {
 
   // Show camera scanner
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800">
       <div className="flex flex-col h-screen">
         {/* Header */}
         <div className="p-4 text-center bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-            ماسح التذاكر (المشغل)
+            ماسح التذاكر (الموظف)
           </h1>
           <p className="text-gray-600 dark:text-gray-300 mt-1">
             وجه الكاميرا نحو رمز QR
@@ -665,13 +665,13 @@ export function OperatorScannerPage() {
                   {/* Scanning frame */}
                   <div className="w-48 h-48 border-2 border-white/70 rounded-lg relative">
                     {/* Corner indicators */}
-                    <div className="absolute -top-1 -left-1 w-6 h-6 border-t-3 border-l-3 border-green-400 rounded-tl-lg"></div>
-                    <div className="absolute -top-1 -right-1 w-6 h-6 border-t-3 border-r-3 border-green-400 rounded-tr-lg"></div>
-                    <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-3 border-l-3 border-green-400 rounded-bl-lg"></div>
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-3 border-r-3 border-green-400 rounded-br-lg"></div>
+                    <div className="absolute -top-1 -left-1 w-6 h-6 border-t-3 border-l-3 border-purple-400 rounded-tl-lg"></div>
+                    <div className="absolute -top-1 -right-1 w-6 h-6 border-t-3 border-r-3 border-purple-400 rounded-tr-lg"></div>
+                    <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-3 border-l-3 border-purple-400 rounded-bl-lg"></div>
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-3 border-r-3 border-purple-400 rounded-br-lg"></div>
                     
                     {/* Scanning line */}
-                    <div className="absolute top-1/2 left-2 right-2 h-0.5 bg-green-400 animate-pulse"></div>
+                    <div className="absolute top-1/2 left-2 right-2 h-0.5 bg-purple-400 animate-pulse"></div>
                   </div>
                   
                   {/* Instructions */}

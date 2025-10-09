@@ -17,123 +17,28 @@ import {
   Clock,
   Plus,
   RotateCw,
-  Users,
   AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
 
-interface Client {
+interface CurrentBatch {
   id: string;
-  name: string;
-  status: 'waiting' | 'processing' | 'completed';
-  ticketId: string;
+  clientName: string;
   weightIn: number;
-  numberOfBoxes: number;
-  arrivalTime: string;
-  estimatedWaitTime?: number;
+  numberOfBatches: number;
+  sessionStartTime: string;
+  estimatedTime: number;
 }
 
 interface Room {
-  id: string;
+  id: number;
   name: string;
-  status: 'active' | 'inactive' | 'maintenance';
-  currentClient?: string;
-  boxCount: number;
-  startTime?: string;
-  estimatedFinish?: string;
-  waitingList: Client[];
+  status: 'busy' | 'available' | 'maintenance';
+  currentBatch?: CurrentBatch;
 }
 
-const mockRooms: Room[] = [
-  {
-    id: '1',
-    name: 'غرفة العصر A',
-    status: 'active',
-    currentClient: 'أحمد المزارع',
-    boxCount: 12,
-    startTime: new Date(Date.now() - 3600000).toISOString(),
-    estimatedFinish: new Date(Date.now() + 1800000).toISOString(),
-    waitingList: [
-      {
-        id: '1',
-        name: 'محمد العلي',
-        status: 'waiting',
-        ticketId: 'TKT001235',
-        weightIn: 85.5,
-        numberOfBoxes: 6,
-        arrivalTime: new Date(Date.now() - 1800000).toISOString(),
-        estimatedWaitTime: 45
-      },
-      {
-        id: '2',
-        name: 'سارة الأحمد',
-        status: 'waiting',
-        ticketId: 'TKT001236',
-        weightIn: 120.0,
-        numberOfBoxes: 8,
-        arrivalTime: new Date(Date.now() - 900000).toISOString(),
-        estimatedWaitTime: 90
-      }
-    ]
-  },
-  {
-    id: '2',
-    name: 'غرفة العصر B',
-    status: 'active',
-    currentClient: 'فاطمة البائعة',
-    boxCount: 8,
-    startTime: new Date(Date.now() - 1800000).toISOString(),
-    estimatedFinish: new Date(Date.now() + 3600000).toISOString(),
-    waitingList: [
-      {
-        id: '3',
-        name: 'عبدالله السعد',
-        status: 'waiting',
-        ticketId: 'TKT001237',
-        weightIn: 95.0,
-        numberOfBoxes: 7,
-        arrivalTime: new Date(Date.now() - 1200000).toISOString(),
-        estimatedWaitTime: 60
-      }
-    ]
-  },
-  {
-    id: '3',
-    name: 'غرفة العصر C',
-    status: 'inactive',
-    boxCount: 0,
-    waitingList: []
-  },
-  {
-    id: '4',
-    name: 'غرفة العصر D',
-    status: 'maintenance',
-    boxCount: 0,
-    waitingList: []
-  },
-  {
-    id: '5',
-    name: 'غرفة العصر E',
-    status: 'active',
-    currentClient: 'محمد الزراعي',
-    boxCount: 15,
-    startTime: new Date(Date.now() - 7200000).toISOString(),
-    estimatedFinish: new Date(Date.now() + 900000).toISOString(),
-    waitingList: [
-      {
-        id: '4',
-        name: 'نورا القحطاني',
-        status: 'waiting',
-        ticketId: 'TKT001238',
-        weightIn: 110.0,
-        numberOfBoxes: 9,
-        arrivalTime: new Date(Date.now() - 600000).toISOString(),
-        estimatedWaitTime: 30
-      }
-    ]
-  },
-];
+
 
 export function RoomsPage() {
   const { t } = useTranslation();
@@ -147,22 +52,27 @@ export function RoomsPage() {
 
   const loadRooms = async () => {
     try {
-      const resp = await api.get<any[]>('/pressing-rooms');
-      const mapped: Room[] = (resp || []).map((r: any) => ({
-        id: String(r.id),
-        name: r.name,
-        status: (r.status as any) || 'inactive',
-        boxCount: 0,
-        waitingList: [],
-      }));
-      setRooms(mapped);
+      const resp = await api.get<Room[]>('/pressing-rooms/display-data');
+      setRooms(resp || []);
     } catch (e: any) {
-      toast({ variant: 'destructive', title: t('common.error'), description: e?.message || 'Failed to load rooms' });
+      console.error('Failed to load rooms:', e);
+      toast({ 
+        variant: 'destructive', 
+        title: t('common.error'), 
+        description: e?.message || 'Failed to load rooms' 
+      });
     }
   };
 
   useEffect(() => {
     loadRooms();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      loadRooms();
+    }, 30000);
+    
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -188,8 +98,8 @@ export function RoomsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-success text-success-foreground';
-      case 'inactive': return 'bg-muted text-muted-foreground';
+      case 'busy': return 'bg-success text-success-foreground';
+      case 'available': return 'bg-muted text-muted-foreground';
       case 'maintenance': return 'bg-warning text-warning-foreground';
       default: return 'bg-muted text-muted-foreground';
     }
@@ -197,87 +107,61 @@ export function RoomsPage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'active': return Play;
-      case 'inactive': return Square;
+      case 'busy': return Play;
+      case 'available': return Square;
       case 'maintenance': return Settings;
       default: return Square;
     }
   };
 
-  const handleStartBatch = (roomId: string) => {
-    setRooms(rooms.map(room => 
-      room.id === roomId 
-        ? { 
-            ...room, 
-            status: 'active' as const,
-            startTime: new Date().toISOString(),
-            estimatedFinish: new Date(Date.now() + 7200000).toISOString(),
-          }
-        : room
-    ));
-    
-    toast({
-      title: t('common.success'),
-      description: 'تم بدء دفعة العصر بنجاح',
-    });
-  };
-
-  const handleStopBatch = (roomId: string) => {
-    setRooms(rooms.map(room => 
-      room.id === roomId 
-        ? { 
-            ...room, 
-            status: 'inactive' as const,
-            currentClient: undefined,
-            boxCount: 0,
-            startTime: undefined,
-            estimatedFinish: undefined,
-          }
-        : room
-    ));
-    
-    toast({
-      title: t('common.success'),
-      description: 'تم إيقاف دفعة العصر بنجاح',
-    });
-  };
-
-  const handleMaintenance = (roomId: string) => {
-    const targetRoom = rooms.find(r => r.id === roomId);
-    setRooms(rooms.map(room => 
-      room.id === roomId 
-        ? { 
-            ...room, 
-            status: room.status === 'maintenance' ? 'inactive' : 'maintenance' as const,
-            currentClient: undefined,
-            boxCount: 0,
-            startTime: undefined,
-            estimatedFinish: undefined,
-          }
-        : room
-    ));
-    
-    toast({
-      title: t('common.success'),
-      description: targetRoom?.status === 'maintenance' ? 'تم الانتهاء من الصيانة' : 'تم تحويل الغرفة للصيانة',
-    });
-  };
-
-  const formatTimeRemaining = (estimatedFinish: string) => {
-    const remaining = new Date(estimatedFinish).getTime() - Date.now();
-    if (remaining <= 0) return 'منتهي';
-    
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 0) {
-      return `${hours} ساعة ${minutes} دقيقة`;
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'busy': return 'نشط';
+      case 'available': return 'متاح';
+      case 'maintenance': return 'صيانة';
+      default: return 'متاح';
     }
-    return `${minutes} دقيقة`;
   };
 
-  const activeRoomsCount = rooms.filter(room => room.status === 'active').length;
-  const totalBoxes = rooms.reduce((sum, room) => sum + room.boxCount, 0);
+  // Calculate elapsed time and remaining time
+  const getTimeInfo = (startTime: string, estimatedMinutes: number) => {
+    const start = new Date(startTime);
+    const elapsed = Math.floor((Date.now() - start.getTime()) / 1000 / 60); // in minutes
+    const remaining = Math.max(0, estimatedMinutes - elapsed);
+    
+    return {
+      elapsed,
+      remaining,
+      isOvertime: elapsed > estimatedMinutes
+    };
+  };
+
+  // Format time display
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) {
+      return `${hours} ساعة ${mins} دقيقة`;
+    }
+    return `${mins} دقيقة`;
+  };
+
+  const handleMaintenance = (roomId: number) => {
+    // This would normally make an API call to toggle maintenance status
+    toast({
+      title: t('common.success'),
+      description: 'تم تحديث حالة الصيانة',
+    });
+    loadRooms(); // Refresh the data
+  };
+
+  const activeRoomsCount = rooms.filter(room => room.status === 'busy').length;
+  const totalBoxes = rooms.reduce((sum, room) => {
+    return sum + (room.currentBatch?.numberOfBatches || 0);
+  }, 0);
+  const totalWeight = rooms.reduce((sum, room) => {
+    return sum + (room.currentBatch?.weightIn || 0);
+  }, 0);
 
   return (
     <div className="space-y-8">
@@ -292,13 +176,24 @@ export function RoomsPage() {
           </p>
         </div>
 
-        <Dialog open={isAddRoomOpen} onOpenChange={setIsAddRoomOpen}>
-          <DialogTrigger asChild>
-            <OliveButton size="lg" className="gap-2">
-              <Plus className="h-5 w-5" />
-              {t('rooms.addRoom')}
-            </OliveButton>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <OliveButton 
+            size="lg" 
+            variant="outline"
+            className="gap-2"
+            onClick={loadRooms}
+          >
+            <RotateCw className="h-5 w-5" />
+            تحديث
+          </OliveButton>
+          
+          <Dialog open={isAddRoomOpen} onOpenChange={setIsAddRoomOpen}>
+            <DialogTrigger asChild>
+              <OliveButton size="lg" className="gap-2">
+                <Plus className="h-5 w-5" />
+                {t('rooms.addRoom')}
+              </OliveButton>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>إضافة غرفة عصر جديدة</DialogTitle>
@@ -340,6 +235,7 @@ export function RoomsPage() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Statistics */}
@@ -372,8 +268,8 @@ export function RoomsPage() {
           <OliveCardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">صناديق قيد المعالجة</p>
-                <p className="text-3xl font-bold text-secondary">{totalBoxes}</p>
+                <p className="text-sm text-muted-foreground">وزن قيد المعالجة</p>
+                <p className="text-3xl font-bold text-secondary">{totalWeight} كجم</p>
               </div>
               <Package className="h-8 w-8 text-secondary" />
             </div>
@@ -396,7 +292,7 @@ export function RoomsPage() {
                     </OliveCardTitle>
                     <Badge className={getStatusColor(room.status)}>
                       <StatusIcon className="h-3 w-3 mr-1" />
-                      {t(`rooms.${room.status}`)}
+                      {getStatusText(room.status)}
                     </Badge>
                   </div>
                   <OliveButton
@@ -411,60 +307,99 @@ export function RoomsPage() {
               </OliveCardHeader>
 
               <OliveCardContent className="space-y-4">
-                {room.status === 'active' && room.currentClient && (
+                {room.status === 'busy' && room.currentBatch && (
                   <>
                     {/* Current Client */}
                     <div className="flex items-center gap-2 p-3 bg-success/10 rounded-lg">
                       <User className="h-4 w-4 text-success" />
                       <div className="flex-1">
                         <p className="text-sm text-muted-foreground">العميل الحالي</p>
-                        <p className="font-semibold text-success">{room.currentClient}</p>
+                        <p className="font-semibold text-success">{room.currentBatch.clientName}</p>
                       </div>
                     </div>
 
-                    {/* Box Count */}
+                    {/* Ticket ID */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">الصناديق</span>
+                        <span className="text-sm">رقم التذكرة</span>
                       </div>
-                      <span className="font-bold text-lg">{room.boxCount}</span>
+                      <span className="font-bold text-lg">#{room.currentBatch.id}</span>
+                    </div>
+
+                    {/* Weight and Boxes */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">الوزن</span>
+                        </div>
+                        <span className="font-bold">{room.currentBatch.weightIn} كجم</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">الصناديق</span>
+                        </div>
+                        <span className="font-bold">{room.currentBatch.numberOfBatches}</span>
+                      </div>
                     </div>
 
                     {/* Time Information */}
-                    {room.startTime && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">وقت البداية</span>
+                    {room.currentBatch.sessionStartTime && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">وقت البداية</span>
+                          </div>
+                          <span className="text-sm font-medium">
+                            {new Date(room.currentBatch.sessionStartTime).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: false
+                            })}
+                          </span>
                         </div>
-                        <p className="text-sm font-medium">
-                          {new Date(room.startTime).toLocaleTimeString('ar-SA', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                    )}
 
-                    {room.estimatedFinish && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <RotateCw className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">الوقت المتبقي</span>
-                        </div>
-                        <p className="text-sm font-medium text-primary">
-                          {formatTimeRemaining(room.estimatedFinish)}
-                        </p>
+                        {(() => {
+                          const timeInfo = getTimeInfo(room.currentBatch.sessionStartTime, room.currentBatch.estimatedTime);
+                          return (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="text-center p-2 bg-blue-50 rounded-lg">
+                                <p className="text-xs text-muted-foreground">مضى</p>
+                                <p className="font-bold text-blue-600">{formatTime(timeInfo.elapsed)}</p>
+                              </div>
+                              <div className={`text-center p-2 rounded-lg ${timeInfo.isOvertime ? 'bg-red-50' : 'bg-green-50'}`}>
+                                <p className="text-xs text-muted-foreground">
+                                  {timeInfo.isOvertime ? 'تجاوز' : 'متبقي'}
+                                </p>
+                                <p className={`font-bold ${timeInfo.isOvertime ? 'text-red-600' : 'text-green-600'}`}>
+                                  {timeInfo.isOvertime ? formatTime(timeInfo.elapsed - room.currentBatch.estimatedTime) : formatTime(timeInfo.remaining)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {(() => {
+                          const timeInfo = getTimeInfo(room.currentBatch.sessionStartTime, room.currentBatch.estimatedTime);
+                          return timeInfo.isOvertime && (
+                            <div className="flex items-center gap-2 p-2 bg-red-50 text-red-600 rounded-lg">
+                              <AlertCircle className="h-4 w-4" />
+                              <span className="text-sm font-medium">تجاوز الوقت المقدر</span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </>
                 )}
 
-                {room.status === 'inactive' && (
+                {room.status === 'available' && (
                   <div className="text-center py-6">
                     <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                    <p className="text-muted-foreground mb-4">الغرفة غير نشطة</p>
+                    <p className="text-muted-foreground mb-4">الغرفة متاحة</p>
                   </div>
                 )}
 
@@ -475,59 +410,29 @@ export function RoomsPage() {
                   </div>
                 )}
 
-                {/* Waiting List */}
-                {room.waitingList && room.waitingList.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">قائمة الانتظار ({room.waitingList.length})</span>
-                    </div>
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {room.waitingList.map((client, index) => (
-                        <div key={client.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
-                              {index + 1}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">{client.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {client.weightIn} كيلو • {client.numberOfBoxes} صندوق
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <Badge variant="outline" className="text-xs">
-                              {client.estimatedWaitTime} دقيقة
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-4 border-t">
-                  {room.status === 'inactive' && (
+                  {room.status === 'available' && (
                     <OliveButton 
-                      onClick={() => handleStartBatch(room.id)}
+                      onClick={() => loadRooms()}
                       className="flex-1 gap-2"
-                      variant="success"
+                      variant="outline"
                     >
-                      <Play className="h-4 w-4" />
-                      {t('rooms.startBatch')}
+                      <RotateCw className="h-4 w-4" />
+                      تحديث
                     </OliveButton>
                   )}
 
-                  {room.status === 'active' && (
+                  {room.status === 'busy' && (
                     <OliveButton 
-                      onClick={() => handleStopBatch(room.id)}
+                      onClick={() => loadRooms()}
                       className="flex-1 gap-2"
-                      variant="error"
+                      variant="outline"
                     >
-                      <Square className="h-4 w-4" />
-                      {t('rooms.stopBatch')}
+                      <RotateCw className="h-4 w-4" />
+                      تحديث الحالة
                     </OliveButton>
                   )}
 

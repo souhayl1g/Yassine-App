@@ -18,10 +18,10 @@
     "role": "الدور",
     "selectRole": "اختر الدور",
     "roles": {
-      "admin": "مدير",
-      "operator": "مشغل",
+      "admin": "مدير النظام",
+      "operator": "مدير",
       "scanner": "ماسح",
-      "presser": "مشغل غرفة العصر"
+      "employee": "موظف"
     }
   },
   "nav": {

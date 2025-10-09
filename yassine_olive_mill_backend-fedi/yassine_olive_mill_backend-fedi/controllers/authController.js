@@ -15,29 +15,13 @@ const getConfig = async () => {
   return JSON.parse(configFile);
 };
 
-const EN_WHITELIST = ['admin', 'manager', 'employee', 'scanner'];
-
-const AR_TO_EN = {
-  'مدير': 'manager',
-  'مشغل': 'employee',
-  'ماسح': 'scanner',
-  'مسؤول': 'admin',
-  'مدير النظام': 'admin',
-};
-
-const EN_TO_AR = {
-  admin: 'مدير النظام',
-  manager: 'مدير',
-  employee: 'مشغل',
-  scanner: 'ماسح',
-};
+const EN_WHITELIST = ['admin', 'operator', 'scanner', 'employee'];
 
 const normalizeRole = (raw) => {
   if (!raw) return null;
   const s = String(raw).trim();
   const lower = s.toLowerCase();
   if (EN_WHITELIST.includes(lower)) return lower;           // English input
-  if (AR_TO_EN[s]) return AR_TO_EN[s];                      // Arabic input
   return null;
 };
 
@@ -58,7 +42,7 @@ const generateToken = async (user) => {
 const register = async (req, res) => {
   try {
     console.log('Registration request:', req.body);
-    const { email, password, role = 'employee', firstname, lastname } = req.body;
+    const { email, password, role = 'scanner', firstname, lastname } = req.body;
 
     if (!email || !password) {
       console.log('Missing required fields');
@@ -111,7 +95,7 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // If your DB has old Arabic roles, normalize them on the fly
+    // Ensure user role is valid
     if (!EN_WHITELIST.includes(user.role)) {
       const fixed = normalizeRole(user.role);
       if (fixed) {
@@ -127,8 +111,7 @@ const login = async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role,               // EN
-        role_ar: EN_TO_AR[user.role],  // AR label for UI
+        role: user.role,
         firstname: user.firstname,
         lastname: user.lastname,
       },
@@ -146,7 +129,6 @@ const getProfile = async (req, res) => {
 
     res.json({
       ...user.toJSON(),
-      role_ar: EN_TO_AR[user.role] || user.role, // convenience
     });
   } catch (error) {
     console.error('Get profile error:', error);

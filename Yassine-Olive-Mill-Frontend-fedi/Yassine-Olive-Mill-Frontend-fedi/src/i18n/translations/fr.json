@@ -20,7 +20,8 @@
     "roles": {
       "admin": "Administrateur",
       "operator": "Opérateur",
-      "scanner": "Scanneur"
+      "scanner": "Scanneur",
+      "employee": "Employé"
     }
   },
   "nav": {

@@ -97,12 +97,8 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('✅ Database connection established successfully');
     
-    // Sync database
-    await sequelize.sync({ 
-      force: false,
-      alter: false,
-      logging: false
-    });
+    // Sync database - normal sync mode for regular operation
+    await sequelize.sync();
     
     console.log('✅ Database synchronized');
     
