@@ -927,6 +927,231 @@ export function DailyWorkPage() {
     }
   };
 
+  // State for details modal
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [pressingHistory, setPressingHistory] = useState<any[]>([]);
+  const [loadingPressingHistory, setLoadingPressingHistory] = useState(false);
+
+  // Load pressing session history for a ticket
+  const loadPressingHistory = async (ticketId: string) => {
+    setLoadingPressingHistory(true);
+    try {
+      // Get the batch details with all related data
+      const batchResponse = await api.get(`/batches/${ticketId}`);
+      const batch = getPayload<any>(batchResponse) || {};
+      
+      // Ensure we have the correct batch ID for filtering
+      const batchId = batch.id || ticketId;
+      
+      // Get pressing sessions for this specific batch only
+      let sessionsList = [];
+      try {
+        const sessions = await api.get(`/pressing-sessions?batchId=${batchId}`);
+        const sessionsPayload = getPayload<any>(sessions);
+        // Handle different response formats
+        if (Array.isArray(sessionsPayload)) {
+          // Filter to ensure only sessions for this specific batch
+          sessionsList = sessionsPayload.filter(session => 
+            String(session.batch_id) === String(batchId) || 
+            String(session.batchId) === String(batchId)
+          );
+        } else if (sessionsPayload && Array.isArray(sessionsPayload.sessions)) {
+          // Filter to ensure only sessions for this specific batch
+          sessionsList = sessionsPayload.sessions.filter(session => 
+            String(session.batch_id) === String(batchId) || 
+            String(session.batchId) === String(batchId)
+          );
+        } else if (batch.pressingSessions && Array.isArray(batch.pressingSessions)) {
+          // Use pressing sessions from the batch response if available (already filtered)
+          sessionsList = batch.pressingSessions;
+        }
+      } catch (error) {
+        console.warn('Failed to load pressing sessions:', error);
+        // Try to get sessions from the batch response if the separate call fails
+        if (batch.pressingSessions && Array.isArray(batch.pressingSessions)) {
+          sessionsList = batch.pressingSessions;
+        }
+      }
+      
+      // Get batch loading history for this specific batch only
+      let batchLoadings;
+      let loadingsList = [];
+      
+      try {
+        batchLoadings = await api.get(`/batch-loadings?batchId=${batchId}`);
+        const loadingsPayload = getPayload<any>(batchLoadings);
+        // Handle different response formats
+        if (Array.isArray(loadingsPayload)) {
+          // Filter to ensure only loadings for this specific batch
+          loadingsList = loadingsPayload.filter(loading => 
+            String(loading.batch_id) === String(batchId) || 
+            String(loading.batchId) === String(batchId)
+          );
+        } else if (loadingsPayload && Array.isArray(loadingsPayload.batchLoadings)) {
+          // Filter to ensure only loadings for this specific batch
+          loadingsList = loadingsPayload.batchLoadings.filter(loading => 
+            String(loading.batch_id) === String(batchId) || 
+            String(loading.batchId) === String(batchId)
+          );
+        } else if (batch.batchLoadings && Array.isArray(batch.batchLoadings)) {
+          // Use batch loadings from the batch response if available (already filtered)
+          loadingsList = batch.batchLoadings;
+        }
+      } catch (error) {
+        console.warn('Failed to load batch loadings:', error);
+        // Try to get loadings from the batch response if the separate call fails
+        if (batch.batchLoadings && Array.isArray(batch.batchLoadings)) {
+          loadingsList = batch.batchLoadings;
+        }
+      }
+      
+      // Build comprehensive history tracking the batch loading workflow
+      const history = [];
+      
+      // Debug logging to ensure we're working with the right batch
+      console.log(`Loading history for batch ${batchId}:`, {
+        batchData: batch,
+        sessionsCount: sessionsList.length,
+        loadingsCount: loadingsList.length
+      });
+      
+      // 1. Batch creation/receipt
+      if (batch.createdAt || batch.date_received) {
+        history.push({
+          id: `batch-${batch.id}`,
+          type: 'batch_created',
+          timestamp: batch.date_received || batch.createdAt,
+          title: 'استلام التذكرة',
+          description: `تم استلام ${batch.number_of_boxes || 0} صندوق بوزن ${batch.weight_in || 0} كيلو`,
+          status: 'completed',
+          details: {
+            totalBoxes: batch.number_of_boxes || 0,
+            weightIn: batch.weight_in || 0,
+            operationType: batch.operation_type || 'milling',
+            bidonsBrought: batch.bidons_brought || 0
+          }
+        });
+      }
+      
+      // 2. Room assignment (if applicable)
+      if (batch.pressing_room_id && batch.session_start_time) {
+        history.push({
+          id: `assign-${batch.id}`,
+          type: 'room_assignment',
+          timestamp: batch.session_start_time,
+          title: 'تخصيص غرفة العصر',
+          description: `تم تخصيص ${batch.pressingRoom?.name || `غرفة #${batch.pressing_room_id}`}`,
+          status: 'completed',
+          details: {
+            roomId: batch.pressing_room_id,
+            roomName: batch.pressingRoom?.name || `غرفة #${batch.pressing_room_id}`,
+            estimatedTime: batch.estimated_time || 60
+          }
+        });
+      }
+      
+      // 3. Box loading events - removed from history as requested
+      // (Batch loading data is still fetched for potential future use but not displayed in history)
+      
+      // 4. Pressing sessions - track the actual processing for this specific batch
+      if (Array.isArray(sessionsList) && sessionsList.length > 0) {
+        sessionsList.forEach((session: any) => {
+          // Double-check that this session belongs to our batch
+          const sessionBatchId = String(session.batch_id || session.batchId || '');
+          if (sessionBatchId !== String(batchId)) {
+            console.warn(`Session ${session.id} batch ID mismatch: ${sessionBatchId} vs ${batchId}`);
+            return; // Skip sessions that don't belong to this batch
+          }
+          
+          // Session start
+          history.push({
+            id: `session-start-${session.id}`,
+            type: 'session_start',
+            timestamp: session.start,
+            title: 'بداية جلسة العصر',
+            description: `بدء معالجة ${session.number_of_boxes} صندوق في ${session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`}`,
+            status: 'completed',
+            details: {
+              sessionId: session.id,
+              roomId: session.pressing_roomID,
+              roomName: session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`,
+              boxesProcessed: session.number_of_boxes,
+              batchId: session.batch_id || session.batchId
+            }
+          });
+          
+          // Session end (if completed)
+          if (session.finish) {
+            const duration = Math.round((new Date(session.finish).getTime() - new Date(session.start).getTime()) / (1000 * 60));
+            history.push({
+              id: `session-end-${session.id}`,
+              type: 'session_end',
+              timestamp: session.finish,
+              title: 'انتهاء جلسة العصر',
+              description: `تم الانتهاء من معالجة ${session.number_of_boxes} صندوق (${duration} دقيقة)`,
+              status: 'completed',
+              details: {
+                sessionId: session.id,
+                roomId: session.pressing_roomID,
+                roomName: session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`,
+                duration: duration,
+                oilProduced: session.oil_bidons_produced || 0,
+                batchId: session.batch_id || session.batchId
+              }
+            });
+          } else {
+            // Active session
+            history.push({
+              id: `session-active-${session.id}`,
+              type: 'session_active',
+              timestamp: new Date().toISOString(),
+              title: 'جلسة عصر نشطة',
+              description: `جلسة العصر قيد التشغيل في ${session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`}`,
+              status: 'active',
+              details: {
+                sessionId: session.id,
+                roomId: session.pressing_roomID,
+                roomName: session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`,
+                startTime: session.start,
+                boxesProcessed: session.number_of_boxes,
+                batchId: session.batch_id || session.batchId
+              }
+            });
+          }
+        });
+      }
+      
+      // 5. Final completion (if batch is completed)
+      if (batch.status === 'completed' && batch.weight_out !== null) {
+        history.push({
+          id: `completion-${batch.id}`,
+          type: 'batch_completed',
+          timestamp: batch.updatedAt || new Date().toISOString(),
+          title: 'اكتمال معالجة التذكرة',
+          description: `تم الانتهاء من معالجة التذكرة - الوزن الصافي: ${batch.net_weight || 0} كيلو`,
+          status: 'completed',
+          details: {
+            weightOut: batch.weight_out,
+            netWeight: batch.net_weight,
+            totalAmount: batch.total_amount,
+            boxesLoaded: batch.boxes_loaded_to_pressing || 0,
+            totalBoxes: batch.number_of_boxes || 0
+          }
+        });
+      }
+      
+      // Sort chronologically (oldest first for better workflow understanding)
+      history.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      
+      setPressingHistory(history);
+    } catch (error: any) {
+      console.error('Error loading pressing history:', error);
+      setPressingHistory([]);
+    } finally {
+      setLoadingPressingHistory(false);
+    }
+  };
+
   // Minimize a ticket
   const minimizeTicket = (ticket: Ticket) => {
     setMinimizedTickets(prev => {
@@ -1726,29 +1951,46 @@ export function DailyWorkPage() {
               </label>
             </div>
 
-            <div className="flex gap-3">
+            <div className="space-y-3">
+              {/* Primary Action */}
               <OliveButton 
                 onClick={handleSaveChanges} 
                 disabled={isSaving}
-                className="flex-1"
+                className="w-full"
+                size="lg"
               >
                 {isSaving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
               </OliveButton>
-              <OliveButton 
-                variant="outline" 
-                onClick={() => minimizeTicket(scannedTicket)}
-                className="flex-1"
-              >
-                <Minimize2 className="h-4 w-4 mr-2" />
-                تصغير
-              </OliveButton>
-              <OliveButton 
-                variant="outline" 
-                onClick={() => setIsEditModalOpen(false)}
-                className="flex-1"
-              >
-                إلغاء
-              </OliveButton>
+              
+              {/* Secondary Actions */}
+              <div className="grid grid-cols-3 gap-2">
+                <OliveButton 
+                  variant="outline" 
+                  onClick={() => minimizeTicket(scannedTicket)}
+                  size="sm"
+                >
+                  <Minimize2 className="h-4 w-4 mr-1" />
+                  تصغير
+                </OliveButton>
+                <OliveButton 
+                  variant="outline"
+                  onClick={() => {
+                    setIsDetailsModalOpen(true);
+                    loadPressingHistory(scannedTicket?.id || '');
+                  }}
+                  size="sm"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  تفاصيل
+                </OliveButton>
+                <OliveButton 
+                  variant="outline" 
+                  onClick={() => setIsEditModalOpen(false)}
+                  size="sm"
+                >
+                  إلغاء
+                </OliveButton>
+              </div>
             </div>
           </div>
         </div>
@@ -1865,6 +2107,497 @@ export function DailyWorkPage() {
               <OliveButton 
                 variant="outline" 
                 onClick={() => setIsQrDisplayOpen(false)}
+                className="flex-1"
+              >
+                إغلاق
+              </OliveButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detailed Information Modal */}
+      {isDetailsModalOpen && scannedTicket && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 text-foreground rounded-lg p-6 w-full max-w-2xl shadow-lg relative max-h-[90vh] overflow-y-auto">
+            <button 
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" 
+              onClick={() => setIsDetailsModalOpen(false)}
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <h2 className="text-2xl font-bold mb-6 text-primary">تفاصيل التذكرة الكاملة</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2">المعلومات الأساسية</h3>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">رقم التذكرة:</span>
+                    <span className="font-medium text-foreground">#{scannedTicket.ticketNumber}</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">معرف التذكرة:</span>
+                    <span className="font-medium text-foreground">#{scannedTicket.id}</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">اسم العميل:</span>
+                    <span className="font-medium text-foreground">{scannedTicket.clientName}</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">معرف العميل:</span>
+                    <span className="font-medium text-foreground">#{scannedTicket.clientId}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">نوع العملية:</span>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      scannedTicket.operationType === 'sale' 
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200'
+                        : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200'
+                    }`}>
+                      {scannedTicket.operationType === 'sale' ? 'بيع' : 'عصر'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">حالة التذكرة:</span>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      scannedTicket.status === 'received' 
+                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' 
+                        : scannedTicket.status === 'in_process'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    }`}>
+                      {scannedTicket.status === 'received' ? 'مستلم' : 
+                       scannedTicket.status === 'in_process' ? 'قيد المعالجة' : 'مكتمل'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weight Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2">معلومات الأوزان</h3>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">الوزن الداخل:</span>
+                    <span className="font-medium text-foreground">{scannedTicket.weightIn} كيلو</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">الوزن الخارج:</span>
+                    <span className="font-medium text-foreground">
+                      {scannedTicket.weightOut !== undefined ? `${scannedTicket.weightOut} كيلو` : 'لم يتم الوزن بعد'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">صافي الوزن:</span>
+                    <span className="font-medium text-primary">
+                      {scannedTicket.netWeight !== undefined ? `${scannedTicket.netWeight} كيلو` : `${scannedTicket.weightIn} كيلو`}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">عدد الصناديق:</span>
+                    <span className="font-medium text-foreground">{scannedTicket.numberOfBoxes || 0} صندوق</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bidons Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2">معلومات البيدونات</h3>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">البيدونات المجلبة:</span>
+                    <span className="font-medium text-foreground">
+                      {pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0} بيدون
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">البيدونات المنتجة:</span>
+                    <span className="font-medium text-primary">
+                      {pressingHistory
+                        .filter(h => h.type === 'session_end')
+                        .reduce((total, session) => total + (session.details?.oilProduced || 0), 0)} بيدون
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">البيدونات المعادة للعميل:</span>
+                    <span className="font-bold text-green-600 dark:text-green-400">
+                      {(() => {
+                        const brought = pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0;
+                        const produced = pressingHistory
+                          .filter(h => h.type === 'session_end')
+                          .reduce((total, session) => total + (session.details?.oilProduced || 0), 0);
+                        const toReturn = Math.max(0, brought - produced);
+                        return toReturn;
+                      })()} بيدون
+                    </span>
+                  </div>
+
+                  {pressingHistory.some(h => h.type === 'session_end' && h.details?.oilProduced > 0) && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="text-sm text-blue-800 dark:text-blue-200">
+                        <strong>حساب البيدونات:</strong><br />
+                        البيدونات المجلبة: {pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0} بيدون<br />
+                        البيدونات المستخدمة للزيت: {pressingHistory
+                          .filter(h => h.type === 'session_end')
+                          .reduce((total, session) => total + (session.details?.oilProduced || 0), 0)} بيدون<br />
+                        البيدونات المعادة = {pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0} - {pressingHistory
+                          .filter(h => h.type === 'session_end')
+                          .reduce((total, session) => total + (session.details?.oilProduced || 0), 0)} = {(() => {
+                            const brought = pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0;
+                            const produced = pressingHistory
+                              .filter(h => h.type === 'session_end')
+                              .reduce((total, session) => total + (session.details?.oilProduced || 0), 0);
+                            return Math.max(0, brought - produced);
+                          })()} بيدون
+                      </div>
+                    </div>
+                  )}
+
+                  {pressingHistory.some(h => h.type === 'session_end' && h.details?.oilProduced > 0) && (
+                    <div className="p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                      <div className="text-sm text-green-800 dark:text-green-200">
+                        <strong>تفصيل الإنتاج:</strong><br />
+                        {pressingHistory
+                          .filter(h => h.type === 'session_end')
+                          .map((session, index) => (
+                            <span key={index} className="block">
+                              جلسة {index + 1}: {session.details?.oilProduced || 0} بيدون زيت منتج
+                            </span>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Financial Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2">المعلومات المالية</h3>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">سعر الوحدة:</span>
+                    <span className="font-medium text-foreground">
+                      {scannedTicket.unitPrice ? `${scannedTicket.unitPrice} دينار/كيلو` : 'غير محدد'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">المبلغ الإجمالي:</span>
+                    <span className="font-bold text-primary text-lg">
+                      {scannedTicket.totalAmount ? `${scannedTicket.totalAmount} دينار` : 'غير محسوب'}
+                    </span>
+                  </div>
+
+                  {scannedTicket.totalAmount && scannedTicket.netWeight && scannedTicket.unitPrice && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="text-sm text-blue-800 dark:text-blue-200">
+                        <strong>حساب المبلغ:</strong><br />
+                        {scannedTicket.netWeight} كيلو × {scannedTicket.unitPrice} دينار = {(scannedTicket.netWeight * scannedTicket.unitPrice).toFixed(2)} دينار
+                        {scannedTicket.totalAmount > (scannedTicket.netWeight * scannedTicket.unitPrice) && (
+                          <span className="block mt-1 text-xs">
+                            (تم تطبيق الحد الأدنى 40 دينار)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Date Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2">معلومات التواريخ</h3>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">تاريخ الاستلام:</span>
+                    <span className="font-medium text-foreground">
+                      {new Date(scannedTicket.dateReceived).toLocaleDateString('ar-TN')}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">وقت الاستلام:</span>
+                    <span className="font-medium text-foreground">
+                      {new Date(scannedTicket.dateReceived).toLocaleTimeString('ar-TN')}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">منذ:</span>
+                    <span className="font-medium text-foreground">
+                      {Math.floor((new Date().getTime() - new Date(scannedTicket.dateReceived).getTime()) / (1000 * 60 * 60 * 24))} يوم
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes Section */}
+            {scannedTicket.notes && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2 mb-3">الملاحظات</h3>
+                <div className="p-4 bg-muted/20 rounded-lg">
+                  <p className="text-foreground whitespace-pre-wrap">{scannedTicket.notes}</p>
+                </div>
+              </div>
+            )}
+
+            {/* QR Code Section */}
+            {scannedTicket.qrCode && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2 mb-3">رمز QR</h3>
+                <div className="flex justify-center">
+                  <div className="p-4 bg-white rounded-lg border">
+                    <img 
+                      src={scannedTicket.qrCode} 
+                      alt="QR Code" 
+                      className="w-32 h-32"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Processing Workflow History */}
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-foreground border-b pb-2 mb-3">سير العمل ومراحل التشغيل</h3>
+              
+              {loadingPressingHistory ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <span className="mr-3 text-muted-foreground">جاري تحميل التاريخ...</span>
+                </div>
+              ) : pressingHistory.length > 0 ? (
+                <div className="space-y-4 max-h-80 overflow-y-auto">
+                  {/* Timeline visualization */}
+                  <div className="relative">
+                    {pressingHistory.map((entry: any, index: number) => (
+                      <div key={`${entry.type}-${entry.id}-${index}`} className="relative flex items-start mb-6 last:mb-0">
+                        {/* Timeline line */}
+                        {index < pressingHistory.length - 1 && (
+                          <div className="absolute right-4 top-8 w-0.5 h-8 bg-border"></div>
+                        )}
+                        
+                        {/* Status indicator */}
+                        <div className="flex-shrink-0 ml-4">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            entry.status === 'completed' ? 'bg-green-100 dark:bg-green-900' :
+                            entry.status === 'active' ? 'bg-blue-100 dark:bg-blue-900' :
+                            'bg-gray-100 dark:bg-gray-800'
+                          }`}>
+                            {entry.type === 'batch_created' && <Box className={`h-4 w-4 ${entry.status === 'completed' ? 'text-green-600 dark:text-green-300' : 'text-gray-600 dark:text-gray-400'}`} />}
+                            {entry.type === 'room_assignment' && <Building2 className={`h-4 w-4 ${entry.status === 'completed' ? 'text-green-600 dark:text-green-300' : 'text-gray-600 dark:text-gray-400'}`} />}
+                            {entry.type === 'box_loading' && <Users className={`h-4 w-4 ${entry.status === 'completed' ? 'text-green-600 dark:text-green-300' : 'text-gray-600 dark:text-gray-400'}`} />}
+                            {entry.type === 'session_start' && <Activity className={`h-4 w-4 ${entry.status === 'completed' ? 'text-green-600 dark:text-green-300' : 'text-gray-600 dark:text-gray-400'}`} />}
+                            {entry.type === 'session_end' && <TrendingUp className={`h-4 w-4 ${entry.status === 'completed' ? 'text-green-600 dark:text-green-300' : 'text-gray-600 dark:text-gray-400'}`} />}
+                            {entry.type === 'session_active' && <RefreshCw className={`h-4 w-4 animate-spin ${entry.status === 'active' ? 'text-blue-600 dark:text-blue-300' : 'text-gray-600 dark:text-gray-400'}`} />}
+                            {entry.type === 'batch_completed' && <Coffee className={`h-4 w-4 ${entry.status === 'completed' ? 'text-green-600 dark:text-green-300' : 'text-gray-600 dark:text-gray-400'}`} />}
+                          </div>
+                        </div>
+                        
+                        {/* Content */}
+                        <div className="flex-1 bg-muted/20 rounded-lg p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h4 className="font-medium text-foreground">{entry.title}</h4>
+                              <p className="text-sm text-muted-foreground mt-1">{entry.description}</p>
+                            </div>
+                            <div className="text-left">
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(entry.timestamp).toLocaleDateString('ar-TN')}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(entry.timestamp).toLocaleTimeString('ar-TN', { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Additional details based on entry type */}
+                          {entry.details && (
+                            <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                              {entry.type === 'batch_created' && (
+                                <>
+                                  <div>
+                                    <span className="text-muted-foreground">إجمالي الصناديق: </span>
+                                    <span className="font-medium">{entry.details.totalBoxes}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">الوزن الداخل: </span>
+                                    <span className="font-medium">{entry.details.weightIn} كيلو</span>
+                                  </div>
+                                  {entry.details.bidonsBrought !== undefined && (
+                                    <div>
+                                      <span className="text-muted-foreground">البيدونات المجلبة: </span>
+                                      <span className="font-medium">{entry.details.bidonsBrought} بيدون</span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              
+                              {entry.type === 'room_assignment' && (
+                                <>
+                                  <div>
+                                    <span className="text-muted-foreground">الغرفة: </span>
+                                    <span className="font-medium">{entry.details.roomName}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">الوقت المقدر: </span>
+                                    <span className="font-medium">{entry.details.estimatedTime} دقيقة</span>
+                                  </div>
+                                </>
+                              )}
+                              
+                              {entry.type === 'box_loading' && (
+                                <>
+                                  <div>
+                                    <span className="text-muted-foreground">الصناديق المحملة: </span>
+                                    <span className="font-medium">{entry.details.boxesLoaded}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">المشغل: </span>
+                                    <span className="font-medium">{entry.details.operator}</span>
+                                  </div>
+                                  {entry.details.notes && (
+                                    <div className="col-span-2">
+                                      <span className="text-muted-foreground">ملاحظات: </span>
+                                      <span className="font-medium">{entry.details.notes}</span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              
+                              {(entry.type === 'session_start' || entry.type === 'session_active') && (
+                                <>
+                                  <div>
+                                    <span className="text-muted-foreground">الغرفة: </span>
+                                    <span className="font-medium">{entry.details.roomName}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">الصناديق المعالجة: </span>
+                                    <span className="font-medium">{entry.details.boxesProcessed}</span>
+                                  </div>
+                                </>
+                              )}
+                              
+                              {entry.type === 'session_end' && (
+                                <>
+                                  <div>
+                                    <span className="text-muted-foreground">المدة: </span>
+                                    <span className="font-medium">{entry.details.duration} دقيقة</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">الزيت المنتج: </span>
+                                    <span className="font-medium">{entry.details.oilProduced} بيدون</span>
+                                  </div>
+                                </>
+                              )}
+                              
+                              {entry.type === 'batch_completed' && (
+                                <>
+                                  <div>
+                                    <span className="text-muted-foreground">الوزن الصافي: </span>
+                                    <span className="font-medium">{entry.details.netWeight} كيلو</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">الصناديق المحملة: </span>
+                                    <span className="font-medium">{entry.details.boxesLoaded}/{entry.details.totalBoxes}</span>
+                                  </div>
+                                  {entry.details.totalAmount && (
+                                    <div className="col-span-2">
+                                      <span className="text-muted-foreground">المبلغ الإجمالي: </span>
+                                      <span className="font-bold text-primary">{entry.details.totalAmount} دينار</span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Status badge */}
+                          <div className="mt-3">
+                            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                              entry.status === 'completed' 
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200'
+                                : entry.status === 'active'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            }`}>
+                              {entry.status === 'completed' ? 'مكتمل' : 
+                               entry.status === 'active' ? 'نشط' : 'في الانتظار'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-muted-foreground mb-2">
+                    <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    لا يوجد تاريخ معالجة لهذه التذكرة
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    عندما يتم تحميل الصناديق أو بدء جلسة عصر، ستظهر مراحل التشغيل هنا
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-8 pt-4 border-t">
+              <OliveButton 
+                onClick={() => {
+                  setIsDetailsModalOpen(false);
+                  setTicketToPrint(scannedTicket);
+                  setIsPrintModalOpen(true);
+                }}
+                className="flex-1"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                طباعة التذكرة
+              </OliveButton>
+              
+              {scannedTicket.qrCode && (
+                <OliveButton 
+                  variant="outline"
+                  onClick={() => {
+                    setIsDetailsModalOpen(false);
+                    setQrCodeImage(scannedTicket.qrCode!);
+                    setIsQrDisplayOpen(true);
+                  }}
+                  className="flex-1"
+                >
+                  <QrCode className="h-4 w-4 mr-2" />
+                  عرض QR
+                </OliveButton>
+              )}
+              
+              <OliveButton 
+                variant="outline"
+                onClick={() => setIsDetailsModalOpen(false)}
                 className="flex-1"
               >
                 إغلاق

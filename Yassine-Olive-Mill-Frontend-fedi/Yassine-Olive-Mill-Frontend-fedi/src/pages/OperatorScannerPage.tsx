@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/integrations/api/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from 'qr-scanner';
 
 // Set the worker path for QR Scanner
@@ -28,11 +29,11 @@ interface ScannedTicketData {
   boxesLoadedToPressing?: number;
 }
 
-interface PressingRoom {
+interface Room {
   id: number;
   name: string;
+  status: string;
   capacity?: number;
-  status: 'active' | 'inactive';
   currentSession?: {
     id: number;
     startTime: string;
@@ -44,24 +45,27 @@ interface PressingRoom {
 
 export function OperatorScannerPage() {
   const { toast } = useToast();
-
+  const { user } = useAuth();
+  
   // Scanner state
-  const [isCameraActive, setIsCameraActive] = useState(true);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [scannedData, setScannedData] = useState('');
+  const [scanningActive, setScanningActive] = useState(false);
   const [scannedTicket, setScannedTicket] = useState<ScannedTicketData | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Flow state
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Multi-step flow state
   const [currentStep, setCurrentStep] = useState<'scanner' | 'ticket-info' | 'room-selection' | 'boxes-input'>('scanner');
   
-  // Pressing room state
-  const [pressingRooms, setPressingRooms] = useState<PressingRoom[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<PressingRoom | null>(null);
+  // Room selection state
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Form state
-  const [numberOfBoxesToProcess, setNumberOfBoxesToProcess] = useState('1');
-
-  // Camera refs
+  const [numberOfBoxesToProcess, setNumberOfBoxesToProcess] = useState('1');  // Camera refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const qrScannerRef = useRef<QrScanner | null>(null);
 
@@ -199,12 +203,12 @@ export function OperatorScannerPage() {
   };
 
   // Fetch pressing rooms with their status
-  const fetchPressingRooms = async (): Promise<PressingRoom[]> => {
+  const fetchPressingRooms = async (): Promise<Room[]> => {
     try {
       setIsLoadingRooms(true);
-      const res = await api.get<PressingRoom[]>('/pressing-rooms');
-      const rooms = getPayload<PressingRoom[]>(res);
-      setPressingRooms(rooms);
+      const res = await api.get<Room[]>('/pressing-rooms');
+      const rooms = getPayload<Room[]>(res);
+      setRooms(rooms);
       return rooms;
     } catch (error: any) {
       console.error('Failed to fetch pressing rooms:', error);
@@ -268,7 +272,7 @@ export function OperatorScannerPage() {
   };
 
   // Handle room selection
-  const handleRoomSelection = (room: PressingRoom) => {
+  const handleRoomSelection = (room: Room) => {
     if (room.status === 'active') {
       toast({
         variant: 'destructive',
@@ -311,12 +315,7 @@ export function OperatorScannerPage() {
 
     setIsSaving(true);
     try {
-      // First, load boxes to pressing in the batch
-      await api.put(`/batches/${scannedTicket.id}/load-boxes`, {
-        boxesToLoad: boxesToProcess
-      });
-
-      // Then create pressing session
+      // First create pressing session
       const sessionPayload = {
         pressing_roomID: selectedRoom.id,
         number_of_boxes: boxesToProcess,
@@ -324,7 +323,17 @@ export function OperatorScannerPage() {
         status: 'active'
       };
 
-      await api.post('/pressing-sessions', sessionPayload);
+      const sessionResponse = await api.post('/pressing-sessions', sessionPayload);
+      const sessionId = (sessionResponse as any).id;
+
+      // Then load boxes to pressing with history tracking
+      await api.put(`/batches/${scannedTicket.id}/load-boxes`, {
+        boxesToLoad: boxesToProcess,
+        pressingSessionId: sessionId,
+        pressingRoomId: selectedRoom.id,
+        operatorId: user?.id || 1, // Use current user ID or fallback to 1
+        notes: `Loaded ${boxesToProcess} boxes to ${selectedRoom.name}`
+      });
 
       toast({ 
         title: 'Success', 
@@ -349,7 +358,7 @@ export function OperatorScannerPage() {
   const resetScanner = () => {
     setScannedTicket(null);
     setSelectedRoom(null);
-    setPressingRooms([]);
+    setRooms([]);
     setNumberOfBoxesToProcess('1');
     setCurrentStep('scanner');
     setIsCameraActive(true);
@@ -462,12 +471,12 @@ export function OperatorScannerPage() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
                 <p className="text-gray-600 dark:text-gray-300">جاري تحميل الغرف...</p>
               </div>
-            ) : pressingRooms.length === 0 ? (
+            ) : rooms.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-600 dark:text-gray-300">لا توجد غرف متاحة</p>
               </div>
             ) : (
-              pressingRooms.map((room) => (
+              rooms.map((room) => (
                 <div
                   key={room.id}
                   className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg border cursor-pointer transition-all ${

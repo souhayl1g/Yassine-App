@@ -61,6 +61,7 @@ export default (sequelize) => {
   User.associate = (models) => {
     // Add associations here if needed
     // Example: User.belongsTo(models.Employee, { foreignKey: 'employeeId' });
+    User.hasMany(models.BatchLoading, { foreignKey: 'operatorId', as: 'batchLoadings' });
   };
 
   return User;

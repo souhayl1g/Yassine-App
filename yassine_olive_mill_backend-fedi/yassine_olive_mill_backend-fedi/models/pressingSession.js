@@ -54,6 +54,7 @@ export default (sequelize) => {
     PressingSession.belongsTo(models.PressingRoom, { foreignKey: 'pressing_roomID', as: 'pressingRoom' });
     PressingSession.belongsTo(models.Batch, { foreignKey: 'batch_id', as: 'batch' });
     PressingSession.hasMany(models.OilBatch, { foreignKey: 'pressing_sessionId', as: 'oilBatches' });
+    PressingSession.hasMany(models.BatchLoading, { foreignKey: 'pressingSessionId', as: 'batchLoadings' });
   };
 
   return PressingSession;

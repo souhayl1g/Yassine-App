@@ -108,6 +108,7 @@ export default (sequelize) => {
     Batch.hasMany(models.OilBatch, { foreignKey: 'batchId', as: 'oilBatches' });
     Batch.hasMany(models.Invoice, { foreignKey: 'batchId', as: 'invoices' });
     Batch.hasMany(models.PressingSession, { foreignKey: 'batch_id', as: 'pressingSessions' });
+    Batch.hasMany(models.BatchLoading, { foreignKey: 'batchId', as: 'batchLoadings' });
   };
 
   return Batch;

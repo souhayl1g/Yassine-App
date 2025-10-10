@@ -192,7 +192,7 @@ export function RoomsPage() {
 
   // Print QR code
   const handlePrint = useReactToPrint({
-    content: () => printRef.current,
+    contentRef: printRef,
     documentTitle: `QR-${selectedRoomForQR?.name || 'Room'}`,
   });
 
@@ -482,7 +482,7 @@ export function RoomsPage() {
                       <OliveButton 
                         onClick={() => generateQRCode(room)}
                         className="flex-1 gap-2"
-                        variant="default"
+                        variant="primary"
                       >
                         <QrCode className="h-4 w-4" />
                         مسح لإنهاء الجلسة

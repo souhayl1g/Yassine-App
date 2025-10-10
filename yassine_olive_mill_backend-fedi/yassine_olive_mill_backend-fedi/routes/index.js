@@ -14,6 +14,7 @@ import priceRoutes from "./prices.js"
 import dashboardRoutes from "./dashboard.js"
 import pressingRoomRoutes from "./pressingRooms.js"
 import containerRoutes from "./containers.js"
+import batchLoadingRoutes from "./batchLoadings.js"
 
 // Mount routes
 router.use('/clients', clientRoutes);
@@ -28,6 +29,7 @@ router.use('/prices', priceRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/pressing-rooms', pressingRoomRoutes);
 router.use('/containers', containerRoutes);
+router.use('/batch-loadings', batchLoadingRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

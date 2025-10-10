@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
+import { BatchLoadingHistory } from '@/components/BatchLoadingHistory';
 
 interface Client {
   id: string;
@@ -53,6 +54,28 @@ interface Ticket {
   dateReceived: string;
   datePaid?: string;
   createdAt: string;
+  boxesLoadedToPressing?: number;
+  batchLoadings?: Array<{
+    id: number;
+    boxesLoaded: number;
+    loadedAt: string;
+    notes?: string;
+    pressingRoom: {
+      id: number;
+      name: string;
+    };
+    operator?: {
+      id: number;
+      username: string;
+      firstname?: string;
+      lastname?: string;
+    };
+    pressingSession: {
+      id: number;
+      start: string;
+      finish?: string;
+    };
+  }>;
 }
 
 const mockTickets: Ticket[] = [];
@@ -76,6 +99,7 @@ export function TicketsPage() {
   const [qrModalTicket, setQrModalTicket] = useState<Ticket | null>(null);
   const [paymentModalTicket, setPaymentModalTicket] = useState<Ticket | null>(null);
   const [editModalTicket, setEditModalTicket] = useState<Ticket | null>(null);
+  const [loadingHistoryTicket, setLoadingHistoryTicket] = useState<Ticket | null>(null);
 
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [paymentData, setPaymentData] = useState({ method: 'cash', reference: '', amount: '' });
@@ -155,6 +179,8 @@ export function TicketsPage() {
           dateReceived: b.date_received || b.createdAt,
           datePaid: b.date_paid,
           createdAt: b.createdAt,
+          boxesLoadedToPressing: b.boxes_loaded_to_pressing ?? 0,
+          batchLoadings: b.batchLoadings || [],
         };
       });
 
@@ -509,6 +535,7 @@ export function TicketsPage() {
   };
 
   const handleViewQR = (ticket: Ticket) => setQrModalTicket(ticket);
+  const handleViewLoadingHistory = (ticket: Ticket) => setLoadingHistoryTicket(ticket);
 
   // Correct: QRCodeSVG renders <svg>, not <canvas>
   const downloadQR = (ticket: Ticket) => {
@@ -1003,6 +1030,16 @@ export function TicketsPage() {
                     <OliveButton variant="ghost" size="sm" onClick={() => handlePrint(ticket.id)}>
                       <Printer className="h-4 w-4" />
                     </OliveButton>
+                    {ticket.batchLoadings && ticket.batchLoadings.length > 0 && (
+                      <OliveButton 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleViewLoadingHistory(ticket)}
+                        title="عرض تاريخ تحميل الصناديق"
+                      >
+                        <Package className="h-4 w-4" />
+                      </OliveButton>
+                    )}
                     {!ticket.isPaid && ticket.totalAmount && ticket.totalAmount > 0 && (
                       <OliveButton
                         variant="ghost"
@@ -1217,6 +1254,47 @@ export function TicketsPage() {
                 <OliveButton onClick={() => handleSubmitEdit(editModalTicket)} className="flex-1">حفظ</OliveButton>
                 <OliveButton variant="outline" onClick={() => setEditModalTicket(null)} className="flex-1">إلغاء</OliveButton>
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Loading History Dialog */}
+      <Dialog open={!!loadingHistoryTicket} onOpenChange={() => setLoadingHistoryTicket(null)}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>تاريخ تحميل الصناديق - التذكرة #{loadingHistoryTicket?.id}</DialogTitle>
+            <DialogDescription>
+              عرض تفصيلي لعمليات تحميل الصناديق إلى غرف العصر
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingHistoryTicket && (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">إجمالي الصناديق</p>
+                  <p className="text-2xl font-bold text-blue-600">{loadingHistoryTicket.numberOfBoxes}</p>
+                </div>
+                <div className="text-center p-3 bg-green-50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">الصناديق المحملة</p>
+                  <p className="text-2xl font-bold text-green-600">{loadingHistoryTicket.boxesLoadedToPressing || 0}</p>
+                </div>
+                <div className="text-center p-3 bg-orange-50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">المتبقي</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {loadingHistoryTicket.numberOfBoxes - (loadingHistoryTicket.boxesLoadedToPressing || 0)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Loading History */}
+              <BatchLoadingHistory 
+                batchId={loadingHistoryTicket.id}
+                loadings={loadingHistoryTicket.batchLoadings || []}
+                totalBoxes={loadingHistoryTicket.numberOfBoxes}
+              />
             </div>
           )}
         </DialogContent>

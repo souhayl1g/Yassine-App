@@ -2,7 +2,7 @@ import db from "../models/index.js"
 import { Op } from 'sequelize';
 
 
-const { Batch, Client, Price, OilBatch, QualityTest, PressingSession, PressingRoom } = db;
+const { Batch, Client, Price, OilBatch, QualityTest, PressingSession, PressingRoom, BatchLoading } = db;
 
 
 const batchController = {
@@ -31,7 +31,16 @@ const batchController = {
             required: false // LEFT JOIN to include batches without pressing rooms
           },
 
-          { model: OilBatch, as: 'oilBatches' }
+          { model: OilBatch, as: 'oilBatches' },
+          { 
+            model: db.BatchLoading, 
+            as: 'batchLoadings',
+            include: [
+              { model: PressingRoom, as: 'pressingRoom', attributes: ['id', 'name'] },
+              { model: db.User, as: 'operator', attributes: ['id', 'firstname', 'lastname', 'email'] }
+            ],
+            required: false // LEFT JOIN to include batches without loading history
+          }
         ],
         order: [['date_received', 'DESC']]
       });
@@ -58,14 +67,23 @@ const batchController = {
         return res.status(400).json({ error: 'Invalid batch ID' });
       }
 
-      const batch = await Batch.findByPk(id, {
+      const batch = await Batch.findByPk(req.params.id, {
         include: [
           { model: Client, as: 'client' },
-          { model: Price, as: 'price' },
           { 
             model: OilBatch, 
             as: 'oilBatches',
             include: [{ model: QualityTest, as: 'qualityTests' }]
+          },
+          { 
+            model: db.BatchLoading, 
+            as: 'batchLoadings',
+            include: [
+              { model: PressingRoom, as: 'pressingRoom', attributes: ['id', 'name'] },
+              { model: db.User, as: 'operator', attributes: ['id', 'firstname', 'lastname', 'email'] },
+              { model: PressingSession, as: 'pressingSession', attributes: ['id', 'start', 'finish'] }
+            ],
+            order: [['loadedAt', 'ASC']]
           }
         ]
       });
@@ -326,7 +344,7 @@ const batchController = {
   loadBoxesToPressing: async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { boxesToLoad } = req.body;
+      const { boxesToLoad, pressingSessionId, pressingRoomId, operatorId, notes } = req.body;
 
       if (isNaN(id)) {
         return res.status(400).json({ error: 'Invalid batch ID' });
@@ -334,6 +352,10 @@ const batchController = {
 
       if (!boxesToLoad || boxesToLoad <= 0) {
         return res.status(400).json({ error: 'Number of boxes to load must be positive' });
+      }
+
+      if (!pressingSessionId || !pressingRoomId) {
+        return res.status(400).json({ error: 'pressingSessionId and pressingRoomId are required' });
       }
 
       const batch = await Batch.findByPk(id);
@@ -351,23 +373,50 @@ const batchController = {
         });
       }
 
-      await batch.update({
-        boxes_loaded_to_pressing: newTotalLoaded,
-        status: newTotalLoaded > 0 ? 'in_process' : batch.status
-      });
+      // Start a transaction to ensure data consistency
+      const transaction = await db.sequelize.transaction();
 
-      const updatedBatch = await Batch.findByPk(id, {
-        include: [
-          { model: Client, as: 'client' },
-          { model: Price, as: 'price' },
-          { model: PressingRoom, as: 'pressingRoom' }
-        ]
-      });
+      try {
+        // Update batch with new loaded count
+        await batch.update({
+          boxes_loaded_to_pressing: newTotalLoaded,
+          status: newTotalLoaded > 0 ? 'in_process' : batch.status
+        }, { transaction });
 
-      res.json({
-        batch: updatedBatch,
-        message: `Successfully loaded ${boxesToLoad} boxes to pressing. Total loaded: ${newTotalLoaded}/${totalBoxes}`
-      });
+        // Create BatchLoading record for history tracking
+        const loadingRecord = await db.BatchLoading.create({
+          batchId: id,
+          pressingSessionId: parseInt(pressingSessionId),
+          pressingRoomId: parseInt(pressingRoomId),
+          boxesLoaded: parseInt(boxesToLoad),
+          operatorId: operatorId ? parseInt(operatorId) : null,
+          notes: notes || null,
+          loadedAt: new Date()
+        }, { transaction });
+
+        await transaction.commit();
+
+        const updatedBatch = await Batch.findByPk(id, {
+          include: [
+            { model: Client, as: 'client' },
+            { model: Price, as: 'price' },
+            { model: PressingRoom, as: 'pressingRoom' },
+            { model: db.BatchLoading, as: 'batchLoadings', include: [
+              { model: PressingRoom, as: 'pressingRoom', attributes: ['id', 'name'] },
+              { model: db.User, as: 'operator', attributes: ['id', 'firstname', 'lastname', 'email'] }
+            ]}
+          ]
+        });
+
+        res.json({
+          batch: updatedBatch,
+          loadingRecord,
+          message: `Successfully loaded ${boxesToLoad} boxes to pressing. Total loaded: ${newTotalLoaded}/${totalBoxes}`
+        });
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
     } catch (error) {
       console.error('Load boxes to pressing error:', error);
       res.status(400).json({ error: error.message });
