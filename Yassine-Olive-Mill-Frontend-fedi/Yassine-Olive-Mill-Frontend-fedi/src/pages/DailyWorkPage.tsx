@@ -2235,58 +2235,22 @@ export function DailyWorkPage() {
                   </div>
                   
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">البيدونات المعادة للعميل:</span>
+                    <span className="text-muted-foreground">البيدونات الإضافية المباعة للعميل:</span>
                     <span className="font-bold text-green-600 dark:text-green-400">
                       {(() => {
                         const brought = pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0;
                         const produced = pressingHistory
                           .filter(h => h.type === 'session_end')
                           .reduce((total, session) => total + (session.details?.oilProduced || 0), 0);
-                        const toReturn = Math.max(0, brought - produced);
+                        const toReturn = Math.max(0, produced - brought);
                         return toReturn;
                       })()} بيدون
                     </span>
                   </div>
-
-                  {pressingHistory.some(h => h.type === 'session_end' && h.details?.oilProduced > 0) && (
-                    <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-                      <div className="text-sm text-blue-800 dark:text-blue-200">
-                        <strong>حساب البيدونات:</strong><br />
-                        البيدونات المجلبة: {pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0} بيدون<br />
-                        البيدونات المستخدمة للزيت: {pressingHistory
-                          .filter(h => h.type === 'session_end')
-                          .reduce((total, session) => total + (session.details?.oilProduced || 0), 0)} بيدون<br />
-                        البيدونات المعادة = {pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0} - {pressingHistory
-                          .filter(h => h.type === 'session_end')
-                          .reduce((total, session) => total + (session.details?.oilProduced || 0), 0)} = {(() => {
-                            const brought = pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0;
-                            const produced = pressingHistory
-                              .filter(h => h.type === 'session_end')
-                              .reduce((total, session) => total + (session.details?.oilProduced || 0), 0);
-                            return Math.max(0, brought - produced);
-                          })()} بيدون
-                      </div>
-                    </div>
-                  )}
-
-                  {pressingHistory.some(h => h.type === 'session_end' && h.details?.oilProduced > 0) && (
-                    <div className="p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                      <div className="text-sm text-green-800 dark:text-green-200">
-                        <strong>تفصيل الإنتاج:</strong><br />
-                        {pressingHistory
-                          .filter(h => h.type === 'session_end')
-                          .map((session, index) => (
-                            <span key={index} className="block">
-                              جلسة {index + 1}: {session.details?.oilProduced || 0} بيدون زيت منتج
-                            </span>
-                          ))
-                        }
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
+              {/* Financial Information */}
               {/* Financial Information */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-foreground border-b pb-2">المعلومات المالية</h3>
