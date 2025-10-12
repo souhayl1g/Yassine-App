@@ -2247,10 +2247,32 @@ export function DailyWorkPage() {
                       })()} بيدون
                     </span>
                   </div>
+                  
+                  {/* Extra Bidons Cost Calculation */}
+                  {(() => {
+                    const brought = pressingHistory.find(h => h.type === 'batch_created')?.details?.bidonsBrought || 0;
+                    const produced = pressingHistory
+                      .filter(h => h.type === 'session_end')
+                      .reduce((total, session) => total + (session.details?.oilProduced || 0), 0);
+                    const extraBidons = Math.max(0, produced - brought);
+                    const emptyBidonPrice = currentPrices?.empty_bidon_price || 0;
+                    const totalExtraBidonsCost = extraBidons * emptyBidonPrice;
+                    
+                    if (extraBidons > 0 && emptyBidonPrice > 0) {
+                      return (
+                        <div className="p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg">
+                          <div className="text-sm text-orange-800 dark:text-orange-200">
+                            <strong>تكلفة البيدونات الإضافية:</strong><br />
+                            {extraBidons} بيدون × {emptyBidonPrice} دينار = <strong>{totalExtraBidonsCost.toFixed(2)} دينار</strong>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
 
-              {/* Financial Information */}
               {/* Financial Information */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-foreground border-b pb-2">المعلومات المالية</h3>

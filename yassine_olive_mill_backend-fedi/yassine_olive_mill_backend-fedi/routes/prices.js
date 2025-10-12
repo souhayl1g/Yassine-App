@@ -37,7 +37,8 @@ router.post('/', async (req, res) => {
       milling_price_per_kg,
       oil_client_selling_price_per_kg,
       oil_export_selling_price_per_kg,
-      olive_buying_price_per_kg
+      olive_buying_price_per_kg,
+      empty_bidon_price
     } = req.body;
 
     // Get the most recent price record to fill missing fields
@@ -55,7 +56,9 @@ router.post('/', async (req, res) => {
       oil_export_selling_price_per_kg: oil_export_selling_price_per_kg !== undefined ? 
         oil_export_selling_price_per_kg : (latestPrice?.oil_export_selling_price_per_kg || 0),
       olive_buying_price_per_kg: olive_buying_price_per_kg !== undefined ? 
-        olive_buying_price_per_kg : (latestPrice?.olive_buying_price_per_kg || 0)
+        olive_buying_price_per_kg : (latestPrice?.olive_buying_price_per_kg || 0),
+      empty_bidon_price: empty_bidon_price !== undefined ? 
+        empty_bidon_price : (latestPrice?.empty_bidon_price || 0)
     };
     
     const price = await Price.create(newPriceData);
@@ -103,7 +106,8 @@ router.put('/:id', async (req, res) => {
       milling_price_per_kg,
       oil_client_selling_price_per_kg,
       oil_export_selling_price_per_kg,
-      olive_buying_price_per_kg
+      olive_buying_price_per_kg,
+      empty_bidon_price
     } = req.body;
 
     const price = await Price.findByPk(id);
@@ -118,6 +122,7 @@ router.put('/:id', async (req, res) => {
     if (oil_client_selling_price_per_kg !== undefined) updateData.oil_client_selling_price_per_kg = oil_client_selling_price_per_kg;
     if (oil_export_selling_price_per_kg !== undefined) updateData.oil_export_selling_price_per_kg = oil_export_selling_price_per_kg;
     if (olive_buying_price_per_kg !== undefined) updateData.olive_buying_price_per_kg = olive_buying_price_per_kg;
+    if (empty_bidon_price !== undefined) updateData.empty_bidon_price = empty_bidon_price;
 
     await price.update(updateData);
 

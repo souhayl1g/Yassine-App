@@ -46,6 +46,7 @@ interface PricingSettings {
   oilClientSellingPricePerKg: number;
   oilExportSellingPricePerKg: number;
   oliveBuyingPricePerKg: number;
+  emptyBidonPrice: number;
   currency: string;
 }
 
@@ -73,6 +74,7 @@ export function SettingsPage() {
     oilClientSellingPricePerKg: 0,
     oilExportSellingPricePerKg: 0,
     oliveBuyingPricePerKg: 0,
+    emptyBidonPrice: 0,
     currency: 'TND',
   });
 
@@ -104,6 +106,7 @@ export function SettingsPage() {
           oilClientSellingPricePerKg: (response as any).oil_client_selling_price_per_kg || 0,
           oilExportSellingPricePerKg: (response as any).oil_export_selling_price_per_kg || 0,
           oliveBuyingPricePerKg: (response as any).olive_buying_price_per_kg || 0,
+          emptyBidonPrice: (response as any).empty_bidon_price || 0,
           currency: 'TND',
         });
       } else {
@@ -113,6 +116,7 @@ export function SettingsPage() {
           oilClientSellingPricePerKg: 0,
           oilExportSellingPricePerKg: 0,
           oliveBuyingPricePerKg: 0,
+          emptyBidonPrice: 0,
           currency: 'TND',
         });
       }
@@ -124,6 +128,7 @@ export function SettingsPage() {
         oilClientSellingPricePerKg: 0,
         oilExportSellingPricePerKg: 0,
         oliveBuyingPricePerKg: 0,
+        emptyBidonPrice: 0,
         currency: 'TND',
       });
       toast({
@@ -158,7 +163,8 @@ export function SettingsPage() {
       const hasValidPrice = pricingSettings.millingPricePerKg > 0 || 
                            pricingSettings.oilClientSellingPricePerKg > 0 || 
                            pricingSettings.oilExportSellingPricePerKg > 0 || 
-                           pricingSettings.oliveBuyingPricePerKg > 0;
+                           pricingSettings.oliveBuyingPricePerKg > 0 ||
+                           pricingSettings.emptyBidonPrice > 0;
 
       if (!hasValidPrice) {
         toast({
@@ -175,6 +181,7 @@ export function SettingsPage() {
         oil_client_selling_price_per_kg: pricingSettings.oilClientSellingPricePerKg,
         oil_export_selling_price_per_kg: pricingSettings.oilExportSellingPricePerKg,
         olive_buying_price_per_kg: pricingSettings.oliveBuyingPricePerKg,
+        empty_bidon_price: pricingSettings.emptyBidonPrice,
       };
 
       await api.post('/prices', priceData);
@@ -335,7 +342,7 @@ export function SettingsPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label>سعر العصر لكل كيلو</Label>
                       <Input
@@ -390,6 +397,21 @@ export function SettingsPage() {
                         onChange={(e) => setPricingSettings({
                           ...pricingSettings, 
                           oliveBuyingPricePerKg: parseFloat(e.target.value) || 0
+                        })}
+                        className="olive-input"
+                        disabled={savingPrices}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>سعر البيدون الفارغ</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={pricingSettings.emptyBidonPrice}
+                        onChange={(e) => setPricingSettings({
+                          ...pricingSettings, 
+                          emptyBidonPrice: parseFloat(e.target.value) || 0
                         })}
                         className="olive-input"
                         disabled={savingPrices}

@@ -26,6 +26,10 @@ export default (sequelize) => {
     olive_buying_price_per_kg: {
       type: DataTypes.FLOAT,
       allowNull: true
+    },
+    empty_bidon_price: {
+      type: DataTypes.FLOAT,
+      allowNull: true
     }
   }, {
     tableName: 'prices',
