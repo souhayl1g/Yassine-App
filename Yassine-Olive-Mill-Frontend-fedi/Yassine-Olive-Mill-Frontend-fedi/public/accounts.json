@@ -1,26 +1,26 @@
 [
   {
     "name": "Admin User",
-    "username": "admin@example.com",
-    "password": "password123",
+    "username": "admin@gmail.com",
+    "password": "adminadmin",
     "role": "admin"
   },
   {
     "name": "Operator User",
-    "username": "operator@example.com",
-    "password": "password123",
+    "username": "operator@gmail.com",
+    "password": "operatoroperator",
     "role": "operator"
   },
   {
     "name": "Scanner User",
-    "username": "scanner@example.com",
-    "password": "password123",
+    "username": "scanner@gmail.com",
+    "password": "scannerscanner",
     "role": "scanner"
   },
   {
     "name": "Employee User",
-    "username": "employee@example.com",
-    "password": "password123",
+    "username": "Employee@gmail.com",
+    "password": "EmployeeEmployee",
     "role": "employee"
   }
 ]
