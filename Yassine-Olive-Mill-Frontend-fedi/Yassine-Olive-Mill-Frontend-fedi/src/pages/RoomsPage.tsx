@@ -4,6 +4,8 @@ import { OliveCard, OliveCardHeader, OliveCardContent, OliveCardTitle } from '@/
 import { OliveButton } from '@/components/ui/olive-button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,7 +21,10 @@ import {
   RotateCw,
   AlertCircle,
   QrCode,
-  Printer
+  Printer,
+  Trash2,
+  MoreHorizontal,
+  Edit
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
@@ -59,6 +64,11 @@ export function RoomsPage() {
   const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Rename room state
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [roomToRename, setRoomToRename] = useState<Room | null>(null);
+  const [newRoomName, setNewRoomName] = useState('');
 
   const loadRooms = async () => {
     try {
@@ -163,6 +173,58 @@ export function RoomsPage() {
       description: 'تم تحديث حالة الصيانة',
     });
     loadRooms(); // Refresh the data
+  };
+
+  const handleDeleteRoom = async (roomId: number, roomName: string) => {
+    try {
+      await api.delete(`/pressing-rooms/${roomId}`);
+      await loadRooms();
+      toast({
+        title: t('common.success'),
+        description: `تم حذف غرفة "${roomName}" بنجاح`,
+      });
+    } catch (e: any) {
+      toast({
+        variant: 'destructive',
+        title: t('common.error'),
+        description: e?.message || 'فشل في حذف الغرفة',
+      });
+    }
+  };
+
+  const handleRenameRoom = (room: Room) => {
+    setRoomToRename(room);
+    setNewRoomName(room.name);
+    setIsRenameDialogOpen(true);
+  };
+
+  const handleSaveRename = async () => {
+    if (!roomToRename || !newRoomName.trim()) {
+      toast({
+        variant: 'destructive',
+        title: t('common.error'),
+        description: 'يرجى إدخال اسم الغرفة',
+      });
+      return;
+    }
+
+    try {
+      await api.put(`/pressing-rooms/${roomToRename.id}`, { name: newRoomName.trim() });
+      await loadRooms();
+      setIsRenameDialogOpen(false);
+      setRoomToRename(null);
+      setNewRoomName('');
+      toast({
+        title: t('common.success'),
+        description: `تم تغيير اسم الغرفة إلى "${newRoomName.trim()}" بنجاح`,
+      });
+    } catch (e: any) {
+      toast({
+        variant: 'destructive',
+        title: t('common.error'),
+        description: e?.message || 'فشل في تغيير اسم الغرفة',
+      });
+    }
   };
 
   // Generate QR code for room
@@ -346,14 +408,65 @@ export function RoomsPage() {
                     >
                       <QrCode className="h-4 w-4" />
                     </OliveButton>
-                    <OliveButton
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleMaintenance(room.id)}
-                      className="text-muted-foreground hover:text-warning"
-                    >
-                      <Settings className="h-4 w-4" />
-                    </OliveButton>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <OliveButton
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:text-foreground"
+                          title="المزيد من الخيارات"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </OliveButton>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => handleRenameRoom(room)}
+                          className="gap-2"
+                        >
+                          <Edit className="h-4 w-4" />
+                          إعادة تسمية
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleMaintenance(room.id)}
+                          className="gap-2 text-warning hover:text-warning"
+                        >
+                          <Settings className="h-4 w-4" />
+                          {room.status === 'maintenance' ? 'إنهاء الصيانة' : 'وضع الصيانة'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem
+                              className="gap-2 text-destructive hover:text-destructive focus:text-destructive"
+                              disabled={room.status === 'busy'}
+                              onSelect={(e) => e.preventDefault()}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              حذف الغرفة
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>تأكيد حذف الغرفة</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                هل أنت متأكد من حذف غرفة "{room.name}"؟ هذا الإجراء لا يمكن التراجع عنه.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteRoom(room.id, room.name)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                حذف
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </OliveCardHeader>
@@ -563,6 +676,43 @@ export function RoomsPage() {
                 className="flex-1"
               >
                 إغلاق
+              </OliveButton>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Room Dialog */}
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>إعادة تسمية الغرفة</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="renameRoomName">اسم الغرفة الجديد</Label>
+              <Input
+                id="renameRoomName"
+                value={newRoomName}
+                onChange={(e) => setNewRoomName(e.target.value)}
+                placeholder="أدخل اسم الغرفة الجديد"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <OliveButton onClick={handleSaveRename} className="flex-1">
+                حفظ
+              </OliveButton>
+              <OliveButton 
+                variant="outline" 
+                onClick={() => {
+                  setIsRenameDialogOpen(false);
+                  setRoomToRename(null);
+                  setNewRoomName('');
+                }} 
+                className="flex-1"
+              >
+                إلغاء
               </OliveButton>
             </div>
           </div>

@@ -15,6 +15,7 @@ import dashboardRoutes from "./dashboard.js"
 import pressingRoomRoutes from "./pressingRooms.js"
 import containerRoutes from "./containers.js"
 import batchLoadingRoutes from "./batchLoadings.js"
+import pressingQueueRoutes from "./pressingQueue.js"
 
 // Mount routes
 router.use('/clients', clientRoutes);
@@ -30,6 +31,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/pressing-rooms', pressingRoomRoutes);
 router.use('/containers', containerRoutes);
 router.use('/batch-loadings', batchLoadingRoutes);
+router.use('/pressing-queue', pressingQueueRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

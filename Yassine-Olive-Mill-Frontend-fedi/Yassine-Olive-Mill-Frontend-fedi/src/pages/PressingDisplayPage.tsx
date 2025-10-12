@@ -10,7 +10,9 @@ import {
   Timer,
   Package,
   Maximize,
-  Minimize
+  Minimize,
+  List,
+  Users
 } from 'lucide-react';
 
 interface PressingRoomData {
@@ -27,8 +29,35 @@ interface PressingRoomData {
   };
 }
 
+interface QueueItem {
+  id: number;
+  batch_id: number;
+  number_of_boxes: number;
+  priority: number;
+  status: string;
+  notes?: string;
+  created_at: string;
+  batch: {
+    id: number;
+    ticket_number: string;
+    weight_in: number;
+    number_of_boxes: number;
+    client: {
+      id: number;
+      firstname: string;
+      lastname: string;
+    };
+  };
+  operator: {
+    id: number;
+    firstname: string;
+    lastname: string;
+  };
+}
+
 export function PressingDisplayPage() {
   const [pressingRooms, setPressingRooms] = useState<PressingRoomData[]>([]);
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const { isFullscreen, toggleFullscreen } = useFullscreen();
 
@@ -49,6 +78,26 @@ export function PressingDisplayPage() {
       console.error('Error loading pressing rooms:', error);
       // Set empty array on error
       setPressingRooms([]);
+    }
+  };
+
+  // Load queue data from API
+  const loadQueue = async () => {
+    try {
+      console.log('Loading queue from API...');
+      const response = await api.get<QueueItem[]>('/pressing-queue');
+      console.log('Queue response:', response);
+      
+      if (response && Array.isArray(response)) {
+        setQueueItems(response);
+      } else {
+        console.warn('Invalid queue response format, setting empty array');
+        setQueueItems([]);
+      }
+    } catch (error) {
+      console.error('Error loading queue:', error);
+      // Set empty array on error
+      setQueueItems([]);
     }
   };
 
@@ -94,6 +143,7 @@ export function PressingDisplayPage() {
   // Auto refresh data and time
   useEffect(() => {
     loadPressingRooms();
+    loadQueue();
     
     // Update time every second
     const timeInterval = setInterval(() => {
@@ -103,6 +153,7 @@ export function PressingDisplayPage() {
     // Refresh data every 30 seconds
     const dataInterval = setInterval(() => {
       loadPressingRooms();
+      loadQueue();
     }, 30000);
 
     return () => {
@@ -257,7 +308,7 @@ export function PressingDisplayPage() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-4 gap-6 text-center">
+      <div className="grid grid-cols-5 gap-6 text-center">
         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
           <div className="text-3xl font-bold text-green-400">
             {pressingRooms.filter(r => r.status === 'available').length}
@@ -291,7 +342,74 @@ export function PressingDisplayPage() {
           </div>
           <div className="text-lg text-white/80">كجم قيد المعالجة</div>
         </div>
+
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-orange-400/30">
+          <div className="text-3xl font-bold text-orange-400">
+            {queueItems.length}
+          </div>
+          <div className="text-lg text-white/80">في الطابور</div>
+        </div>
       </div>
+
+      {/* Queue Section - Compact Version */}
+      {queueItems.length > 0 && (
+        <div className="mt-6 mb-8">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <List className="h-6 w-6 text-orange-400" />
+            <h2 className="text-2xl font-bold text-orange-400">طابور الانتظار</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
+            {queueItems.map((queueItem, index) => (
+              <div
+                key={queueItem.id}
+                className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-3 shadow-xl border border-orange-400/30 relative"
+              >
+                {/* Queue Position Badge */}
+                <div className="absolute -top-2 -right-2 bg-white text-orange-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                  {index + 1}
+                </div>
+
+                {/* Priority Badge */}
+                {queueItem.priority > 0 && (
+                  <div className="absolute -top-1 -left-1 bg-red-500 rounded-full w-3 h-3"></div>
+                )}
+
+                {/* Client Info */}
+                <div className="text-center mb-2">
+                  <div className="font-bold text-base text-white mb-1 truncate">
+                    {queueItem.batch.client.firstname} {queueItem.batch.client.lastname}
+                  </div>
+                  <div className="text-xs opacity-75">
+                    #{queueItem.batch.ticket_number}
+                  </div>
+                </div>
+
+                {/* Compact Details */}
+                <div className="grid grid-cols-2 gap-1 text-xs text-center">
+                  <div className="bg-black/20 rounded px-1 py-1">
+                    <div className="font-bold">{queueItem.batch.weight_in}</div>
+                    <div className="opacity-75">كجم</div>
+                  </div>
+                  <div className="bg-black/20 rounded px-1 py-1">
+                    <div className="font-bold">{queueItem.number_of_boxes}</div>
+                    <div className="opacity-75">صندوق</div>
+                  </div>
+                </div>
+
+                {/* Time */}
+                <div className="text-center mt-2 text-xs opacity-75">
+                  {new Date(queueItem.created_at).toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: false 
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="mt-8 text-center text-white/60 text-sm">
