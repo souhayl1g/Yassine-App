@@ -49,7 +49,8 @@ export default (sequelize) => {
   PressingQueue.associate = (models) => {
     PressingQueue.belongsTo(models.Batch, { 
       foreignKey: 'batch_id', 
-      as: 'batch' 
+      as: 'batch',
+      onDelete: 'CASCADE'
     });
     PressingQueue.belongsTo(models.User, { 
       foreignKey: 'operator_id', 

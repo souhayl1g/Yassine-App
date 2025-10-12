@@ -73,6 +73,63 @@ export function EmployeeScannerPage() {
     }
   };
 
+  // Process next item from queue automatically
+  const processNextQueueItem = async (roomId: number) => {
+    try {
+      // Get the queue items
+      const queueResponse = await api.get('/pressing-queue');
+      const queueItems = getPayload<any[]>(queueResponse);
+      
+      if (!queueItems || queueItems.length === 0) {
+        throw new Error('No items in queue');
+      }
+
+      // Get the first item in queue (highest priority, oldest first)
+      const nextQueueItem = queueItems
+        .sort((a, b) => {
+          // Sort by priority descending, then by created_at ascending
+          if (a.priority !== b.priority) {
+            return b.priority - a.priority;
+          }
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        })[0];
+
+      if (!nextQueueItem) {
+        throw new Error('No valid queue item found');
+      }
+
+      // Create a new pressing session for this batch
+      const sessionPayload = {
+        batch_id: nextQueueItem.batch_id,
+        pressing_roomID: roomId,
+        number_of_boxes: nextQueueItem.number_of_boxes,
+        operator_id: nextQueueItem.operator_id,
+        start: new Date().toISOString(),
+        status: 'active'
+      };
+
+      console.log('Creating new pressing session:', sessionPayload);
+      const sessionResponse = await api.post('/pressing-sessions', sessionPayload);
+      const newSession = getPayload<any>(sessionResponse);
+
+      // Update the batch status to in_process and assign to room
+      await api.put(`/batches/${nextQueueItem.batch_id}`, {
+        status: 'in_process',
+        pressing_room_id: roomId,
+        session_start_time: new Date().toISOString()
+      });
+
+      // Remove the item from the queue
+      await api.delete(`/pressing-queue/${nextQueueItem.id}`);
+
+      console.log('Successfully processed next queue item:', newSession);
+      return newSession;
+    } catch (error: any) {
+      console.error('Error processing next queue item:', error);
+      throw error;
+    }
+  };
+
   // Initialize camera for QR scanning
   const initializeCamera = async () => {
     if (!videoRef.current) return;
@@ -296,10 +353,20 @@ export function EmployeeScannerPage() {
         number_of_bidons: bidonsCount
       });
 
-      toast({ 
-        title: 'نجح', 
-        description: `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}` 
-      });
+      // Try to automatically start the next session from the queue
+      try {
+        await processNextQueueItem(scannedRoom.id);
+        toast({ 
+          title: 'نجح', 
+          description: `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}. تم تحميل العميل التالي من الطابور.` 
+        });
+      } catch (queueError) {
+        console.log('No queue items to process or error processing queue:', queueError);
+        toast({ 
+          title: 'نجح', 
+          description: `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}` 
+        });
+      }
       
       // Reset for next scan
       resetScanner();

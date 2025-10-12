@@ -105,10 +105,11 @@ export default (sequelize) => {
     Batch.belongsTo(models.Client, { foreignKey: 'clientId', as: 'client' });
     Batch.belongsTo(models.Price, { foreignKey: 'priceId', as: 'price' });
     Batch.belongsTo(models.PressingRoom, { foreignKey: 'pressing_room_id', as: 'pressingRoom' });
-    Batch.hasMany(models.OilBatch, { foreignKey: 'batchId', as: 'oilBatches' });
-    Batch.hasMany(models.Invoice, { foreignKey: 'batchId', as: 'invoices' });
-    Batch.hasMany(models.PressingSession, { foreignKey: 'batch_id', as: 'pressingSessions' });
-    Batch.hasMany(models.BatchLoading, { foreignKey: 'batchId', as: 'batchLoadings' });
+    Batch.hasMany(models.OilBatch, { foreignKey: 'batchId', as: 'oilBatches', onDelete: 'CASCADE' });
+    Batch.hasMany(models.Invoice, { foreignKey: 'batchId', as: 'invoices', onDelete: 'CASCADE' });
+    Batch.hasMany(models.PressingSession, { foreignKey: 'batch_id', as: 'pressingSessions', onDelete: 'CASCADE' });
+    Batch.hasMany(models.BatchLoading, { foreignKey: 'batchId', as: 'batchLoadings', onDelete: 'CASCADE' });
+    Batch.hasMany(models.PressingQueue, { foreignKey: 'batch_id', as: 'pressingQueueItems', onDelete: 'CASCADE' });
   };
 
   return Batch;

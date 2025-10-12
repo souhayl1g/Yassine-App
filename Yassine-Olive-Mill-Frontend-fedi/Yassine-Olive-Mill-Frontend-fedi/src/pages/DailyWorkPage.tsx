@@ -625,7 +625,28 @@ export function DailyWorkPage() {
     }
 
     try {
+      // Temporary workaround: Clean up queue items first until CASCADE migration is run
+      try {
+        const queueResponse = await api.get('/pressing-queue');
+        const queueItems = Array.isArray(queueResponse) ? queueResponse : queueResponse?.data || [];
+        
+        // Find and delete queue items for this batch
+        const relatedQueueItems = queueItems.filter((item: any) => 
+          item.batch_id?.toString() === ticketId.toString()
+        );
+
+        for (const queueItem of relatedQueueItems) {
+          await api.delete(`/pressing-queue/${queueItem.id}`);
+          console.log(`Deleted queue item ${queueItem.id} for batch ${ticketId}`);
+        }
+      } catch (queueError) {
+        console.log('No queue items found or error cleaning up queue:', queueError);
+        // Continue with batch deletion even if queue cleanup fails
+      }
+
+      // Now delete the batch
       await api.delete(`/batches/${ticketId}`);
+      
       // Also remove from minimized tickets if exists
       setMinimizedTickets(prev => prev.filter(t => t.id !== ticketId));
       toast({ title: t('common.success'), description: 'تم حذف التذكرة بنجاح' });
