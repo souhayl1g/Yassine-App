@@ -15,6 +15,14 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Leaf, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+// Demo accounts type
+type DemoAccount = {
+  name: string;
+  username: string;
+  password: string;
+  role: string;
+};
+
 const loginSchema = z.object({
   email: z.string().email('validation.invalidEmail'),
   password: z.string().min(6, 'validation.minLength'),
@@ -44,6 +52,7 @@ export const AuthPage: React.FC = () => {
   const [isSignup, setIsSignup] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [demoAccounts, setDemoAccounts] = useState<DemoAccount[]>([]);
 
   // Helper function to get redirect path based on user role
   const getRedirectPath = (userRole: string) => {
@@ -58,6 +67,26 @@ export const AuthPage: React.FC = () => {
     }
     return '/dashboard';
   };
+
+  // Load demo accounts
+  useEffect(() => {
+    const loadDemoAccounts = async () => {
+      try {
+        const response = await fetch('/accounts.json');
+        if (response.ok) {
+          const accounts = await response.json();
+          setDemoAccounts(accounts);
+        } else {
+          console.log('Demo accounts file not found, hiding demo section');
+          setDemoAccounts([]);
+        }
+      } catch (error) {
+        console.log('Demo accounts file not found, hiding demo section');
+        setDemoAccounts([]);
+      }
+    };
+    loadDemoAccounts();
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -134,13 +163,10 @@ export const AuthPage: React.FC = () => {
     }
   };
 
-  const fillDemoCredentials = () => {
-    // Option no-op or prefill with example to speed manual testing
-    loginForm.setValue('email', 'admin@example.com');
-    loginForm.setValue('password', 'password12345');
-  };
-
-  return (
+  const fillDemoCredentials = (account: DemoAccount) => {
+    loginForm.setValue('email', account.username);
+    loginForm.setValue('password', account.password);
+  };  return (
     <div className="min-h-screen bg-gradient-to-br from-primary/20 via-background to-secondary/20 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
@@ -165,7 +191,7 @@ export const AuthPage: React.FC = () => {
         </div>
 
         {/* Quick fill helper for testing */}
-        {!isSignup && (
+        {!isSignup && demoAccounts.length > 0 && (
           <OliveCard variant="outlined">
             <OliveCardHeader>
               <OliveCardTitle className="text-lg">{t('auth.demoCredentials')}</OliveCardTitle>
@@ -174,17 +200,23 @@ export const AuthPage: React.FC = () => {
               </OliveCardDescription>
             </OliveCardHeader>
             <OliveCardContent className="space-y-2">
-              <OliveButton
-                variant="ghost"
-                size="sm"
-                className="w-full justify-between"
-                onClick={() => fillDemoCredentials()}
-              >
-                <span>admin@example.com</span>
-                <span className="text-xs text-muted-foreground capitalize">
-                  admin
-                </span>
-              </OliveButton>
+              {demoAccounts.map((account, index) => (
+                <OliveButton
+                  key={index}
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-between"
+                  onClick={() => fillDemoCredentials(account)}
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-medium">{account.name}</span>
+                    <span className="text-xs text-muted-foreground">{account.username}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground capitalize">
+                    {account.role}
+                  </span>
+                </OliveButton>
+              ))}
             </OliveCardContent>
           </OliveCard>
         )}

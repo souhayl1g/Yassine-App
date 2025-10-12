@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Admin User",
+    "username": "admin@example.com",
+    "password": "password123",
+    "role": "admin"
+  },
+  {
+    "name": "Operator User",
+    "username": "operator@example.com",
+    "password": "password123",
+    "role": "operator"
+  },
+  {
+    "name": "Scanner User",
+    "username": "scanner@example.com",
+    "password": "password123",
+    "role": "scanner"
+  },
+  {
+    "name": "Employee User",
+    "username": "employee@example.com",
+    "password": "password123",
+    "role": "employee"
+  }
+]

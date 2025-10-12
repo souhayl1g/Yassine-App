@@ -2,13 +2,29 @@ import React, { useState, useRef, useEffect } from 'react';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { 
-  Camera,
-  X,
-  Save,
+import {
+  Scan,
+  CheckCircle,
+  ArrowRight,
+  Users,
+  Package,
+  Settings,
+  AlertCircle,
+  RefreshCw,
+  MapPin,
+  Timer,
+  Clock,
+  Calendar,
+  Eye,
+  Hash,
+  RotateCcw,
+  Home,
+  Info,
   Box,
   Layers,
-  RotateCcw
+  Save,
+  Camera,
+  X
 } from 'lucide-react';
 import { api } from '@/integrations/api/client';
 import { useToast } from '@/hooks/use-toast';
@@ -56,7 +72,7 @@ export function OperatorScannerPage() {
   const [errorMessage, setErrorMessage] = useState('');
   
   // Multi-step flow state
-  const [currentStep, setCurrentStep] = useState<'scanner' | 'ticket-info' | 'room-selection' | 'boxes-input'>('scanner');
+  const [currentStep, setCurrentStep] = useState<'scanner' | 'ticket-info' | 'room-selection' | 'boxes-input' | 'queue-confirm'>('scanner');
   
   // Room selection state
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -285,6 +301,65 @@ export function OperatorScannerPage() {
     setCurrentStep('boxes-input');
   };
 
+  // Add to pressing queue
+  const handleAddToQueue = async () => {
+    if (!scannedTicket) return;
+
+    const boxesToProcess = parseInt(numberOfBoxesToProcess || '1', 10);
+
+    if (boxesToProcess <= 0) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: 'Please enter a valid number of boxes' 
+      });
+      return;
+    }
+
+    const totalBoxes = scannedTicket.numberOfBoxes || 0;
+    const alreadyLoaded = scannedTicket.boxesLoadedToPressing || 0;
+    const availableBoxes = totalBoxes - alreadyLoaded;
+
+    if (boxesToProcess > availableBoxes) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: `Cannot load more than ${availableBoxes} boxes. Available: ${availableBoxes} out of ${totalBoxes}` 
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const queuePayload = {
+        batch_id: parseInt(scannedTicket.id),
+        number_of_boxes: boxesToProcess,
+        operator_id: user?.id || 1,
+        notes: `Queued ${boxesToProcess} boxes for pressing by ${user?.firstname || 'Unknown'} ${user?.lastname || 'Operator'}`
+      };
+
+      const response = await api.post('/pressing-queue', queuePayload);
+      const queueData = getPayload<any>(response);
+
+      toast({ 
+        title: 'Success', 
+        description: `Successfully added to queue. Position: ${queueData.position || 'N/A'}` 
+      });
+      
+      // Reset for next scan
+      resetScanner();
+    } catch (error: any) {
+      console.error('Add to queue failed:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error?.response?.data?.error || error?.message || 'Failed to add to queue',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Create pressing session
   const handleCreatePressingSession = async () => {
     if (!scannedTicket || !selectedRoom) return;
@@ -453,6 +528,9 @@ export function OperatorScannerPage() {
 
   // Room Selection Step
   if (currentStep === 'room-selection') {
+    const availableRooms = rooms.filter(room => room.status !== 'active');
+    const allRoomsFull = rooms.length > 0 && availableRooms.length === 0;
+    
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
         <div className="max-w-md mx-auto space-y-6">
@@ -461,8 +539,34 @@ export function OperatorScannerPage() {
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
               اختيار غرفة العصر
             </h1>
-            <p className="text-gray-600 dark:text-gray-300">اختر غرفة عصر متاحة</p>
+            <p className="text-gray-600 dark:text-gray-300">
+              {allRoomsFull ? 'جميع الغرف مشغولة - يمكنك إضافة العملية للطابور' : 'اختر غرفة عصر متاحة'}
+            </p>
           </div>
+
+          {/* Queue Option - Show when all rooms are full */}
+          {allRoomsFull && (
+            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+              <div className="text-center space-y-3">
+                <div className="flex items-center justify-center space-x-2">
+                  <Layers className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                  <span className="text-lg font-semibold text-orange-800 dark:text-orange-200">
+                    إضافة للطابور
+                  </span>
+                </div>
+                <p className="text-sm text-orange-700 dark:text-orange-300">
+                  جميع غرف العصر مشغولة حالياً. يمكنك إضافة هذه العملية للطابور وسيتم تشغيلها تلقائياً عند توفر غرفة.
+                </p>
+                <OliveButton
+                  onClick={() => setCurrentStep('queue-confirm')}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  <Layers className="h-4 w-4 mr-2" />
+                  إضافة للطابور
+                </OliveButton>
+              </div>
+            </div>
+          )}
 
           {/* Rooms List */}
           <div className="space-y-3">
@@ -473,7 +577,7 @@ export function OperatorScannerPage() {
               </div>
             ) : rooms.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-600 dark:text-gray-300">لا توجد غرف متاحة</p>
+                <p className="text-gray-600 dark:text-gray-300">لا توجد غرف في النظام</p>
               </div>
             ) : (
               rooms.map((room) => (
@@ -633,6 +737,123 @@ export function OperatorScannerPage() {
                 <>
                   <Save className="h-5 w-5 mr-2" />
                   إنشاء جلسة العصر
+                </>
+              )}
+            </OliveButton>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Queue Confirmation Step
+  if (currentStep === 'queue-confirm' && scannedTicket) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
+        <div className="max-w-md mx-auto space-y-6">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+              تأكيد إضافة للطابور
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300">مراجعة تفاصيل العملية قبل الإضافة للطابور</p>
+          </div>
+
+          {/* Queue Info */}
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">
+            <div className="text-center space-y-3">
+              <Layers className="h-12 w-12 text-orange-600 dark:text-orange-400 mx-auto" />
+              <h3 className="font-semibold text-orange-800 dark:text-orange-200 text-lg">
+                إضافة للطابور
+              </h3>
+              <p className="text-sm text-orange-700 dark:text-orange-300">
+                ستتم إضافة هذه العملية للطابور وسيتم تشغيلها تلقائياً عند توفر غرفة عصر.
+              </p>
+            </div>
+          </div>
+
+          {/* Ticket Summary */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
+            <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-4 text-lg">
+              ملخص العملية
+            </h3>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">رقم التذكرة:</span>
+                <span className="font-medium">{scannedTicket.ticketNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">اسم العميل:</span>
+                <span className="font-medium">{scannedTicket.clientName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">عدد الصناديق للمعالجة:</span>
+                <span className="font-medium text-orange-600 dark:text-orange-400">
+                  {numberOfBoxesToProcess}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">المشغل:</span>
+                <span className="font-medium text-blue-600 dark:text-blue-400">
+                  {user?.firstname} {user?.lastname}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Boxes Input */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="queueBoxesToProcess" className="flex items-center gap-2 text-lg">
+                <Box className="h-5 w-5" />
+                عدد الصناديق للمعالجة
+              </Label>
+              <Input
+                id="queueBoxesToProcess"
+                type="number"
+                min="1"
+                max={scannedTicket ? (scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0) : 999}
+                value={numberOfBoxesToProcess}
+                onChange={(e) => setNumberOfBoxesToProcess(e.target.value)}
+                placeholder="أدخل عدد الصناديق"
+                className="text-lg p-3"
+              />
+              <div className="space-y-1">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  المتاح للتحميل: {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0)} صندوق
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-500">
+                  المحمل سابقاً: {scannedTicket.boxesLoadedToPressing || 0} من أصل {scannedTicket.numberOfBoxes || 0}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <OliveButton
+              variant="outline"
+              onClick={() => setCurrentStep('room-selection')}
+              className="flex-1 text-lg py-3"
+              disabled={isSaving}
+            >
+              <RotateCcw className="h-5 w-5 mr-2" />
+              العودة للغرف
+            </OliveButton>
+            <OliveButton
+              onClick={handleAddToQueue}
+              className="flex-1 text-lg py-3 bg-orange-600 hover:bg-orange-700"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  جاري الإضافة...
+                </>
+              ) : (
+                <>
+                  <Layers className="h-5 w-5 mr-2" />
+                  إضافة للطابور
                 </>
               )}
             </OliveButton>
