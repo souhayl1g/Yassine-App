@@ -65,7 +65,7 @@ export const AuthPage: React.FC = () => {
     if (userRole === 'employee') {
       return '/employee-scanner';
     }
-    return '/dashboard';
+    return '/';
   };
 
   // Load demo accounts

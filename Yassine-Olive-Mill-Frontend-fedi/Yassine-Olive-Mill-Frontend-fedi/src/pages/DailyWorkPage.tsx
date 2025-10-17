@@ -548,7 +548,8 @@ export function DailyWorkPage() {
     
     let unitPrice = 0;
     let totalAmount = 0;
-    
+    let netWeight = 0;
+
     if (operationType === 'milling') {
       unitPrice = currentPrices?.milling_price_per_kg || 0;
       
@@ -557,7 +558,7 @@ export function DailyWorkPage() {
         return;
       }
 
-      const netWeight = weightOut === undefined ? scannedTicket.weightIn : Math.max(0, scannedTicket.weightIn - weightOut);
+      netWeight = weightOut === undefined ? scannedTicket.weightIn : Math.max(0, scannedTicket.weightIn - weightOut);
       const calculatedAmount = netWeight * unitPrice;
       totalAmount = Math.max(40, +calculatedAmount.toFixed(2));
       
@@ -569,7 +570,7 @@ export function DailyWorkPage() {
         return;
       }
 
-      const netWeight = weightOut === undefined ? scannedTicket.weightIn : Math.max(0, scannedTicket.weightIn - weightOut);
+      netWeight = weightOut === undefined ? scannedTicket.weightIn : Math.max(0, scannedTicket.weightIn - weightOut);
       const taux = editForm.taux ? parseFloat(editForm.taux) : null;
       
       if (taux && taux > 0) {
@@ -674,7 +675,11 @@ export function DailyWorkPage() {
       // Temporary workaround: Clean up queue items first until CASCADE migration is run
       try {
         const queueResponse = await api.get('/pressing-queue');
-        const queueItems = Array.isArray(queueResponse) ? queueResponse : queueResponse?.data || [];
+        const queueItems = Array.isArray(queueResponse)
+          ? queueResponse
+          : (typeof queueResponse === 'object' && queueResponse !== null && 'data' in queueResponse
+              ? (queueResponse as { data: any }).data
+              : []);
         
         // Find and delete queue items for this batch
         const relatedQueueItems = queueItems.filter((item: any) => 
