@@ -8,7 +8,8 @@ import {
   Save,
   Box,
   Layers,
-  RotateCcw
+  RotateCcw,
+  Package
 } from 'lucide-react';
 import { api } from '@/integrations/api/client';
 import { useToast } from '@/hooks/use-toast';
@@ -46,10 +47,22 @@ export function EmployeeScannerPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Flow state
-  const [currentStep, setCurrentStep] = useState<'scanner' | 'room-info' | 'complete-session'>('scanner');
+  const [currentStep, setCurrentStep] = useState<'scanner' | 'room-info' | 'complete-session' | 'oil-weight-input'>('scanner');
   
   // Form state
   const [numberOfBidons, setNumberOfBidons] = useState('1');
+  const [selectedContainer, setSelectedContainer] = useState<string>('');
+  const [oilWeight, setOilWeight] = useState<string>('');
+  
+  const containerOptions = [
+    { value: 'container_1', label: 'Container 1' },
+    { value: 'container_2', label: 'Container 2' },
+    { value: 'container_3', label: 'Container 3' },
+    { value: 'tank_a', label: 'Tank A' },
+    { value: 'tank_b', label: 'Tank B' },
+    { value: 'storage_1', label: 'Storage 1' },
+    { value: 'storage_2', label: 'Storage 2' },
+  ];
 
   // Camera refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -293,6 +306,25 @@ export function EmployeeScannerPage() {
 
   // Handle proceeding to complete session
   const handleProceedToCompleteSession = () => {
+    // For sale operations, go to oil weight input first
+    if (scannedRoom?.currentSession?.operationType === 'sale') {
+      setCurrentStep('oil-weight-input');
+    } else {
+      // For milling operations, go directly to complete session
+      setCurrentStep('complete-session');
+    }
+  };
+
+  // Handle proceeding from oil weight input to complete session
+  const handleProceedFromOilWeight = () => {
+    if (!oilWeight || parseFloat(oilWeight) <= 0) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: 'يرجى إدخال وزن صحيح للزيت' 
+      });
+      return;
+    }
     setCurrentStep('complete-session');
   };
 
@@ -327,8 +359,27 @@ export function EmployeeScannerPage() {
       return;
     }
 
-    // For sale operations, bidons count is 0 (no oil production)
+    // For sale operations, validate oil weight and container selection
     // For milling operations, validate bidons input
+    if (scannedRoom.currentSession.operationType === 'sale') {
+      if (!oilWeight || parseFloat(oilWeight) <= 0) {
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: 'يرجى إدخال وزن صحيح للزيت' 
+        });
+        return;
+      }
+      if (!selectedContainer) {
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: 'يرجى اختيار الحاوية لتخزين الزيتون' 
+        });
+        return;
+      }
+    }
+
     const bidonsCount = scannedRoom.currentSession.operationType === 'sale' ? 0 : parseInt(numberOfBidons || '1', 10);
 
     if (scannedRoom.currentSession.operationType !== 'sale' && bidonsCount <= 0) {
@@ -357,11 +408,35 @@ export function EmployeeScannerPage() {
         number_of_bidons: bidonsCount
       });
 
+      // For sale operations, create an oil batch record
+      if (scannedRoom.currentSession.operationType === 'sale' && oilWeight) {
+        try {
+          const oilBatchPayload = {
+            weight: parseInt(parseFloat(oilWeight).toString()), // Convert to integer as expected by backend
+            batchId: scannedRoom.currentSession.batch.id,
+            pressing_sessionId: scannedRoom.currentSession.id
+          };
+
+          console.log('Creating oil batch:', oilBatchPayload);
+          const oilBatchResponse = await api.post('/oil-batches', oilBatchPayload);
+          console.log('Oil batch created successfully:', getPayload(oilBatchResponse));
+        } catch (oilBatchError) {
+          console.error('Failed to create oil batch:', oilBatchError);
+          // Don't fail the entire operation if oil batch creation fails
+          toast({
+            variant: 'destructive',
+            title: 'تحذير',
+            description: 'تم إكمال العملية ولكن فشل في إنشاء سجل دفعة الزيت',
+          });
+        }
+      }
+
       // Try to automatically start the next session from the queue
       try {
         await processNextQueueItem(scannedRoom.id);
+        const containerLabel = selectedContainer ? containerOptions.find(opt => opt.value === selectedContainer)?.label : '';
         const successMessage = scannedRoom.currentSession.operationType === 'sale' 
-          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}. تم تحميل العميل التالي من الطابور.`
+          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}. وزن الزيت: ${oilWeight} كيلو. تم تخزين الزيتون في ${containerLabel}. تم تحميل العميل التالي من الطابور.`
           : `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}. تم تحميل العميل التالي من الطابور.`;
         
         toast({ 
@@ -370,8 +445,9 @@ export function EmployeeScannerPage() {
         });
       } catch (queueError) {
         console.log('No queue items to process or error processing queue:', queueError);
+        const containerLabel = selectedContainer ? containerOptions.find(opt => opt.value === selectedContainer)?.label : '';
         const successMessage = scannedRoom.currentSession.operationType === 'sale' 
-          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}`
+          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}. وزن الزيت: ${oilWeight} كيلو. تم تخزين الزيتون في ${containerLabel}`
           : `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}`;
         
         toast({ 
@@ -398,6 +474,8 @@ export function EmployeeScannerPage() {
   const resetScanner = () => {
     setScannedRoom(null);
     setNumberOfBidons('1');
+    setSelectedContainer('');
+    setOilWeight('');
     setCurrentStep('scanner');
     setIsCameraActive(true);
     setTimeout(() => {
@@ -418,14 +496,14 @@ export function EmployeeScannerPage() {
   // Room Info Step
   if (currentStep === 'room-info' && scannedRoom) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 p-4">
-        <div className="max-w-md mx-auto space-y-6">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 p-2 sm:p-4">
+        <div className="max-w-md mx-auto space-y-4 sm:space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
               ماسح الغرف (الموظف)
             </h1>
-            <p className="text-gray-600 dark:text-gray-300">معلومات الغرفة</p>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">معلومات الغرفة</p>
           </div>
 
           {/* Operation Type Badge - Show prominently if there's an active session */}
@@ -447,8 +525,8 @@ export function EmployeeScannerPage() {
           )}
 
           {/* Room Info */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
-            <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-4 text-lg">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-lg border">
+            <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-3 sm:mb-4 text-base sm:text-lg">
               بيانات الغرفة
             </h3>
             <div className="space-y-3 text-sm">
@@ -475,8 +553,8 @@ export function EmployeeScannerPage() {
 
           {/* Current Session Info */}
           {scannedRoom.currentSession ? (
-            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-6 shadow-lg border border-green-200 dark:border-green-800">
-              <h3 className="font-semibold text-green-800 dark:text-green-200 mb-4 text-lg">
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 sm:p-6 shadow-lg border border-green-200 dark:border-green-800">
+              <h3 className="font-semibold text-green-800 dark:text-green-200 mb-3 sm:mb-4 text-base sm:text-lg">
                 الجلسة النشطة
               </h3>
               <div className="space-y-3 text-sm">
@@ -532,8 +610,8 @@ export function EmployeeScannerPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-gray-50 dark:bg-gray-900/20 rounded-lg p-6 shadow-lg border border-gray-200 dark:border-gray-800">
-              <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-4 text-lg text-center">
+            <div className="bg-gray-50 dark:bg-gray-900/20 rounded-lg p-4 sm:p-6 shadow-lg border border-gray-200 dark:border-gray-800">
+              <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4 text-base sm:text-lg text-center">
                 الغرفة متاحة
               </h3>
               <p className="text-gray-600 dark:text-gray-400 text-center">
@@ -543,19 +621,19 @@ export function EmployeeScannerPage() {
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <OliveButton
               variant="outline"
               onClick={resetScanner}
-              className="flex-1 text-lg py-3"
+              className="flex-1 text-base sm:text-lg py-2 sm:py-3"
             >
-              <RotateCcw className="h-5 w-5 mr-2" />
+              <RotateCcw className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
               مسح جديد
             </OliveButton>
             {scannedRoom.currentSession && (
               <OliveButton
                 onClick={handleProceedToCompleteSession}
-                className="flex-1 text-lg py-3"
+                className="flex-1 text-base sm:text-lg py-2 sm:py-3"
               >
                 إنهاء الجلسة
               </OliveButton>
@@ -566,17 +644,122 @@ export function EmployeeScannerPage() {
     );
   }
 
+  // Oil Weight Input Step - Only for sale operations
+  if (currentStep === 'oil-weight-input' && scannedRoom?.currentSession?.operationType === 'sale') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 p-2 sm:p-4">
+        <div className="max-w-md mx-auto space-y-4 sm:space-y-6">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
+              وزن الزيت المباع
+            </h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
+              غرفة العصر: {scannedRoom.name}
+            </p>
+          </div>
+
+          {/* Sale Operation Info */}
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">
+            <div className="text-center space-y-3">
+              <div className="flex items-center justify-center space-x-2">
+                <Box className="h-8 w-8 text-orange-600 dark:text-orange-400" />
+                <span className="text-xl font-bold text-orange-800 dark:text-orange-200">
+                  عملية بيع زيت
+                </span>
+              </div>
+              <p className="text-sm text-orange-700 dark:text-orange-300">
+                يرجى إدخال وزن الزيت الذي تم بيعه للعميل
+              </p>
+            </div>
+          </div>
+
+          {/* Session Summary */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
+            <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-4 text-lg">
+              معلومات العملية
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">العميل:</span>
+                <span className="font-medium">{scannedRoom.currentSession.batch.clientName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">رقم التذكرة:</span>
+                <span className="font-medium">{scannedRoom.currentSession.batch.ticketNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">نوع العملية:</span>
+                <span className="font-medium px-2 py-1 rounded text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                  🛒 بيع زيت
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Oil Weight Input */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="oilWeight" className="flex items-center gap-2 text-base sm:text-lg">
+                <Package className="h-4 w-4 sm:h-5 sm:w-5" />
+                وزن الزيت المباع (كيلو)
+              </Label>
+              <Input
+                id="oilWeight"
+                type="number"
+                min="0.1"
+                max="9999"
+                step="0.1"
+                value={oilWeight}
+                onChange={(e) => setOilWeight(e.target.value)}
+                placeholder="أدخل وزن الزيت بالكيلو"
+                className="text-base sm:text-lg p-2 sm:p-3"
+              />
+              <div className="space-y-1">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  ⚖️ أدخل الوزن الدقيق للزيت الذي تم بيعه
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-500">
+                  يمكن إدخال الأرقام العشرية (مثال: 15.5)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <OliveButton
+              variant="outline"
+              onClick={() => setCurrentStep('room-info')}
+              className="flex-1 text-base sm:text-lg py-2 sm:py-3"
+            >
+              <RotateCcw className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+              العودة للمعلومات
+            </OliveButton>
+            <OliveButton
+              onClick={handleProceedFromOilWeight}
+              className="flex-1 text-base sm:text-lg py-2 sm:py-3"
+              disabled={!oilWeight || parseFloat(oilWeight) <= 0}
+            >
+              متابعة لاختيار الحاوية
+            </OliveButton>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Complete Session Step
   if (currentStep === 'complete-session' && scannedRoom?.currentSession) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 p-4">
-        <div className="max-w-md mx-auto space-y-6">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 p-2 sm:p-4">
+        <div className="max-w-md mx-auto space-y-4 sm:space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
               عدد بدونات الزيت المنتجة
             </h1>
-            <p className="text-gray-600 dark:text-gray-300">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
               غرفة العصر: {scannedRoom.name}
             </p>
           </div>
@@ -598,13 +781,22 @@ export function EmployeeScannerPage() {
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">نوع العملية:</span>
                 <span className={`font-medium px-2 py-1 rounded text-xs ${
-                  scannedRoom.currentSession.operationType === 'selling' 
+                  scannedRoom.currentSession.operationType === 'sale' 
                     ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' 
                     : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                 }`}>
-                  {scannedRoom.currentSession.operationType === 'selling' ? '🛒 بيع' : '⚙️ عصر'}
+                  {scannedRoom.currentSession.operationType === 'sale' ? '🛒 بيع' : '⚙️ عصر'}
                 </span>
               </div>
+              {/* Show oil weight for sale operations */}
+              {scannedRoom.currentSession.operationType === 'sale' && oilWeight && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">وزن الزيت المباع:</span>
+                  <span className="font-medium text-orange-600 dark:text-orange-400">
+                    {oilWeight} كيلو
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">الوزن الداخل:</span>
                 <span className="font-medium">{scannedRoom.currentSession.batch.weightIn} كيلو</span>
@@ -628,8 +820,8 @@ export function EmployeeScannerPage() {
           {scannedRoom.currentSession.operationType !== 'sale' && (
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="bidonsProduced" className="flex items-center gap-2 text-lg">
-                  <Layers className="h-5 w-5" />
+                <Label htmlFor="bidonsProduced" className="flex items-center gap-2 text-base sm:text-lg">
+                  <Layers className="h-4 w-4 sm:h-5 sm:w-5" />
                   عدد بدونات الزيت المنتجة
                 </Label>
                 <Input
@@ -640,7 +832,7 @@ export function EmployeeScannerPage() {
                   value={numberOfBidons}
                   onChange={(e) => setNumberOfBidons(e.target.value)}
                   placeholder="أدخل عدد البدونات المنتجة"
-                  className="text-lg p-3"
+                  className="text-base sm:text-lg p-2 sm:p-3"
                 />
                 <div className="space-y-1">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -674,31 +866,98 @@ export function EmployeeScannerPage() {
             </div>
           )}
 
+          {/* Container Selection - Only show for sale operations */}
+          {scannedRoom.currentSession.operationType === 'sale' && (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="text-center space-y-2">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white flex items-center justify-center gap-2">
+                  <Package className="h-5 w-5 sm:h-6 sm:w-6" />
+                  اختيار الحاوية
+                </h3>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
+                  اختر الحاوية لتخزين الزيتون
+                </p>
+              </div>
+
+              {/* Container Options */}
+              <div className="space-y-3">
+                {containerOptions.map((container) => (
+                  <div
+                    key={container.value}
+                    className={`bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-4 shadow-lg border cursor-pointer transition-all ${
+                      selectedContainer === container.value
+                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20 shadow-green-200 dark:shadow-green-800'
+                        : 'border-gray-300 dark:border-gray-600 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600'
+                    }`}
+                    onClick={() => setSelectedContainer(container.value)}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center space-x-2 sm:space-x-3">
+                        <Package className={`h-5 w-5 sm:h-6 sm:w-6 ${
+                          selectedContainer === container.value
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-gray-600 dark:text-gray-400'
+                        }`} />
+                        <div>
+                          <h4 className={`font-semibold text-base sm:text-lg ${
+                            selectedContainer === container.value
+                              ? 'text-green-800 dark:text-green-200'
+                              : 'text-gray-800 dark:text-gray-200'
+                          }`}>
+                            {container.label}
+                          </h4>
+                        </div>
+                      </div>
+                      <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        selectedContainer === container.value
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                      }`}>
+                        {selectedContainer === container.value ? '✓ محدد' : 'متاح'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm text-blue-700 dark:text-blue-300 text-center">
+                  📦 يجب تحديد الحاوية قبل إكمال عملية البيع
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <OliveButton
               variant="outline"
-              onClick={() => setCurrentStep('room-info')}
-              className="flex-1 text-lg py-3"
+              onClick={() => scannedRoom?.currentSession?.operationType === 'sale' ? setCurrentStep('oil-weight-input') : setCurrentStep('room-info')}
+              className="flex-1 text-base sm:text-lg py-2 sm:py-3"
               disabled={isSaving}
             >
-              <RotateCcw className="h-5 w-5 mr-2" />
-              العودة للمعلومات
+              <RotateCcw className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+              <span className="truncate">
+                {scannedRoom?.currentSession?.operationType === 'sale' ? 'العودة لوزن الزيت' : 'العودة للمعلومات'}
+              </span>
             </OliveButton>
             <OliveButton
               onClick={handleCompletePressingSession}
-              className="flex-1 text-lg py-3"
-              disabled={isSaving}
+              className="flex-1 text-base sm:text-lg py-2 sm:py-3"
+              disabled={isSaving || (scannedRoom.currentSession.operationType === 'sale' && !selectedContainer)}
             >
               {isSaving ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  جاري الإنهاء...
+                  <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white mr-2"></div>
+                  <span className="truncate">جاري الإنهاء...</span>
                 </>
               ) : (
                 <>
-                  <Save className="h-5 w-5 mr-2" />
-                  {scannedRoom.currentSession.operationType === 'sale' ? 'إكمال عملية البيع' : 'إنهاء جلسة العصر'}
+                  <Save className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                  <span className="truncate">
+                    {scannedRoom.currentSession.operationType === 'sale' ? 'إكمال عملية البيع' : 'إنهاء جلسة العصر'}
+                  </span>
                 </>
               )}
             </OliveButton>
@@ -713,18 +972,18 @@ export function EmployeeScannerPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-gray-800">
       <div className="flex flex-col h-screen">
         {/* Header */}
-        <div className="p-4 text-center bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+        <div className="p-3 sm:p-4 text-center bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
             ماسح الغرف (الموظف)
           </h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-1">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mt-1">
             وجه الكاميرا نحو رمز QR الخاص بالغرفة
           </p>
         </div>
 
         {/* Camera View */}
-        <div className="flex-1 flex items-center justify-center p-4 bg-gray-100 dark:bg-gray-900">
-          <div className="relative w-full max-w-sm aspect-square bg-black rounded-lg overflow-hidden shadow-2xl">
+        <div className="flex-1 flex items-center justify-center p-2 sm:p-4 bg-gray-100 dark:bg-gray-900">
+          <div className="relative w-full max-w-xs sm:max-w-sm aspect-square bg-black rounded-lg overflow-hidden shadow-2xl">
             <video
               ref={videoRef}
               className="w-full h-full object-cover"
@@ -738,7 +997,7 @@ export function EmployeeScannerPage() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="relative">
                   {/* Scanning frame */}
-                  <div className="w-48 h-48 border-2 border-white/70 rounded-lg relative">
+                  <div className="w-40 h-40 sm:w-48 sm:h-48 border-2 border-white/70 rounded-lg relative">
                     {/* Corner indicators */}
                     <div className="absolute -top-1 -left-1 w-6 h-6 border-t-3 border-l-3 border-purple-400 rounded-tl-lg"></div>
                     <div className="absolute -top-1 -right-1 w-6 h-6 border-t-3 border-r-3 border-purple-400 rounded-tr-lg"></div>
@@ -762,23 +1021,23 @@ export function EmployeeScannerPage() {
         </div>
 
         {/* Control Buttons */}
-        <div className="p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
+        <div className="p-3 sm:p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
           <div className="flex gap-3 max-w-md mx-auto">
             {!isCameraActive ? (
               <OliveButton
                 onClick={initializeCamera}
-                className="flex-1 text-lg py-3"
+                className="flex-1 text-base sm:text-lg py-2 sm:py-3"
               >
-                <Camera className="h-5 w-5 mr-2" />
+                <Camera className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                 تشغيل الكاميرا
               </OliveButton>
             ) : (
               <OliveButton
                 variant="outline"
                 onClick={stopCamera}
-                className="flex-1 text-lg py-3"
+                className="flex-1 text-base sm:text-lg py-2 sm:py-3"
               >
-                <X className="h-5 w-5 mr-2" />
+                <X className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                 إيقاف الكاميرا
               </OliveButton>
             )}

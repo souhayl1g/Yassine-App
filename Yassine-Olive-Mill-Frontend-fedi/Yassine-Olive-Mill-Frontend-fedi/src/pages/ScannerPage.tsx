@@ -301,21 +301,7 @@ export function ScannerPage() {
             </h1>
           </div>
 
-          {/* Operation Type Badge */}
-          <div className="bg-gradient-to-r from-blue-100 to-green-100 dark:from-blue-900/30 dark:to-green-900/30 rounded-lg p-4 shadow-lg border-2 border-blue-200 dark:border-blue-800">
-            <div className="text-center">
-              <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 mb-2">
-                نوع العملية
-              </h3>
-              <div className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-bold ${
-                scannedTicket.operationType === 'sale' 
-                  ? 'bg-orange-500 text-white shadow-orange-200 dark:shadow-orange-800' 
-                  : 'bg-blue-500 text-white shadow-blue-200 dark:shadow-blue-800'
-              } shadow-lg`}>
-                {scannedTicket.operationType === 'sale' ? '🛒 بيع الزيتون' : '⚙️ عصر الزيتون'}
-              </div>
-            </div>
-          </div>
+  
 
           {/* Ticket Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
