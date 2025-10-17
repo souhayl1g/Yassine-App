@@ -53,16 +53,8 @@ export function EmployeeScannerPage() {
   const [numberOfBidons, setNumberOfBidons] = useState('1');
   const [selectedContainer, setSelectedContainer] = useState<string>('');
   const [oilWeight, setOilWeight] = useState<string>('');
-  
-  const containerOptions = [
-    { value: 'container_1', label: 'Container 1' },
-    { value: 'container_2', label: 'Container 2' },
-    { value: 'container_3', label: 'Container 3' },
-    { value: 'tank_a', label: 'Tank A' },
-    { value: 'tank_b', label: 'Tank B' },
-    { value: 'storage_1', label: 'Storage 1' },
-    { value: 'storage_2', label: 'Storage 2' },
-  ];
+  const [containers, setContainers] = useState<any[]>([]);
+  const [isLoadingContainers, setIsLoadingContainers] = useState(false);
 
   // Camera refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -84,6 +76,27 @@ export function EmployeeScannerPage() {
       return `${hours} ساعة و ${minutes} دقيقة`;
     } else {
       return `${minutes} دقيقة`;
+    }
+  };
+
+  // Fetch containers from API
+  const fetchContainers = async () => {
+    setIsLoadingContainers(true);
+    try {
+      const response = await api.get('/containers');
+      const containersData = getPayload<any[]>(response);
+      setContainers(containersData);
+    } catch (error: any) {
+      console.error('Error fetching containers:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'فشل في تحميل قائمة الحاويات',
+      });
+      // Fallback to empty array
+      setContainers([]);
+    } finally {
+      setIsLoadingContainers(false);
     }
   };
 
@@ -306,8 +319,9 @@ export function EmployeeScannerPage() {
 
   // Handle proceeding to complete session
   const handleProceedToCompleteSession = () => {
-    // For sale operations, go to oil weight input first
+    // For sale operations, load containers first, then go to oil weight input
     if (scannedRoom?.currentSession?.operationType === 'sale') {
+      fetchContainers();
       setCurrentStep('oil-weight-input');
     } else {
       // For milling operations, go directly to complete session
@@ -408,25 +422,26 @@ export function EmployeeScannerPage() {
         number_of_bidons: bidonsCount
       });
 
-      // For sale operations, create an oil batch record
-      if (scannedRoom.currentSession.operationType === 'sale' && oilWeight) {
+      // For sale operations, create an oil batch record with container assignment
+      if (scannedRoom.currentSession.operationType === 'sale' && oilWeight && selectedContainer) {
         try {
           const oilBatchPayload = {
             weight: parseInt(parseFloat(oilWeight).toString()), // Convert to integer as expected by backend
             batchId: scannedRoom.currentSession.batch.id,
-            pressing_sessionId: scannedRoom.currentSession.id
+            pressing_sessionId: scannedRoom.currentSession.id,
+            containerId: parseInt(selectedContainer) // Use the container ID from selection
           };
 
-          console.log('Creating oil batch:', oilBatchPayload);
-          const oilBatchResponse = await api.post('/oil-batches', oilBatchPayload);
-          console.log('Oil batch created successfully:', getPayload(oilBatchResponse));
+          console.log('Creating oil batch with container:', oilBatchPayload);
+          const oilBatchResponse = await api.post('/oil-batches/with-container', oilBatchPayload);
+          console.log('Oil batch created and assigned to container successfully:', getPayload(oilBatchResponse));
         } catch (oilBatchError) {
-          console.error('Failed to create oil batch:', oilBatchError);
+          console.error('Failed to create oil batch with container:', oilBatchError);
           // Don't fail the entire operation if oil batch creation fails
           toast({
             variant: 'destructive',
             title: 'تحذير',
-            description: 'تم إكمال العملية ولكن فشل في إنشاء سجل دفعة الزيت',
+            description: 'تم إكمال العملية ولكن فشل في إنشاء سجل دفعة الزيت وتخزينها في الحاوية',
           });
         }
       }
@@ -434,9 +449,9 @@ export function EmployeeScannerPage() {
       // Try to automatically start the next session from the queue
       try {
         await processNextQueueItem(scannedRoom.id);
-        const containerLabel = selectedContainer ? containerOptions.find(opt => opt.value === selectedContainer)?.label : '';
+        const containerLabel = selectedContainer ? containers.find(c => c.id.toString() === selectedContainer)?.label : '';
         const successMessage = scannedRoom.currentSession.operationType === 'sale' 
-          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}. وزن الزيت: ${oilWeight} كيلو. تم تخزين الزيتون في ${containerLabel}. تم تحميل العميل التالي من الطابور.`
+          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}. وزن الزيت: ${oilWeight} كيلو. تم تخزين الزيت في ${containerLabel}. تم تحميل العميل التالي من الطابور.`
           : `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}. تم تحميل العميل التالي من الطابور.`;
         
         toast({ 
@@ -445,9 +460,9 @@ export function EmployeeScannerPage() {
         });
       } catch (queueError) {
         console.log('No queue items to process or error processing queue:', queueError);
-        const containerLabel = selectedContainer ? containerOptions.find(opt => opt.value === selectedContainer)?.label : '';
+        const containerLabel = selectedContainer ? containers.find(c => c.id.toString() === selectedContainer)?.label : '';
         const successMessage = scannedRoom.currentSession.operationType === 'sale' 
-          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}. وزن الزيت: ${oilWeight} كيلو. تم تخزين الزيتون في ${containerLabel}`
+          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}. وزن الزيت: ${oilWeight} كيلو. تم تخزين الزيت في ${containerLabel}`
           : `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}`;
         
         toast({ 
@@ -876,50 +891,76 @@ export function EmployeeScannerPage() {
                   اختيار الحاوية
                 </h3>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
-                  اختر الحاوية لتخزين الزيتون
+                  اختر الحاوية لتخزين الزيت
                 </p>
               </div>
 
+              {/* Loading State */}
+              {isLoadingContainers && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">جاري تحميل الحاويات...</p>
+                  </div>
+                </div>
+              )}
+
               {/* Container Options */}
-              <div className="space-y-3">
-                {containerOptions.map((container) => (
-                  <div
-                    key={container.value}
-                    className={`bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-4 shadow-lg border cursor-pointer transition-all ${
-                      selectedContainer === container.value
-                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20 shadow-green-200 dark:shadow-green-800'
-                        : 'border-gray-300 dark:border-gray-600 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600'
-                    }`}
-                    onClick={() => setSelectedContainer(container.value)}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center space-x-2 sm:space-x-3">
-                        <Package className={`h-5 w-5 sm:h-6 sm:w-6 ${
-                          selectedContainer === container.value
-                            ? 'text-green-600 dark:text-green-400'
-                            : 'text-gray-600 dark:text-gray-400'
-                        }`} />
-                        <div>
-                          <h4 className={`font-semibold text-base sm:text-lg ${
-                            selectedContainer === container.value
-                              ? 'text-green-800 dark:text-green-200'
-                              : 'text-gray-800 dark:text-gray-200'
-                          }`}>
-                            {container.label}
-                          </h4>
+              {!isLoadingContainers && containers.length > 0 && (
+                <div className="space-y-3">
+                  {containers.map((container) => (
+                    <div
+                      key={container.id}
+                      className={`bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-4 shadow-lg border cursor-pointer transition-all ${
+                        selectedContainer === container.id.toString()
+                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20 shadow-green-200 dark:shadow-green-800'
+                          : 'border-gray-300 dark:border-gray-600 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600'
+                      }`}
+                      onClick={() => setSelectedContainer(container.id.toString())}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center space-x-2 sm:space-x-3">
+                          <Package className={`h-5 w-5 sm:h-6 sm:w-6 ${
+                            selectedContainer === container.id.toString()
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-gray-600 dark:text-gray-400'
+                          }`} />
+                          <div>
+                            <h4 className={`font-semibold text-base sm:text-lg ${
+                              selectedContainer === container.id.toString()
+                                ? 'text-green-800 dark:text-green-200'
+                                : 'text-gray-800 dark:text-gray-200'
+                            }`}>
+                              {container.label}
+                            </h4>
+                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                              <span>السعة: {container.capacity} كيلو</span>
+                              <span>•</span>
+                              <span>المحتوى الحالي: {container.currentWeight} كيلو</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          selectedContainer === container.id.toString()
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                        }`}>
+                          {selectedContainer === container.id.toString() ? '✓ محدد' : 'متاح'}
                         </div>
                       </div>
-                      <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        selectedContainer === container.value
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                      }`}>
-                        {selectedContainer === container.value ? '✓ محدد' : 'متاح'}
-                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
+
+              {/* No Containers Message */}
+              {!isLoadingContainers && containers.length === 0 && (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 text-center">
+                    ⚠️ لا توجد حاويات متاحة في النظام
+                  </p>
+                </div>
+              )}
 
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <p className="text-sm text-blue-700 dark:text-blue-300 text-center">

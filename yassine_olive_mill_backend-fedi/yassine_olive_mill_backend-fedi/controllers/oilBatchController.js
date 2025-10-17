@@ -1,6 +1,6 @@
 import db from "../models/index.js"
 
-const { OilBatch, Batch, PressingSession, QualityTest, ContainerOilBatch, Client, ProcessingDecision, PressingRoom, ContainerContent } = db;
+const { OilBatch, Batch, PressingSession, QualityTest, ContainerOilBatch, Client, ProcessingDecision, PressingRoom, ContainerContent, Container } = db;
 
 const oilBatchController = {
   // GET /api/oil-batches
@@ -96,7 +96,93 @@ const oilBatchController = {
     }
   },
 
-  // GET /api/oil-batches/:id/traceability
+  // POST /api/oil-batches/with-container
+  createOilBatchWithContainer: async (req, res) => {
+    try {
+      const { weight, residue, batchId, pressing_sessionId, containerId } = req.body;
+      
+      if (!weight) {
+        return res.status(400).json({ error: 'weight is required' });
+      }
+
+      if (!containerId) {
+        return res.status(400).json({ error: 'containerId is required' });
+      }
+
+      // Verify container exists
+      const container = await Container.findByPk(containerId);
+      if (!container) {
+        return res.status(404).json({ error: 'Container not found' });
+      }
+
+      // Start a transaction to ensure data consistency
+      const transaction = await db.sequelize.transaction();
+
+      try {
+        // Create the oil batch
+        const oilBatch = await OilBatch.create({
+          weight: parseInt(weight),
+          residue: residue ? parseInt(residue) : null,
+          batchId: batchId ? parseInt(batchId) : null,
+          pressing_sessionId: pressing_sessionId ? parseInt(pressing_sessionId) : null
+        }, { transaction });
+
+        // Get the current total weight in the container
+        const latestContent = await ContainerContent.findOne({
+          where: { containerId: containerId },
+          order: [['recorded_at', 'DESC']],
+          transaction
+        });
+
+        const currentWeight = latestContent ? latestContent.total_weight : 0;
+        const newTotalWeight = currentWeight + parseInt(weight);
+
+        // Create new container content record
+        const containerContent = await ContainerContent.create({
+          containerId: parseInt(containerId),
+          total_weight: newTotalWeight,
+          recorded_at: new Date()
+        }, { transaction });
+
+        // Link the oil batch to the container content
+        await ContainerOilBatch.create({
+          containerContentId: containerContent.id,
+          oilBatchId: oilBatch.id,
+          weight: parseInt(weight)
+        }, { transaction });
+
+        // Commit the transaction
+        await transaction.commit();
+
+        // Fetch the complete oil batch with all associations
+        const fullOilBatch = await OilBatch.findByPk(oilBatch.id, {
+          include: [
+            { model: Batch, as: 'batch' },
+            { model: PressingSession, as: 'pressingSession' },
+            { 
+              model: ContainerOilBatch, 
+              as: 'containerOilBatches',
+              include: [
+                { 
+                  model: ContainerContent, 
+                  as: 'containerContent',
+                  include: [{ model: Container, as: 'container' }]
+                }
+              ]
+            }
+          ]
+        });
+
+        res.status(201).json(fullOilBatch);
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
+    } catch (error) {
+      console.error('Create oil batch with container error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  },
   getOilBatchTraceability: async (req, res) => {
     try {
       const id = parseInt(req.params.id);

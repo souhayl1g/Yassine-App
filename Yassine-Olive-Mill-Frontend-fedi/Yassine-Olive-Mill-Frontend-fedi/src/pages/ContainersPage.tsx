@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, TrendingUp, TrendingDown, Droplets, DollarSign } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Droplets, DollarSign, History, Clock } from 'lucide-react';
 import { OliveCard } from '@/components/ui/olive-card';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ import { api } from '@/integrations/api/client';
 // dans api_documentation.yaml actuel. On affiche un état temporaire et on évite tout appel réseau.
 
 interface Container {
-  id: string;
+  id: number;
   label: string;
   capacity: number;
   currentWeight: number;
@@ -24,26 +24,28 @@ interface Container {
 }
 
 interface ContainerContent {
-  id: string;
-  container_id: string;
+  id: number;
+  containerId: number;
   total_weight: number;
-  value: number;
-  currency: string;
+  value?: number;
+  currency?: string;
   recorded_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface OilTransactionForm {
   weight: number;
   pricePerKg: number;
   type: 'add' | 'sell';
-  containerId: string;
+  containerId: number;
 }
 
 export default function ContainersPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [containers, setContainers] = useState<Container[]>([]);
-  const [containerContents, setContainerContents] = useState<ContainerContent[]>([]);
+  const [containerContents, setContainerContents] = useState<{[key: number]: ContainerContent[]}>({});
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -57,7 +59,7 @@ export default function ContainersPage() {
       setIsLoading(true);
       const data = await api.get<any[]>(`/containers`);
       const mapped: Container[] = (data || []).map((c: any) => ({
-        id: String(c.id),
+        id: c.id,
         label: c.label,
         capacity: c.capacity,
         currentWeight: c.currentWeight || 0,
@@ -66,7 +68,21 @@ export default function ContainersPage() {
         lastUpdated: c.lastUpdated || new Date().toISOString(),
       }));
       setContainers(mapped);
+
+      // Load contents for each container
+      const contentsMap: {[key: number]: ContainerContent[]} = {};
+      for (const container of mapped) {
+        try {
+          const contents = await api.get<ContainerContent[]>(`/containers/${container.id}/contents`);
+          contentsMap[container.id] = contents || [];
+        } catch (error) {
+          console.error(`Error loading contents for container ${container.id}:`, error);
+          contentsMap[container.id] = [];
+        }
+      }
+      setContainerContents(contentsMap);
     } catch (e) {
+      console.error('Error loading containers:', e);
       // silent; page will show empty state
     } finally {
       setIsLoading(false);
@@ -282,6 +298,60 @@ export default function ContainersPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Container Contents */}
+              {containerContents[container.id] && containerContents[container.id].length > 0 && (
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <History className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      محتويات الحاوية ({containerContents[container.id].length} سجل)
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {containerContents[container.id].slice(0, 3).map((content) => (
+                      <div key={content.id} className="flex justify-between items-center text-xs bg-background rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-muted-foreground">
+                            {new Date(content.recorded_at).toLocaleDateString('ar-TN', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{content.total_weight} كيلو</span>
+                          {content.value && (
+                            <span className="text-muted-foreground">
+                              ({content.value} {content.currency})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {containerContents[container.id].length > 3 && (
+                      <div className="text-center">
+                        <span className="text-xs text-muted-foreground">
+                          و {containerContents[container.id].length - 3} سجل آخر...
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty Container Message */}
+              {(!containerContents[container.id] || containerContents[container.id].length === 0) && (
+                <div className="bg-muted/30 rounded-lg p-4 text-center">
+                  <Droplets className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">لا توجد محتويات مسجلة</p>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-2">

@@ -14,4 +14,7 @@ router.get('/:id/traceability', oilBatchController.getOilBatchTraceability);
 // POST /api/oil-batches - Create new oil batch
 router.post('/', oilBatchController.createOilBatch);
 
+// POST /api/oil-batches/with-container - Create oil batch and assign to container
+router.post('/with-container', oilBatchController.createOilBatchWithContainer);
+
 export default router;
