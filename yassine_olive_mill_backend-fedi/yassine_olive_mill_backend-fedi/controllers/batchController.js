@@ -102,7 +102,7 @@ const batchController = {
   // POST /api/batches
   createBatch: async (req, res) => {
     try {
-      const { clientId, weight_in, weight_out, net_weight, number_of_boxes, operation_type, ticket_number, notes, status } = req.body;
+      const { clientId, weight_in, weight_out, net_weight, number_of_boxes, operation_type, ticket_number, notes, status, taux } = req.body;
       
       console.log('Creating batch with payload:', req.body);
       
@@ -125,7 +125,8 @@ const batchController = {
         operation_type: operation_type || 'milling', // Add operation_type field
         ticket_number: ticket_number || null,
         notes: notes || null,
-        status: status || 'received'
+        status: status || 'received',
+        taux: taux ? parseFloat(taux) : null // Add taux field for oil extraction percentage
       });
 
       const fullBatch = await Batch.findByPk(batch.id, {
@@ -199,6 +200,7 @@ const batchController = {
         paymentReference: 'payment_reference',
         datePaid: 'date_paid',
         notes: 'notes',
+        taux: 'taux', // Add support for taux field
       };
 
       Object.keys(req.body || {}).forEach((key) => {

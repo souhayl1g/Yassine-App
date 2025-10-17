@@ -127,6 +127,7 @@ export function DailyWorkPage() {
     weightOut: '',
     numberOfBoxes: '',
     notes: '',
+    taux: '', // Oil extraction percentage for sale operations
   });
 
   const [newTicket, setNewTicket] = useState({
@@ -284,6 +285,7 @@ export function DailyWorkPage() {
         weightOut: ticket.weightOut !== undefined ? String(ticket.weightOut) : '',
         numberOfBoxes: ticket.numberOfBoxes ? String(ticket.numberOfBoxes) : '',
         notes: ticket.notes || '',
+        taux: '', // Reset taux for each ticket
       });
 
       setIsEditModalOpen(true);
@@ -542,27 +544,70 @@ export function DailyWorkPage() {
 
     const weightOut = editForm.weightOut === '' ? undefined : parseFloat(editForm.weightOut);
     const numberOfBoxes = Math.max(0, parseInt(editForm.numberOfBoxes || '0', 10));
-    
-    // Use appropriate price based on operation type
-    let unitPrice = 0;
     const operationType = scannedTicket.operationType || 'milling';
+    
+    let unitPrice = 0;
+    let totalAmount = 0;
     
     if (operationType === 'milling') {
       unitPrice = currentPrices?.milling_price_per_kg || 0;
+      
+      if (unitPrice <= 0) {
+        toast({ variant: 'destructive', title: t('common.error'), description: 'لا يوجد سعر العصر محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.' });
+        return;
+      }
+
+      const netWeight = weightOut === undefined ? scannedTicket.weightIn : Math.max(0, scannedTicket.weightIn - weightOut);
+      const calculatedAmount = netWeight * unitPrice;
+      totalAmount = Math.max(40, +calculatedAmount.toFixed(2));
+      
     } else if (operationType === 'sale') {
-      unitPrice = currentPrices?.olive_buying_price_per_kg || 0;
-    }
+      const oilPricePerKg = currentPrices?.oil_client_selling_price_per_kg || 0;
+      
+      if (oilPricePerKg <= 0) {
+        toast({ variant: 'destructive', title: t('common.error'), description: 'لا يوجد سعر بيع الزيت محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.' });
+        return;
+      }
 
-    if (unitPrice <= 0) {
-      const priceType = operationType === 'milling' ? 'سعر العصر' : 'سعر شراء الزيتون';
-      toast({ variant: 'destructive', title: t('common.error'), description: `لا يوجد ${priceType} محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.` });
-      return;
+      const netWeight = weightOut === undefined ? scannedTicket.weightIn : Math.max(0, scannedTicket.weightIn - weightOut);
+      const taux = editForm.taux ? parseFloat(editForm.taux) : null;
+      
+      if (taux && taux > 0) {
+        // Method 1: Use taux (percentage) - Formula: netWeight * oilPrice * (taux/100)
+        const tauxDecimal = taux / 100; // Convert percentage to decimal
+        totalAmount = netWeight * oilPricePerKg * tauxDecimal;
+        unitPrice = oilPricePerKg; // Store oil price as unit price
+        
+      } else {
+        // Method 2: Fetch actual oil batch weight from backend
+        try {
+          const oilBatchResponse = await api.get(`/oil-batches?batchId=${scannedTicket.id}`);
+          const oilBatches = getPayload<any[]>(oilBatchResponse) || [];
+          
+          if (oilBatches.length > 0) {
+            // Sum up all oil batch weights for this batch (in case of multiple oil batches)
+            const totalOilWeight = oilBatches.reduce((sum: number, batch: any) => sum + (batch.weight || 0), 0);
+            totalAmount = totalOilWeight * oilPricePerKg;
+            unitPrice = oilPricePerKg; // Store oil price as unit price
+          } else {
+            toast({ 
+              variant: 'destructive', 
+              title: t('common.error'), 
+              description: 'لا توجد دفعات زيت مسجلة لهذه التذكرة. يرجى إدخال معدل الاستخراج (التوكس) أو إنشاء دفعة زيت أولاً.' 
+            });
+            return;
+          }
+        } catch (error: any) {
+          console.error('Error fetching oil batches:', error);
+          toast({ 
+            variant: 'destructive', 
+            title: t('common.error'), 
+            description: 'فشل في جلب دفعات الزيت. يرجى إدخال معدل الاستخراج (التوكس) بدلاً من ذلك.' 
+          });
+          return;
+        }
+      }
     }
-
-    const netWeight = weightOut === undefined ? scannedTicket.weightIn : Math.max(0, scannedTicket.weightIn - weightOut);
-    // Calculate total amount with minimum price of 40 DT
-    const calculatedAmount = netWeight * unitPrice;
-    const totalAmount = Math.max(40, +calculatedAmount.toFixed(2));
 
     const payload: any = {
       clientId: scannedTicket.clientId,
@@ -574,6 +619,7 @@ export function DailyWorkPage() {
       total_amount: totalAmount,
       status: weightOut !== undefined ? 'completed' : 'in_process',
       notes: editForm.notes || undefined,
+      taux: editForm.taux && operationType === 'sale' ? parseFloat(editForm.taux) : undefined, // Save taux for sale operations
     };
 
     setIsSaving(true);
@@ -785,6 +831,7 @@ export function DailyWorkPage() {
         weightOut: ticket.weightOut !== undefined ? String(ticket.weightOut) : '',
         numberOfBoxes: ticket.numberOfBoxes ? String(ticket.numberOfBoxes) : '',
         notes: ticket.notes || '',
+        taux: '', // Reset taux for each ticket
       });
 
       setIsEditModalOpen(true);
@@ -1225,29 +1272,48 @@ export function DailyWorkPage() {
   // Calculate total amount from edit form
   const calculateEditTotalAmount = (operationType = 'milling') => {
     const netWeight = calculateEditNetWeight();
-    let unitPrice = 0;
     
     if (operationType === 'milling') {
-      unitPrice = currentPrices?.milling_price_per_kg || 0;
+      const unitPrice = currentPrices?.milling_price_per_kg || 0;
+      const calculatedAmount = netWeight * unitPrice;
+      return Math.max(40, +calculatedAmount.toFixed(2));
     } else if (operationType === 'sale') {
-      unitPrice = currentPrices?.olive_buying_price_per_kg || 0;
+      const oilPrice = currentPrices?.oil_client_selling_price_per_kg || 0;
+      const taux = editForm.taux ? parseFloat(editForm.taux) : 0;
+      
+      if (taux > 0) {
+        // For sale operations: netWeight * oilPrice * (taux/100)
+        const tauxDecimal = taux / 100;
+        const calculatedAmount = netWeight * oilPrice * tauxDecimal;
+        return Math.max(40, +calculatedAmount.toFixed(2));
+      } else {
+        // If no taux provided, return 0 for preview
+        return 0;
+      }
     }
     
-    const calculatedAmount = netWeight * unitPrice;
-    return Math.max(40, +calculatedAmount.toFixed(2));
+    return 0;
   };
 
   const isMinimumPriceApplied = (operationType = 'milling') => {
     const netWeight = calculateEditNetWeight();
-    let unitPrice = 0;
     
     if (operationType === 'milling') {
-      unitPrice = currentPrices?.milling_price_per_kg || 0;
+      const unitPrice = currentPrices?.milling_price_per_kg || 0;
+      return (netWeight * unitPrice) < 40;
     } else if (operationType === 'sale') {
-      unitPrice = currentPrices?.olive_buying_price_per_kg || 0;
+      const oilPrice = currentPrices?.oil_client_selling_price_per_kg || 0;
+      const taux = editForm.taux ? parseFloat(editForm.taux) : 0;
+      
+      if (taux > 0) {
+        const tauxDecimal = taux / 100;
+        return (netWeight * oilPrice * tauxDecimal) < 40;
+      } else {
+        return true; // If no taux, consider minimum price applied
+      }
     }
     
-    return (netWeight * unitPrice) < 40;
+    return true;
   };
 
   // Get client display name
@@ -1877,6 +1943,28 @@ export function DailyWorkPage() {
               </div>
             </div>
 
+            {/* Taux field for sale operations */}
+            {scannedTicket?.operationType === 'sale' && (
+              <div className="mb-6">
+                <label className="text-sm">
+                  <span className="block mb-2">معدل الاستخراج (التوكس) - اختياري</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={editForm.taux}
+                    onChange={(e) => setEditForm((p) => ({ ...p, taux: e.target.value }))}
+                    placeholder="أدخل نسبة استخراج الزيت (مثال: 18.5)"
+                    className="w-full"
+                  />
+                  <div className="text-xs text-muted-foreground mt-1">
+                    إذا لم يتم إدخال معدل الاستخراج، سيتم حساب السعر بناءً على دفعات الزيت المسجلة
+                  </div>
+                </label>
+              </div>
+            )}
+
             {/* Display current pricing information and operation type */}
             <div className="mb-6">
               <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -1898,18 +1986,18 @@ export function DailyWorkPage() {
                 ) : currentPrices ? (
                   <div className="space-y-2">
                     {scannedTicket?.operationType === 'sale' ? (
-                      currentPrices.olive_buying_price_per_kg > 0 ? (
+                      currentPrices.oil_client_selling_price_per_kg > 0 ? (
                         <div>
                           <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
-                            سعر شراء الزيتون: {currentPrices.olive_buying_price_per_kg} دينار/كيلو
+                            سعر بيع الزيت: {currentPrices.oil_client_selling_price_per_kg} دينار/كيلو
                           </div>
                           <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                            هذا السعر مخصص لعمليات شراء الزيتون من العملاء
+                            هذا السعر مخصص لعمليات بيع الزيت للعملاء
                           </div>
                         </div>
                       ) : (
                         <div className="text-red-700 dark:text-red-400">
-                          لا يوجد سعر شراء الزيتون محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                          لا يوجد سعر بيع الزيت محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
                         </div>
                       )
                     ) : (

@@ -95,6 +95,11 @@ export default (sequelize) => {
       allowNull: true,
       defaultValue: 0,
       comment: 'Number of boxes loaded into pressing (cannot exceed number_of_boxes)'
+    },
+    taux: {
+      type: DataTypes.DECIMAL(5, 2),
+      allowNull: true,
+      comment: 'Oil extraction percentage (taux) used for sale operations calculations'
     }
   }, {
     tableName: 'batches',
