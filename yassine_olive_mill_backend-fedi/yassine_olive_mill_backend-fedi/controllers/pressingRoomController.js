@@ -169,7 +169,8 @@ const pressingRoomController = {
             weightIn: weightIn,
             numberOfBatches: session.number_of_boxes, // Using number_of_boxes from session
             sessionStartTime: session.start,
-            estimatedTime: session.batch?.estimated_time || 60 // Use batch estimated time or default 60 minutes
+            estimatedTime: session.batch?.estimated_time || 60, // Use batch estimated time or default 60 minutes
+            operationType: session.batch?.operation_type || 'milling' // Add operation type from batch
           });
         }
       });

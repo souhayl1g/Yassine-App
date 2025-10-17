@@ -27,6 +27,7 @@ interface ScannedRoomData {
     startTime: string;
     numberOfBoxes: number;
     status: string;
+    operationType?: string; // Add operation type to session
     batch: {
       id: number; // Changed from string to number - this is the actual batch database ID
       clientName: string;
@@ -272,6 +273,7 @@ export function EmployeeScannerPage() {
           startTime: room.currentBatch.sessionStartTime,
           numberOfBoxes: room.currentBatch.numberOfBatches || 0,
           status: 'active',
+          operationType: room.currentBatch.operationType, // Add operation type from API
           batch: {
             id: room.currentBatch.batchId, // Use the actual batch database ID
             clientName: room.currentBatch.clientName,
@@ -325,9 +327,11 @@ export function EmployeeScannerPage() {
       return;
     }
 
-    const bidonsCount = parseInt(numberOfBidons || '1', 10);
+    // For sale operations, bidons count is 0 (no oil production)
+    // For milling operations, validate bidons input
+    const bidonsCount = scannedRoom.currentSession.operationType === 'sale' ? 0 : parseInt(numberOfBidons || '1', 10);
 
-    if (bidonsCount <= 0) {
+    if (scannedRoom.currentSession.operationType !== 'sale' && bidonsCount <= 0) {
       toast({ 
         variant: 'destructive', 
         title: 'خطأ', 
@@ -356,15 +360,23 @@ export function EmployeeScannerPage() {
       // Try to automatically start the next session from the queue
       try {
         await processNextQueueItem(scannedRoom.id);
+        const successMessage = scannedRoom.currentSession.operationType === 'sale' 
+          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}. تم تحميل العميل التالي من الطابور.`
+          : `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}. تم تحميل العميل التالي من الطابور.`;
+        
         toast({ 
           title: 'نجح', 
-          description: `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}. تم تحميل العميل التالي من الطابور.` 
+          description: successMessage 
         });
       } catch (queueError) {
         console.log('No queue items to process or error processing queue:', queueError);
+        const successMessage = scannedRoom.currentSession.operationType === 'sale' 
+          ? `تم إكمال عملية البيع بنجاح من ${scannedRoom.name}`
+          : `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}`;
+        
         toast({ 
           title: 'نجح', 
-          description: `تم إنهاء جلسة العصر بنجاح. تم إنتاج ${bidonsCount} بدونة زيت من ${scannedRoom.name}` 
+          description: successMessage 
         });
       }
       
@@ -416,6 +428,24 @@ export function EmployeeScannerPage() {
             <p className="text-gray-600 dark:text-gray-300">معلومات الغرفة</p>
           </div>
 
+          {/* Operation Type Badge - Show prominently if there's an active session */}
+          {scannedRoom.currentSession && (
+            <div className="bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 rounded-lg p-4 shadow-lg border-2 border-purple-200 dark:border-purple-800">
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100 mb-2">
+                  نوع العملية المطلوبة
+                </h3>
+                <div className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-bold ${
+                  scannedRoom.currentSession.operationType === 'sale' 
+                    ? 'bg-orange-500 text-white shadow-orange-200 dark:shadow-orange-800' 
+                    : 'bg-blue-500 text-white shadow-blue-200 dark:shadow-blue-800'
+                } shadow-lg`}>
+                  {scannedRoom.currentSession.operationType === 'sale' ? '🛒 بيع الزيتون' : '⚙️ عصر الزيتون'}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Room Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
             <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-4 text-lg">
@@ -460,6 +490,16 @@ export function EmployeeScannerPage() {
                   <span className="text-gray-600 dark:text-gray-400">رقم التذكرة:</span>
                   <span className="font-medium text-blue-600 dark:text-blue-400">
                     {scannedRoom.currentSession.batch.ticketNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">نوع العملية:</span>
+                  <span className={`font-medium px-2 py-1 rounded text-xs ${
+                    scannedRoom.currentSession.operationType === 'sale' 
+                      ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' 
+                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                  }`}>
+                    {scannedRoom.currentSession.operationType === 'sale' ? '🛒 بيع' : '⚙️ عصر'}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -556,6 +596,16 @@ export function EmployeeScannerPage() {
                 <span className="font-medium">{scannedRoom.currentSession.batch.ticketNumber}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">نوع العملية:</span>
+                <span className={`font-medium px-2 py-1 rounded text-xs ${
+                  scannedRoom.currentSession.operationType === 'selling' 
+                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' 
+                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                }`}>
+                  {scannedRoom.currentSession.operationType === 'selling' ? '🛒 بيع' : '⚙️ عصر'}
+                </span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">الوزن الداخل:</span>
                 <span className="font-medium">{scannedRoom.currentSession.batch.weightIn} كيلو</span>
               </div>
@@ -574,33 +624,55 @@ export function EmployeeScannerPage() {
             </div>
           </div>
 
-          {/* Bidons Input */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="bidonsProduced" className="flex items-center gap-2 text-lg">
-                <Layers className="h-5 w-5" />
-                عدد بدونات الزيت المنتجة
-              </Label>
-              <Input
-                id="bidonsProduced"
-                type="number"
-                min="1"
-                max="999"
-                value={numberOfBidons}
-                onChange={(e) => setNumberOfBidons(e.target.value)}
-                placeholder="أدخل عدد البدونات المنتجة"
-                className="text-lg p-3"
-              />
-              <div className="space-y-1">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  💡 أدخل العدد الإجمالي لبدونات الزيت التي تم إنتاجها من هذه الدفعة
+          {/* Bidons Input - Only show for milling operations */}
+          {scannedRoom.currentSession.operationType !== 'sale' && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="bidonsProduced" className="flex items-center gap-2 text-lg">
+                  <Layers className="h-5 w-5" />
+                  عدد بدونات الزيت المنتجة
+                </Label>
+                <Input
+                  id="bidonsProduced"
+                  type="number"
+                  min="1"
+                  max="999"
+                  value={numberOfBidons}
+                  onChange={(e) => setNumberOfBidons(e.target.value)}
+                  placeholder="أدخل عدد البدونات المنتجة"
+                  className="text-lg p-3"
+                />
+                <div className="space-y-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    💡 أدخل العدد الإجمالي لبدونات الزيت التي تم إنتاجها من هذه الدفعة
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">
+                    سيتم حفظ هذه المعلومات وإنهاء جلسة العصر
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sale Operation Info */}
+          {scannedRoom.currentSession.operationType === 'sale' && (
+            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">
+              <div className="text-center space-y-3">
+                <div className="flex items-center justify-center space-x-2">
+                  <Box className="h-8 w-8 text-orange-600 dark:text-orange-400" />
+                  <span className="text-xl font-bold text-orange-800 dark:text-orange-200">
+                    عملية بيع مكتملة
+                  </span>
+                </div>
+                <p className="text-sm text-orange-700 dark:text-orange-300">
+                  هذه عملية بيع زيتون وليست عملية عصر. لا يوجد إنتاج زيت أو بدونات في عمليات البيع.
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500">
-                  سيتم حفظ هذه المعلومات وإنهاء جلسة العصر
+                <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                  سيتم إنهاء العملية مباشرة دون إدخال عدد البدونات
                 </p>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3">
@@ -626,7 +698,7 @@ export function EmployeeScannerPage() {
               ) : (
                 <>
                   <Save className="h-5 w-5 mr-2" />
-                  إنهاء جلسة العصر
+                  {scannedRoom.currentSession.operationType === 'sale' ? 'إكمال عملية البيع' : 'إنهاء جلسة العصر'}
                 </>
               )}
             </OliveButton>

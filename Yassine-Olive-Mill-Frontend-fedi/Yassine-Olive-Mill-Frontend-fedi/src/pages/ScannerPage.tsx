@@ -23,6 +23,7 @@ interface ScannedTicketData {
   clientName: string;
   weightIn: number;
   status: string;
+  operationType?: string;
   numberOfBoxes?: number;
   numberOfBidons?: number;
 }
@@ -194,6 +195,7 @@ export function ScannerPage() {
           : `عميل #${data.clientId}`,
         weightIn: data.weight_in ?? 0,
         status: data.status || 'received',
+        operationType: data.operation_type || 'milling',
         numberOfBoxes: data.number_of_boxes || undefined,
         numberOfBidons: data.bidons_brought || undefined  // Changed from number_of_bidons to bidons_brought
       };
@@ -211,30 +213,47 @@ export function ScannerPage() {
     if (!scannedTicket) return;
 
     const boxes = parseInt(numberOfBoxes || '0', 10);
-    const bidons = parseInt(numberOfBidons || '0', 10);
+    // For sale operations, bidons is always 0 (no oil production)
+    const bidons = scannedTicket.operationType === 'sale' ? 0 : parseInt(numberOfBidons || '0', 10);
 
-    if (boxes <= 0 && bidons <= 0) {
-      toast({ 
-        variant: 'destructive', 
-        title: 'خطأ', 
-        description: 'يرجى إدخال عدد الصناديق أو عدد البيدونات' 
-      });
-      return;
+    // For sale operations, only check boxes. For milling, check both boxes and bidons
+    if (scannedTicket.operationType === 'sale') {
+      if (boxes <= 0) {
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: 'يرجى إدخال عدد الصناديق لعملية البيع' 
+        });
+        return;
+      }
+    } else {
+      if (boxes <= 0 && bidons <= 0) {
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: 'يرجى إدخال عدد الصناديق أو عدد البيدونات' 
+        });
+        return;
+      }
     }
 
     setIsSaving(true);
     try {
       const payload = {
-        numberOfBoxes: boxes,
-        bidons_brought: bidons,  // Changed from numberOfBidons to bidons_brought
-        status: 'in_process'
+        number_of_boxes: boxes,
+        bidons_brought: bidons,  // Will be 0 for selling operations
+        status: scannedTicket.operationType === 'sale' ? 'completed' : 'in_process'  // Complete sale operations immediately
       };
 
       await api.put(`/batches/${scannedTicket.id}`, payload);
 
+      const successMessage = scannedTicket.operationType === 'sale' 
+        ? 'تم إكمال عملية البيع بنجاح' 
+        : 'تم تحديث التذكرة بنجاح';
+      
       toast({ 
         title: 'نجح', 
-        description: 'تم تحديث التذكرة بنجاح' 
+        description: successMessage 
       });
       
       // Reset for next scan
@@ -282,6 +301,22 @@ export function ScannerPage() {
             </h1>
           </div>
 
+          {/* Operation Type Badge */}
+          <div className="bg-gradient-to-r from-blue-100 to-green-100 dark:from-blue-900/30 dark:to-green-900/30 rounded-lg p-4 shadow-lg border-2 border-blue-200 dark:border-blue-800">
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 mb-2">
+                نوع العملية
+              </h3>
+              <div className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-bold ${
+                scannedTicket.operationType === 'sale' 
+                  ? 'bg-orange-500 text-white shadow-orange-200 dark:shadow-orange-800' 
+                  : 'bg-blue-500 text-white shadow-blue-200 dark:shadow-blue-800'
+              } shadow-lg`}>
+                {scannedTicket.operationType === 'sale' ? '🛒 بيع الزيتون' : '⚙️ عصر الزيتون'}
+              </div>
+            </div>
+          </div>
+
           {/* Ticket Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
             <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-4 text-lg">
@@ -299,6 +334,16 @@ export function ScannerPage() {
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">الوزن الداخل:</span>
                 <span className="font-medium">{scannedTicket.weightIn} كيلو</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">نوع العملية:</span>
+                <span className={`font-medium px-2 py-1 rounded text-xs ${
+                  scannedTicket.operationType === 'sale' 
+                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' 
+                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                }`}>
+                  {scannedTicket.operationType === 'sale' ? '🛒 بيع' : '⚙️ عصر'}
+                </span>
               </div>
               {(scannedTicket.numberOfBoxes !== undefined && scannedTicket.numberOfBoxes > 0) && (
                 <div className="flex justify-between">
@@ -333,21 +378,41 @@ export function ScannerPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="bidons" className="flex items-center gap-2 text-lg">
-                <Layers className="h-5 w-5" />
-                عدد البيدونات
-              </Label>
-              <Input
-                id="bidons"
-                type="number"
-                min="0"
-                value={numberOfBidons}
-                onChange={(e) => setNumberOfBidons(e.target.value)}
-                placeholder="أدخل عدد البيدونات"
-                className="text-lg p-3"
-              />
-            </div>
+            {/* Bidons Input - Only show for milling operations */}
+            {scannedTicket.operationType !== 'sale' && (
+              <div className="space-y-2">
+                <Label htmlFor="bidons" className="flex items-center gap-2 text-lg">
+                  <Layers className="h-5 w-5" />
+                  عدد البيدونات
+                </Label>
+                <Input
+                  id="bidons"
+                  type="number"
+                  min="0"
+                  value={numberOfBidons}
+                  onChange={(e) => setNumberOfBidons(e.target.value)}
+                  placeholder="أدخل عدد البيدونات"
+                  className="text-lg p-3"
+                />
+              </div>
+            )}
+
+            {/* Sale Operation Info */}
+            {scannedTicket.operationType === 'sale' && (
+              <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+                <div className="text-center space-y-2">
+                  <div className="flex items-center justify-center space-x-2">
+                    <Layers className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                    <span className="text-lg font-semibold text-orange-800 dark:text-orange-200">
+                      عملية بيع
+                    </span>
+                  </div>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
+                    هذه عملية بيع زيتون. لا تحتاج إلى إدخال عدد البيدونات حيث لا يوجد إنتاج زيت.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
