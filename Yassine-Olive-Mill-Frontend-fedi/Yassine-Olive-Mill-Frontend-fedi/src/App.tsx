@@ -26,6 +26,7 @@ import "./i18n";
 import { OperatorScannerPage } from "@/pages/OperatorScannerPage";
 import { EmployeeScannerPage } from "@/pages/EmployeeScannerPage";
 import { BatchLoadingTestPage } from "@/pages/BatchLoadingTestPage";
+import NetworkStatusBanner from "@/components/NetworkStatusBanner";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ const App = () => {
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <NetworkStatusBanner />
             <BrowserRouter
             future={{
               v7_startTransition: true,

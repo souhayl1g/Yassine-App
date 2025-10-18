@@ -19,14 +19,56 @@ const { sequelize } = db;
 
 const app = express();
 
-// CORS configuration - SINGLE CONFIGURATION
+// Private Network Access (PNA) preflight: allow Vercel (HTTPS) to call local HTTP (LAN)
+app.use((req, res, next) => {
+  if (
+    req.method === 'OPTIONS' &&
+    req.headers['access-control-request-private-network'] === 'true'
+  ) {
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  }
+  next();
+});
+
+// CORS configuration - allow local dev, LAN, and optional Vercel domains via env
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://127.0.0.1:5173',
+];
+
+// Include LAN origins if provided via env (comma-separated), e.g. http://192.168.1.31:5173
+if (process.env.CORS_EXTRA_ORIGINS) {
+  DEFAULT_ALLOWED_ORIGINS.push(
+    ...process.env.CORS_EXTRA_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  );
+}
+
+// Include Vercel preview/prod domains if provided
+if (process.env.ALLOWED_VERCEL_ORIGINS) {
+  DEFAULT_ALLOWED_ORIGINS.push(
+    ...process.env.ALLOWED_VERCEL_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  );
+}
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'http://localhost:5173',
-    'http://192.168.1.22:5173',  // Add your actual frontend IP
-    'http://127.0.0.1:5173'
-  ],
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true); // allow non-browser tools
+    const allowed = DEFAULT_ALLOWED_ORIGINS.some(allowedOrigin => {
+      if (allowedOrigin.includes('*')) {
+        // convert wildcard to regex
+        const pattern = allowedOrigin.replace(/[-/\\^$+?.()|[\]{}]/g, '\\$&').replace(/\*/g, '.*');
+        return new RegExp(`^${pattern}$`).test(origin);
+      }
+      return allowedOrigin === origin;
+    });
+    if (allowed) return callback(null, true);
+    // Allow Vercel default domains by pattern if not explicitly set
+    if (/https?:\/\/.*vercel\.app$/i.test(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -89,7 +131,7 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-const HOST = 'localhost';
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Database connection and server start
 const startServer = async () => {
@@ -104,9 +146,9 @@ const startServer = async () => {
     
     app.listen(PORT, HOST, () => {
       console.log(`🚀 Olive Oil Mill API server running on port ${PORT}`);
-      console.log(`📊 Dashboard: http://${HOST}:${PORT}/api/dashboard/overview`);
-      console.log(`🏥 Health check: http://${HOST}:${PORT}/api/health`);
-      console.log(`🌐 Server accessible from: http://192.168.1.31:${PORT}`);
+      console.log(`📊 Dashboard: http://localhost:${PORT}/api/dashboard/overview`);
+      console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+      console.log(`🌐 If on LAN, try: http://<YOUR-LAN-IP>:${PORT}`);
     });
   } catch (error) {
     console.error('❌ Unable to connect to the database:', error);
