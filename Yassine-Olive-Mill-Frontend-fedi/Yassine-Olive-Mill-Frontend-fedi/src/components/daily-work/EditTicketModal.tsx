@@ -1,0 +1,253 @@
+import React from 'react';
+import { X, RefreshCw, Minimize2, FileText } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { OliveButton } from '@/components/ui/olive-button';
+import { Ticket, EditTicketForm, Price } from '@/types/daily-work';
+
+interface EditTicketModalProps {
+  isOpen: boolean;
+  ticket: Ticket | null;
+  editForm: EditTicketForm;
+  setEditForm: React.Dispatch<React.SetStateAction<EditTicketForm>>;
+  currentPrices: Price | null;
+  loadingPrices: boolean;
+  isSaving: boolean;
+  onSave: () => void;
+  onMinimize: (ticket: Ticket) => void;
+  onShowDetails: (ticket: Ticket) => void;
+  onClose: () => void;
+  calculateEditNetWeight: () => number;
+  calculateEditTotalAmount: (operationType?: string) => number;
+  isMinimumPriceApplied: (operationType?: string) => boolean;
+}
+
+export function EditTicketModal({
+  isOpen,
+  ticket,
+  editForm,
+  setEditForm,
+  currentPrices,
+  loadingPrices,
+  isSaving,
+  onSave,
+  onMinimize,
+  onShowDetails,
+  onClose,
+  calculateEditNetWeight,
+  calculateEditTotalAmount,
+  isMinimumPriceApplied,
+}: EditTicketModalProps) {
+  if (!isOpen || !ticket) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 text-foreground rounded-lg p-6 w-full max-w-lg shadow-lg relative">
+        <button 
+          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" 
+          onClick={onClose}
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <h2 className="text-2xl font-bold mb-6 text-primary">تعديل التذكرة #{ticket.ticketNumber}</h2>
+
+        {/* Static ticket info */}
+        <div className="space-y-3 mb-6 p-4 bg-muted/20 rounded-lg">
+          <div className="text-muted-foreground">رقم التذكرة: <span className="text-foreground font-medium">#{ticket.ticketNumber}</span></div>
+          <div className="text-muted-foreground">اسم العميل: <span className="text-foreground font-medium">{ticket.clientName}</span></div>
+          <div className="text-muted-foreground">الوزن الداخل: <span className="text-foreground font-medium">{ticket.weightIn} كيلو</span></div>
+          <div className="text-muted-foreground">تاريخ الاستلام: <span className="text-foreground font-medium">
+            {new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}
+          </span></div>
+        </div>
+
+        {/* Editable fields */}
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          <div>
+            <label className="text-sm">
+              <span className="block mb-2">الوزن الخارج (كيلو)</span>
+              <Input
+                type="number"
+                step="0.01"
+                value={editForm.weightOut}
+                onChange={(e) => setEditForm((p) => ({ ...p, weightOut: e.target.value }))}
+                placeholder="أدخل الوزن الخارج"
+                className="w-full"
+              />
+            </label>
+          </div>
+          <div>
+            <label className="text-sm">
+              <span className="block mb-2">عدد الصناديق</span>
+              <Input
+                type="number"
+                min="0"
+                value={editForm.numberOfBoxes}
+                onChange={(e) => setEditForm((p) => ({ ...p, numberOfBoxes: e.target.value }))}
+                placeholder="0"
+                className="w-full"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Taux field for sale operations */}
+        {ticket?.operationType === 'sale' && (
+          <div className="mb-6">
+            <label className="text-sm">
+              <span className="block mb-2">معدل الاستخراج (التوكس) - اختياري</span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={editForm.taux}
+                onChange={(e) => setEditForm((p) => ({ ...p, taux: e.target.value }))}
+                placeholder="أدخل نسبة استخراج الزيت (مثال: 18.5)"
+                className="w-full"
+              />
+              <div className="text-xs text-muted-foreground mt-1">
+                إذا لم يتم إدخال معدل الاستخراج، سيتم حساب السعر بناءً على دفعات الزيت المسجلة
+              </div>
+            </label>
+          </div>
+        )}
+
+        {/* Display current pricing information and operation type */}
+        <div className="mb-6">
+          <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-sm font-medium text-blue-800 dark:text-blue-200">السعر المستخدم للحساب:</div>
+              <div className={`px-2 py-1 rounded text-xs font-medium ${
+                ticket?.operationType === 'sale' 
+                  ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                  : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+              }`}>
+                {ticket?.operationType === 'sale' ? 'عملية بيع' : 'عملية عصر'}
+              </div>
+            </div>
+            {loadingPrices ? (
+              <div className="flex items-center text-blue-700 dark:text-blue-300">
+                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                جاري تحميل الأسعار...
+              </div>
+            ) : currentPrices ? (
+              <div className="space-y-2">
+                {ticket?.operationType === 'sale' ? (
+                  currentPrices.oil_client_selling_price_per_kg > 0 ? (
+                    <div>
+                      <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                        سعر بيع الزيت: {currentPrices.oil_client_selling_price_per_kg} دينار/كيلو
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        هذا السعر مخصص لعمليات بيع الزيت للعملاء
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-red-700 dark:text-red-400">
+                      لا يوجد سعر بيع الزيت محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                    </div>
+                  )
+                ) : (
+                  currentPrices.milling_price_per_kg > 0 ? (
+                    <div>
+                      <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                        سعر العصر: {currentPrices.milling_price_per_kg} دينار/كيلو
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        هذا السعر مخصص لعمليات عصر الزيتون للعملاء
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-red-700 dark:text-red-400">
+                      لا يوجد سعر العصر محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                    </div>
+                  )
+                )}
+              </div>
+            ) : (
+              <div className="text-red-700 dark:text-red-400">
+                لا توجد أسعار محددة في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Calculated values */}
+        {editForm.weightOut && (
+          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+            <div className="p-3 rounded bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+              <div className="text-blue-800 dark:text-blue-200 font-medium">الوزن الصافي</div>
+              <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                {calculateEditNetWeight().toFixed(2)} كيلو
+              </div>
+            </div>
+            <div className="p-3 rounded bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+              <div className="text-green-800 dark:text-green-200 font-medium">المبلغ الإجمالي</div>
+              <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                {calculateEditTotalAmount(ticket?.operationType).toFixed(2)} دينار
+              </div>
+              {isMinimumPriceApplied(ticket?.operationType) && (
+                <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                  تم تطبيق الحد الأدنى للسعر (40 دينار)
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="mb-6">
+          <label className="text-sm">
+            <span className="block mb-1">ملاحظات (اختياري)</span>
+            <Textarea
+              value={editForm.notes}
+              onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
+              placeholder="أدخل أي ملاحظات إضافية"
+              className="w-full"
+            />
+          </label>
+        </div>
+
+        <div className="space-y-3">
+          {/* Primary Action */}
+          <OliveButton 
+            onClick={onSave} 
+            disabled={isSaving}
+            className="w-full"
+            size="lg"
+          >
+            {isSaving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
+          </OliveButton>
+          
+          {/* Secondary Actions */}
+          <div className="grid grid-cols-3 gap-2">
+            <OliveButton 
+              variant="outline" 
+              onClick={() => onMinimize(ticket)}
+              size="sm"
+            >
+              <Minimize2 className="h-4 w-4 mr-1" />
+              تصغير
+            </OliveButton>
+            <OliveButton 
+              variant="outline"
+              onClick={() => onShowDetails(ticket)}
+              size="sm"
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              تفاصيل
+            </OliveButton>
+            <OliveButton 
+              variant="outline" 
+              onClick={onClose}
+              size="sm"
+            >
+              إلغاء
+            </OliveButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
