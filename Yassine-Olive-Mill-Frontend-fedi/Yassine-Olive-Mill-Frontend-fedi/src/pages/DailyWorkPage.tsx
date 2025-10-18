@@ -57,6 +57,7 @@ export function DailyWorkPage() {
           onTicketClick={dailyWork.handleTicketClick}
           onPrintTicket={dailyWork.handlePrintTicket}
           onShowQrCode={dailyWork.handleShowQrCode}
+          onPageChange={dailyWork.loadRecentTickets}
           onDeleteTicket={(ticketId) => {
             // TODO: Implement delete functionality
             console.log('Delete ticket:', ticketId);

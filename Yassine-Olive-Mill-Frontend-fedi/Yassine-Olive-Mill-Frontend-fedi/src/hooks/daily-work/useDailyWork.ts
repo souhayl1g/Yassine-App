@@ -90,7 +90,6 @@ export const useDailyWork = () => {
       }
 
       const ticketNumber = generateDailyTicketNumber(ticketManagement.dailyTicketCount);
-      console.log('Creating ticket with operation type:', newTicket.operationType);
       const payload: any = {
         clientId: clientId,
         ticket_number: ticketNumber,
@@ -100,7 +99,6 @@ export const useDailyWork = () => {
         notes: newTicket.notes || undefined,
         status: 'received',
       };
-      console.log('Ticket payload:', payload);
 
       const response = await api.post('/batches', payload);
       const createdTicket = getPayload<any>(response);
@@ -288,13 +286,207 @@ export const useDailyWork = () => {
 
   // Load pressing history for details modal
   const loadPressingHistory = async (ticketId: string) => {
+    setLoadingPressingHistory(true);
     try {
-      setLoadingPressingHistory(true);
-      // TODO: Implement API call to get pressing history
-      // const history = await api.getPressingHistory(ticketId);
-      // setPressingHistory(history);
-      setPressingHistory([]); // Placeholder
-    } catch (error) {
+      // Get the batch details with all related data
+      const batchResponse = await api.get(`/batches/${ticketId}`);
+      const batch = getPayload<any>(batchResponse) || {};
+      
+      // Ensure we have the correct batch ID for filtering
+      const batchId = batch.id || ticketId;
+      
+      // Get pressing sessions for this specific batch only
+      let sessionsList = [];
+      try {
+        const sessions = await api.get(`/pressing-sessions?batchId=${batchId}`);
+        const sessionsPayload = getPayload<any>(sessions);
+        // Handle different response formats
+        if (Array.isArray(sessionsPayload)) {
+          // Filter to ensure only sessions for this specific batch
+          sessionsList = sessionsPayload.filter(session => 
+            String(session.batch_id) === String(batchId) || 
+            String(session.batchId) === String(batchId)
+          );
+        } else if (sessionsPayload && Array.isArray(sessionsPayload.sessions)) {
+          // Filter to ensure only sessions for this specific batch
+          sessionsList = sessionsPayload.sessions.filter(session => 
+            String(session.batch_id) === String(batchId) || 
+            String(session.batchId) === String(batchId)
+          );
+        } else if (batch.pressingSessions && Array.isArray(batch.pressingSessions)) {
+          // Use pressing sessions from the batch response if available (already filtered)
+          sessionsList = batch.pressingSessions;
+        }
+      } catch (error) {
+        console.warn('Failed to load pressing sessions:', error);
+        // Try to get sessions from the batch response if the separate call fails
+        if (batch.pressingSessions && Array.isArray(batch.pressingSessions)) {
+          sessionsList = batch.pressingSessions;
+        }
+      }
+      
+      // Get batch loading history for this specific batch only
+      let batchLoadings;
+      let loadingsList = [];
+      
+      try {
+        batchLoadings = await api.get(`/batch-loadings?batchId=${batchId}`);
+        const loadingsPayload = getPayload<any>(batchLoadings);
+        // Handle different response formats
+        if (Array.isArray(loadingsPayload)) {
+          // Filter to ensure only loadings for this specific batch
+          loadingsList = loadingsPayload.filter(loading => 
+            String(loading.batch_id) === String(batchId) || 
+            String(loading.batchId) === String(batchId)
+          );
+        } else if (loadingsPayload && Array.isArray(loadingsPayload.batchLoadings)) {
+          // Filter to ensure only loadings for this specific batch
+          loadingsList = loadingsPayload.batchLoadings.filter(loading => 
+            String(loading.batch_id) === String(batchId) || 
+            String(loading.batchId) === String(batchId)
+          );
+        } else if (batch.batchLoadings && Array.isArray(batch.batchLoadings)) {
+          // Use batch loadings from the batch response if available (already filtered)
+          loadingsList = batch.batchLoadings;
+        }
+      } catch (error) {
+        console.warn('Failed to load batch loadings:', error);
+        // Try to get loadings from the batch response if the separate call fails
+        if (batch.batchLoadings && Array.isArray(batch.batchLoadings)) {
+          loadingsList = batch.batchLoadings;
+        }
+      }
+      
+      // Build comprehensive history tracking the batch loading workflow
+      const history = [];
+      
+      // 1. Batch creation/receipt
+      if (batch.createdAt || batch.date_received) {
+        history.push({
+          id: `batch-${batch.id}`,
+          type: 'batch_created',
+          timestamp: batch.date_received || batch.createdAt,
+          title: 'استلام التذكرة',
+          description: `تم استلام ${batch.number_of_boxes || 0} صندوق بوزن ${batch.weight_in || 0} كيلو`,
+          status: 'completed',
+          details: {
+            totalBoxes: batch.number_of_boxes || 0,
+            weightIn: batch.weight_in || 0,
+            operationType: batch.operation_type || 'milling',
+            bidonsBrought: batch.bidons_brought || 0
+          }
+        });
+      }
+      
+      // 2. Room assignment (if applicable)
+      if (batch.pressing_room_id && batch.session_start_time) {
+        history.push({
+          id: `assign-${batch.id}`,
+          type: 'room_assignment',
+          timestamp: batch.session_start_time,
+          title: 'تخصيص غرفة العصر',
+          description: `تم تخصيص ${batch.pressingRoom?.name || `غرفة #${batch.pressing_room_id}`}`,
+          status: 'completed',
+          details: {
+            roomId: batch.pressing_room_id,
+            roomName: batch.pressingRoom?.name || `غرفة #${batch.pressing_room_id}`,
+            estimatedTime: batch.estimated_time || 60
+          }
+        });
+      }
+      
+      // 3. Pressing sessions - track the actual processing for this specific batch
+      if (Array.isArray(sessionsList) && sessionsList.length > 0) {
+        sessionsList.forEach((session: any) => {
+          // Double-check that this session belongs to our batch
+          const sessionBatchId = String(session.batch_id || session.batchId || '');
+          if (sessionBatchId !== String(batchId)) {
+            console.warn(`Session ${session.id} batch ID mismatch: ${sessionBatchId} vs ${batchId}`);
+            return; // Skip sessions that don't belong to this batch
+          }
+          
+          // Session start
+          history.push({
+            id: `session-start-${session.id}`,
+            type: 'session_start',
+            timestamp: session.start,
+            title: 'بداية جلسة العصر',
+            description: `بدء معالجة ${session.number_of_boxes} صندوق في ${session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`}`,
+            status: 'completed',
+            details: {
+              sessionId: session.id,
+              roomId: session.pressing_roomID,
+              roomName: session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`,
+              boxesProcessed: session.number_of_boxes,
+              batchId: session.batch_id || session.batchId
+            }
+          });
+          
+          // Session end (if completed)
+          if (session.finish) {
+            const duration = Math.round((new Date(session.finish).getTime() - new Date(session.start).getTime()) / (1000 * 60));
+            history.push({
+              id: `session-end-${session.id}`,
+              type: 'session_end',
+              timestamp: session.finish,
+              title: 'انتهاء جلسة العصر',
+              description: `تم الانتهاء من معالجة ${session.number_of_boxes} صندوق (${duration} دقيقة)`,
+              status: 'completed',
+              details: {
+                sessionId: session.id,
+                roomId: session.pressing_roomID,
+                roomName: session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`,
+                duration: duration,
+                oilProduced: session.oil_bidons_produced || 0,
+                batchId: session.batch_id || session.batchId
+              }
+            });
+          } else {
+            // Active session
+            history.push({
+              id: `session-active-${session.id}`,
+              type: 'session_active',
+              timestamp: new Date().toISOString(),
+              title: 'جلسة عصر نشطة',
+              description: `جلسة العصر قيد التشغيل في ${session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`}`,
+              status: 'active',
+              details: {
+                sessionId: session.id,
+                roomId: session.pressing_roomID,
+                roomName: session.pressingRoom?.name || `غرفة #${session.pressing_roomID}`,
+                startTime: session.start,
+                boxesProcessed: session.number_of_boxes,
+                batchId: session.batch_id || session.batchId
+              }
+            });
+          }
+        });
+      }
+      
+      // 4. Final completion (if batch is completed)
+      if (batch.status === 'completed' && batch.weight_out !== null) {
+        history.push({
+          id: `completion-${batch.id}`,
+          type: 'batch_completed',
+          timestamp: batch.updatedAt || new Date().toISOString(),
+          title: 'اكتمال معالجة التذكرة',
+          description: `تم الانتهاء من معالجة التذكرة - الوزن الصافي: ${batch.net_weight || 0} كيلو`,
+          status: 'completed',
+          details: {
+            weightOut: batch.weight_out,
+            netWeight: batch.net_weight,
+            totalAmount: batch.total_amount,
+            boxesLoaded: batch.boxes_loaded_to_pressing || 0,
+            totalBoxes: batch.number_of_boxes || 0
+          }
+        });
+      }
+      
+      // Sort chronologically (oldest first for better workflow understanding)
+      history.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      
+      setPressingHistory(history);
+    } catch (error: any) {
       console.error('Error loading pressing history:', error);
       setPressingHistory([]);
     } finally {
@@ -368,10 +560,151 @@ export const useDailyWork = () => {
 
   // Print ticket function
   const printTicket = () => {
-    if (!ticketToPrint) return;
-    // TODO: Implement actual printing logic
-    console.log('Printing ticket:', ticketToPrint);
-    window.print();
+    const printWindow = window.open('', '_blank');
+    if (printWindow && ticketToPrint) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>تذكرة معصرة الزيتون - ${ticketToPrint.ticketNumber}</title>
+            <style>
+              body { 
+                font-family: Arial, sans-serif; 
+                margin: 20px; 
+                direction: rtl; 
+                text-align: center; 
+                background: white; 
+                color: black;
+              }
+              .ticket { 
+                border: 2px solid #000; 
+                padding: 20px; 
+                max-width: 400px; 
+                margin: 0 auto; 
+                background: white;
+                color: black;
+              }
+              .header { 
+                font-size: 24px; 
+                font-weight: bold; 
+                margin-bottom: 20px; 
+                color: #000;
+              }
+              .ticket-number { 
+                font-size: 18px; 
+                margin-bottom: 10px; 
+                color: #000;
+              }
+              .client-info { 
+                margin-bottom: 15px; 
+                color: #000;
+              }
+              .weights { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr; 
+                gap: 10px; 
+                margin-bottom: 15px; 
+              }
+              .weight-item { 
+                border: 1px solid #ccc; 
+                padding: 10px; 
+                background: white;
+                color: #000;
+                text-align: center;
+              }
+              .weight-item strong {
+                color: #000;
+                font-size: 1.1em;
+                display: block;
+                margin-bottom: 5px;
+              }
+              .qr-code { 
+                margin: 15px 0; 
+              }
+              .footer { 
+                margin-top: 20px; 
+                font-size: 12px; 
+                color: #666; 
+              }
+              @media print { 
+                body { 
+                  margin: 0; 
+                  background: white;
+                  color: black;
+                }
+                .ticket { 
+                  border: none; 
+                  padding: 10px; 
+                  background: white;
+                  color: black;
+                }
+              }
+              @media (prefers-color-scheme: dark) {
+                body { background: white; color: black; }
+                .ticket { background: white; color: black; }
+                .header { color: #000; }
+                .ticket-number { color: #000; }
+                .client-info { color: #000; }
+                .weight-item { background: white; color: #000; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="ticket">
+              <div class="header">معصرة الزيتون</div>
+              <div class="ticket-number">تذكرة رقم: ${ticketToPrint.ticketNumber}</div>
+              
+              <div class="client-info">
+                <div><strong>اسم العميل:</strong> ${ticketToPrint.clientName}</div>
+                <div><strong>تاريخ الاستلام:</strong> ${new Date(ticketToPrint.dateReceived).toLocaleDateString('ar-TN')}</div>
+              </div>
+              
+              <div class="weights">
+                <div class="weight-item">
+                  <strong>الوزن الداخل</strong><br>
+                  ${ticketToPrint.weightIn} كيلو
+                </div>
+                <div class="weight-item">
+                  <strong>الوزن الخارج</strong><br>
+                  ${ticketToPrint.weightOut || 'لم يتم الوزن'} كيلو
+                </div>
+                <div class="weight-item" style="grid-column: span 2">
+                  <strong>صافي الوزن</strong><br>
+                  ${ticketToPrint.netWeight || ticketToPrint.weightIn} كيلو
+                </div>
+              </div>
+              
+              ${ticketToPrint.qrCode ? `
+                <div class="qr-code">
+                  <img src="${ticketToPrint.qrCode}" alt="QR Code" style="width: 100px; height: 100px;">
+                </div>
+              ` : ''}
+              
+              <div class="footer">
+                شكراً لتعاملكم معنا<br>
+                تاريخ الطباعة: ${new Date().toLocaleDateString('ar-TN')}
+              </div>
+            </div>
+            
+            <script>
+              window.onload = function() {
+                window.print();
+                setTimeout(() => window.close(), 1000);
+              }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  };
+
+  // Handle delete ticket
+  const handleDeleteTicket = async (ticketId: string) => {
+    try {
+      await ticketManagement.deleteTicket(ticketId);
+    } catch (error) {
+      console.error('Error deleting ticket:', error);
+    }
   };
 
   // Initialize data on mount
@@ -429,5 +762,6 @@ export const useDailyWork = () => {
     calculateEditTotalAmount,
     isMinimumPriceApplied,
     printTicket,
+    handleDeleteTicket,
   };
 };

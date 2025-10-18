@@ -14,7 +14,8 @@ import {
   generateQRCode, 
   generateDailyTicketNumber, 
   loadDailyTicketCount,
-  updateBatch 
+  updateBatch,
+  deleteBatch
 } from './utils';
 
 export const useTicketManagement = () => {
@@ -227,6 +228,45 @@ export const useTicketManagement = () => {
     }
   };
 
+  // Delete a ticket
+  const deleteTicket = async (id: string) => {
+    try {
+      await deleteBatch(id);
+      
+      // Remove from recent tickets list
+      setRecentTickets(prev => prev.filter(ticket => ticket.id !== id));
+      
+      // Update total count
+      setTotalTickets(prev => Math.max(0, prev - 1));
+      
+      // Recalculate total pages
+      const newTotalPages = Math.max(1, Math.ceil((totalTickets - 1) / ticketsPerPage));
+      setTotalPages(newTotalPages);
+      
+      // Adjust current page if necessary
+      if (currentPage > newTotalPages) {
+        setCurrentPage(newTotalPages);
+      }
+      
+      toast({
+        title: 'تم الحذف',
+        description: 'تم حذف التذكرة بنجاح',
+      });
+      
+      // Reload tickets to ensure consistency
+      await loadRecentTickets(currentPage);
+      
+    } catch (error: any) {
+      console.error('Error deleting ticket:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ في الحذف',
+        description: error?.message || 'فشل في حذف التذكرة',
+      });
+      throw error;
+    }
+  };
+
   // Load everything on component mount
   const initializeData = async () => {
     await Promise.all([
@@ -300,6 +340,7 @@ export const useTicketManagement = () => {
     loadCurrentPrices,
     fetchTicketByCode,
     initializeData,
-    updateBatch
+    updateBatch,
+    deleteTicket
   };
 };

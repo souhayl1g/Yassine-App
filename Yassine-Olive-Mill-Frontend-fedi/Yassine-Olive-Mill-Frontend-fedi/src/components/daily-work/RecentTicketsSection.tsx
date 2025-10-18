@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { OliveCard, OliveCardHeader, OliveCardContent, OliveCardTitle } from '@/components/ui/olive-card';
-import { FileText, RefreshCw } from 'lucide-react';
+import { OliveButton } from '@/components/ui/olive-button';
+import { FileText, RefreshCw, QrCode, Printer, Edit, Trash2 } from 'lucide-react';
 import { Ticket } from '@/types/daily-work';
 
 interface RecentTicketsSectionProps {
@@ -14,6 +15,7 @@ interface RecentTicketsSectionProps {
   onPrintTicket: (ticket: Ticket) => void;
   onShowQrCode: (ticket: Ticket) => void;
   onDeleteTicket: (ticketId: string) => void;
+  onPageChange?: (page: number) => void;
 }
 
 export function RecentTicketsSection({
@@ -26,6 +28,7 @@ export function RecentTicketsSection({
   onPrintTicket,
   onShowQrCode,
   onDeleteTicket,
+  onPageChange,
 }: RecentTicketsSectionProps) {
   const { t } = useTranslation();
 
@@ -116,8 +119,52 @@ export function RecentTicketsSection({
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {/* Action buttons would go here */}
+                  <div className="flex items-center gap-1">
+                    <OliveButton
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onShowQrCode(ticket);
+                      }}
+                      title="عرض رمز QR"
+                    >
+                      <QrCode className="h-4 w-4" />
+                    </OliveButton>
+                    <OliveButton
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPrintTicket(ticket);
+                      }}
+                      title="طباعة التذكرة"
+                    >
+                      <Printer className="h-4 w-4" />
+                    </OliveButton>
+                    <OliveButton
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTicketClick(ticket);
+                      }}
+                      title="تعديل التذكرة"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </OliveButton>
+                    <OliveButton
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteTicket(ticket.id);
+                      }}
+                      title="حذف التذكرة"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </OliveButton>
                   </div>
                 </div>
               ))}
@@ -131,7 +178,39 @@ export function RecentTicketsSection({
                 الصفحة {currentPage} من {totalPages}
               </div>
               <div className="flex items-center gap-2">
-                {/* Pagination buttons would go here */}
+                <OliveButton
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPageChange?.(currentPage - 1)}
+                  disabled={currentPage === 1 || loadingTickets}
+                >
+                  السابق
+                </OliveButton>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNum = i + 1;
+                    return (
+                      <OliveButton
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "primary" : "outline"}
+                        size="sm"
+                        onClick={() => onPageChange?.(pageNum)}
+                        disabled={loadingTickets}
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum}
+                      </OliveButton>
+                    );
+                  })}
+                </div>
+                <OliveButton
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPageChange?.(currentPage + 1)}
+                  disabled={currentPage === totalPages || loadingTickets}
+                >
+                  التالي
+                </OliveButton>
               </div>
             </div>
           )}

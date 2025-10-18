@@ -152,7 +152,6 @@ export function AddTicketModal({
             <Select
               value={newTicket.operationType}
               onValueChange={(value: 'milling' | 'sale') => {
-                console.log('Operation type selected:', value);
                 setNewTicket((prev) => ({ ...prev, operationType: value }));
               }}
             >

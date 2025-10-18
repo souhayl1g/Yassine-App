@@ -89,3 +89,28 @@ export const updateBatch = async (id: string, payload: any) => {
   }
   throw lastErr;
 };
+
+// Delete batch via API
+export const deleteBatch = async (id: string) => {
+  const attempts: Array<() => Promise<any>> = [
+    () => api.delete(`/batches/${id}`),
+    () => api.post(`/batches/${id}`, { _method: 'DELETE' }),
+    () => api.post(`/batches/delete/${id}`),
+    () => api.post(`/batches/${id}/delete`),
+  ];
+
+  let lastErr: any;
+  for (const tryCall of attempts) {
+    try {
+      const r = await tryCall();
+      return r;
+    } catch (err: any) {
+      lastErr = err;
+      const msg = (err?.message || '').toLowerCase();
+      if (!(msg.includes('404') || msg.includes('405') || msg.includes('not found') || msg.includes('method'))) {
+        throw err;
+      }
+    }
+  }
+  throw lastErr;
+};
