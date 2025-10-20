@@ -78,6 +78,11 @@ export default (sequelize) => {
       foreignKey: 'operatorId',
       as: 'operator'
     });
+
+    BatchLoading.hasOne(models.PressingQueue, {
+      foreignKey: 'batch_loading_id',
+      as: 'pressingQueueEntry'
+    });
   };
 
   return BatchLoading;

@@ -22,4 +22,7 @@ router.delete('/:id', pressingQueueController.removeFromQueue);
 // GET /api/pressing-queue/stats - Get queue statistics
 router.get('/stats', pressingQueueController.getQueueStats);
 
+// GET /api/pressing-queue/batch/:batch_id/available-boxes - Get available boxes for a batch
+router.get('/batch/:batch_id/available-boxes', pressingQueueController.getBatchAvailableBoxes);
+
 export default router;

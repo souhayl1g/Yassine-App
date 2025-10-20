@@ -49,11 +49,16 @@
     "currentBoxes": "صناديق حالية", 
     "activeRooms": "غرف نشطة",
     "quickActions": "إجراءات سريعة",
+    "dailyWork": "العمل اليومي",
     "newTicket": "تذكرة جديدة",
     "newClient": "عميل جديد",
+    "pressingRooms": "غرف العصر",
+    "containers": "خزانات الزيت",
+    "settings": "الإعدادات",
     "scanQR": "مسح QR",
     "recentActivity": "النشاط الأخير",
     "noActivity": "لا يوجد نشاط حديث",
+    "ticketsToday": "تذاكر اليوم",
     "kg": "كيلو"
   },
   "dailyWork": {

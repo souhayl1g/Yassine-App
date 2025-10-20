@@ -28,6 +28,9 @@ export const useDailyWork = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isCameraScanOpen, setIsCameraScanOpen] = useState(false);
 
+  // Oil batch weights cache for sale calculations
+  const [oilBatchWeights, setOilBatchWeights] = useState<{ [batchId: string]: number }>({});
+
   // Additional states
   const [ticketToPrint, setTicketToPrint] = useState<Ticket | null>(null);
   const [qrCodeImage, setQrCodeImage] = useState<string>('');
@@ -185,6 +188,21 @@ export const useDailyWork = () => {
         notes: ticket.notes || '',
         taux: '', // Reset taux for each ticket
       });
+
+      // If this is a sale operation, load oil batch weights
+      if (ticket.operationType === 'sale') {
+        console.log('🎫 TICKET DEBUG: Sale operation detected, pre-loading oil batches');
+        console.log('📋 TICKET DEBUG: Ticket details:', {
+          id: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          clientName: ticket.clientName,
+          operationType: ticket.operationType,
+          weightIn: ticket.weightIn
+        });
+        await loadOilBatchWeights(ticket.id);
+      } else {
+        console.log('🎫 TICKET DEBUG: Non-sale operation, skipping oil batch loading');
+      }
 
       setIsEditModalOpen(true);
     } catch (error: any) {
@@ -502,26 +520,149 @@ export const useDailyWork = () => {
     return Math.max(0, ticketManagement.scannedTicket.weightIn - weightOut - numberOfBoxes);
   };
 
-  // Calculate edit total amount
-  const calculateEditTotalAmount = (operationType?: string) => {
-    if (!ticketManagement.currentPrices || !ticketManagement.scannedTicket) return 0;
+  // Load oil batch weights for a specific batch ID
+  const loadOilBatchWeights = async (batchId: string) => {
+    console.log('🛢️ OIL BATCH DEBUG: Starting to load oil batches for batch ID:', batchId);
+    
+    try {
+      const apiUrl = `/oil-batches?batchId=${batchId}`;
+      console.log('📡 OIL BATCH DEBUG: API URL:', apiUrl);
+      
+      const oilBatchesResponse = await api.get(apiUrl);
+      console.log('📨 OIL BATCH DEBUG: Raw API response:', oilBatchesResponse);
+      
+      const oilBatches = getPayload<any>(oilBatchesResponse);
+      console.log('📦 OIL BATCH DEBUG: Parsed payload:', oilBatches);
+      console.log('🔍 OIL BATCH DEBUG: First oil batch sample:', oilBatches?.[0] || oilBatches?.oilBatches?.[0] || 'No batches found');
+      
+      let totalOilWeight = 0;
+      let matchingBatches = [];
+      
+      if (Array.isArray(oilBatches)) {
+        console.log('📝 OIL BATCH DEBUG: Processing array format, total items:', oilBatches.length);
+        
+        // Filter oil batches for this specific batch and sum their weights
+        matchingBatches = oilBatches.filter(batch => {
+          const matchesSnakeCase = String(batch.batch_id) === String(batchId);
+          const matchesCamelCase = String(batch.batchId) === String(batchId);
+          const matches = matchesSnakeCase || matchesCamelCase;
+          console.log(`🔍 OIL BATCH DEBUG: Batch ${batch.id} - batch_id: ${batch.batch_id}, batchId: ${batch.batchId}, matches: ${matches}`);
+          return matches;
+        });
+        
+        console.log('✅ OIL BATCH DEBUG: Matching batches found:', matchingBatches.length);
+        matchingBatches.forEach((batch, index) => {
+          const weight = parseFloat(batch.weight) || 0;
+          console.log(`⚖️ OIL BATCH DEBUG: Batch ${index + 1} - ID: ${batch.id}, Weight: ${weight}kg`);
+          totalOilWeight += weight;
+        });
+        
+      } else if (oilBatches && Array.isArray(oilBatches.oilBatches)) {
+        console.log('📝 OIL BATCH DEBUG: Processing nested format, total items:', oilBatches.oilBatches.length);
+        
+        // Handle different response format
+        matchingBatches = oilBatches.oilBatches.filter(batch => {
+          const matchesSnakeCase = String(batch.batch_id) === String(batchId);
+          const matchesCamelCase = String(batch.batchId) === String(batchId);
+          const matches = matchesSnakeCase || matchesCamelCase;
+          console.log(`🔍 OIL BATCH DEBUG: Batch ${batch.id} - batch_id: ${batch.batch_id}, batchId: ${batch.batchId}, matches: ${matches}`);
+          return matches;
+        });
+        
+        console.log('✅ OIL BATCH DEBUG: Matching batches found:', matchingBatches.length);
+        matchingBatches.forEach((batch, index) => {
+          const weight = parseFloat(batch.weight) || 0;
+          console.log(`⚖️ OIL BATCH DEBUG: Batch ${index + 1} - ID: ${batch.id}, Weight: ${weight}kg`);
+          totalOilWeight += weight;
+        });
+      } else {
+        console.log('❌ OIL BATCH DEBUG: Unexpected response format:', typeof oilBatches);
+      }
+      
+      console.log('🧮 OIL BATCH DEBUG: CALCULATION SUMMARY:');
+      console.log('  - Target batch ID:', batchId);
+      console.log('  - Matching oil batches:', matchingBatches.length);
+      console.log('  - Total oil weight:', totalOilWeight, 'kg');
+      
+      setOilBatchWeights(prev => ({ ...prev, [batchId]: totalOilWeight }));
+      console.log('💾 OIL BATCH DEBUG: Cached weight for future use');
+      
+      return totalOilWeight;
+    } catch (error) {
+      console.error('❌ OIL BATCH DEBUG: Error fetching oil batches:', error);
+      return 0;
+    }
+  };
+
+  // Calculate edit total amount with details
+  const calculateEditTotalAmountWithDetails = async (operationType?: string) => {
+    if (!ticketManagement.currentPrices || !ticketManagement.scannedTicket) {
+      return { amount: 0, calculationMethod: 'milling' as const };
+    }
     
     const netWeight = calculateEditNetWeight();
-    if (netWeight <= 0) return 0;
+    if (netWeight <= 0) {
+      return { amount: 0, calculationMethod: 'milling' as const };
+    }
 
     let unitPrice = 0;
+    let calculationMethod: 'taux' | 'container' | 'milling' = 'milling';
+    let containerWeight: number | undefined = undefined;
     
     if (operationType === 'sale') {
       // For sale operations, use oil selling price
-      if (ticketManagement.editForm.taux) {
+      const tauxValue = parseFloat(ticketManagement.editForm.taux) || 0;
+      if (tauxValue > 0) {
         // If taux is provided, calculate oil amount and use oil selling price
-        const oilAmount = (netWeight * parseFloat(ticketManagement.editForm.taux)) / 100;
+        const oilAmount = (netWeight * tauxValue) / 100;
         unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
         const totalAmount = oilAmount * unitPrice;
-        return Math.max(totalAmount, 40); // Minimum 40 dinars
+        calculationMethod = 'taux';
+        return { 
+          amount: Math.max(totalAmount, 40), 
+          calculationMethod,
+          containerWeight: oilAmount 
+        };
       } else {
-        // Use milling price if no taux provided
-        unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
+        // If taux is 0 or not provided, use cached oil batch weights or load them
+        console.log('🔍 SALE DEBUG: Taux is 0 or empty, checking oil batches');
+        console.log('📋 SALE DEBUG: Current batch ID:', ticketManagement.scannedTicket.id);
+        console.log('💾 SALE DEBUG: Cached oil batch weights:', oilBatchWeights);
+        
+        let cachedWeight = oilBatchWeights[ticketManagement.scannedTicket.id];
+        console.log('⚖️ SALE DEBUG: Cached weight for batch:', cachedWeight);
+        
+        if (cachedWeight === undefined) {
+          console.log('🔄 SALE DEBUG: No cached weight found, loading from API...');
+          // Load oil batch weights if not cached
+          cachedWeight = await loadOilBatchWeights(ticketManagement.scannedTicket.id);
+          console.log('📡 SALE DEBUG: Loaded weight from API:', cachedWeight);
+        }
+        
+        if (cachedWeight > 0) {
+          // Use oil selling price per kg for the total oil weight
+          unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
+          const totalAmount = cachedWeight * unitPrice;
+          calculationMethod = 'container';
+          containerWeight = cachedWeight;
+          
+          console.log('💰 SALE DEBUG: Using container method calculation:');
+          console.log('  - Container weight:', cachedWeight, 'kg');
+          console.log('  - Oil selling price:', unitPrice, 'dinars/kg');
+          console.log('  - Calculated amount (before minimum):', totalAmount, 'dinars');
+          console.log('  - Final amount (with 40 minimum):', Math.max(totalAmount, 40), 'dinars');
+          
+          return { 
+            amount: Math.max(totalAmount, 40), 
+            calculationMethod,
+            containerWeight 
+          };
+        } else {
+          console.log('⚠️ SALE DEBUG: No oil batches found, falling back to milling price');
+          // No oil batches found, use milling price as fallback
+          unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
+          console.log('🏭 SALE DEBUG: Fallback milling price:', unitPrice, 'dinars/kg');
+        }
       }
     } else {
       // For milling operations, use milling price
@@ -529,33 +670,22 @@ export const useDailyWork = () => {
     }
     
     const totalAmount = netWeight * unitPrice;
-    return Math.max(totalAmount, 40); // Minimum 40 dinars
+    return { 
+      amount: Math.max(totalAmount, 40), 
+      calculationMethod 
+    };
+  };
+
+  // Calculate edit total amount (simplified version for backward compatibility)
+  const calculateEditTotalAmount = async (operationType?: string) => {
+    const details = await calculateEditTotalAmountWithDetails(operationType);
+    return details.amount;
   };
 
   // Check if minimum price is applied
-  const isMinimumPriceApplied = (operationType?: string) => {
-    if (!ticketManagement.currentPrices || !ticketManagement.scannedTicket) return false;
-    
-    const netWeight = calculateEditNetWeight();
-    if (netWeight <= 0) return false;
-
-    let unitPrice = 0;
-    
-    if (operationType === 'sale') {
-      if (ticketManagement.editForm.taux) {
-        const oilAmount = (netWeight * parseFloat(ticketManagement.editForm.taux)) / 100;
-        unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
-        const calculatedAmount = oilAmount * unitPrice;
-        return calculatedAmount < 40;
-      } else {
-        unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
-      }
-    } else {
-      unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
-    }
-    
-    const calculatedAmount = netWeight * unitPrice;
-    return calculatedAmount < 40;
+  const isMinimumPriceApplied = async (operationType?: string) => {
+    const details = await calculateEditTotalAmountWithDetails(operationType);
+    return details.amount === 40; // If amount equals minimum, then minimum was applied
   };
 
   // Print ticket function
@@ -712,6 +842,28 @@ export const useDailyWork = () => {
     ticketManagement.initializeData();
   }, []);
 
+  // Load oil batch weights when taux changes for sale operations
+  useEffect(() => {
+    if (ticketManagement.scannedTicket?.operationType === 'sale' && 
+        ticketManagement.editForm.taux === '' && 
+        !oilBatchWeights[ticketManagement.scannedTicket.id]) {
+      
+      console.log('🔄 USEEFFECT DEBUG: Taux changed, checking if oil batch loading needed');
+      console.log('📝 USEEFFECT DEBUG: Current taux value:', ticketManagement.editForm.taux);
+      console.log('📋 USEEFFECT DEBUG: Current batch ID:', ticketManagement.scannedTicket.id);
+      console.log('💾 USEEFFECT DEBUG: Cached weights:', oilBatchWeights);
+      console.log('🚀 USEEFFECT DEBUG: Triggering oil batch loading...');
+      
+      // Only load if taux is empty/0 and we don't have cached weights
+      loadOilBatchWeights(ticketManagement.scannedTicket.id);
+    } else {
+      console.log('⏭️ USEEFFECT DEBUG: Skipping oil batch loading - conditions not met');
+      console.log('  - Operation type:', ticketManagement.scannedTicket?.operationType);
+      console.log('  - Taux value:', `"${ticketManagement.editForm.taux}"`);
+      console.log('  - Has cached weight:', !!oilBatchWeights[ticketManagement.scannedTicket?.id || '']);
+    }
+  }, [ticketManagement.editForm.taux, ticketManagement.scannedTicket?.id]);
+
   return {
     // Ticket Management State
     ...ticketManagement,
@@ -758,8 +910,10 @@ export const useDailyWork = () => {
     removeFromMinimized,
     handleSaveChanges,
     loadPressingHistory,
+    loadOilBatchWeights,
     calculateEditNetWeight,
     calculateEditTotalAmount,
+    calculateEditTotalAmountWithDetails,
     isMinimumPriceApplied,
     printTicket,
     handleDeleteTicket,

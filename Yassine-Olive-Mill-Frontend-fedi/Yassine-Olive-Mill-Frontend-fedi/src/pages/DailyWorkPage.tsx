@@ -58,10 +58,7 @@ export function DailyWorkPage() {
           onPrintTicket={dailyWork.handlePrintTicket}
           onShowQrCode={dailyWork.handleShowQrCode}
           onPageChange={dailyWork.loadRecentTickets}
-          onDeleteTicket={(ticketId) => {
-            // TODO: Implement delete functionality
-            console.log('Delete ticket:', ticketId);
-          }}
+          onDeleteTicket={dailyWork.handleDeleteTicket}
         />
       </div>
 
@@ -103,6 +100,7 @@ export function DailyWorkPage() {
         onClose={() => dailyWork.setIsEditModalOpen(false)}
         calculateEditNetWeight={dailyWork.calculateEditNetWeight}
         calculateEditTotalAmount={dailyWork.calculateEditTotalAmount}
+        calculateEditTotalAmountWithDetails={dailyWork.calculateEditTotalAmountWithDetails}
         isMinimumPriceApplied={dailyWork.isMinimumPriceApplied}
       />
 

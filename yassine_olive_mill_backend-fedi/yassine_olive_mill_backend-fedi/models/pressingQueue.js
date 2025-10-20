@@ -15,6 +15,14 @@ export default (sequelize) => {
         key: 'id'
       }
     },
+    batch_loading_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'batch_loadings',
+        key: 'id'
+      }
+    },
     number_of_boxes: {
       type: DataTypes.INTEGER,
       allowNull: false
@@ -50,6 +58,11 @@ export default (sequelize) => {
     PressingQueue.belongsTo(models.Batch, { 
       foreignKey: 'batch_id', 
       as: 'batch',
+      onDelete: 'CASCADE'
+    });
+    PressingQueue.belongsTo(models.BatchLoading, { 
+      foreignKey: 'batch_loading_id', 
+      as: 'batchLoading',
       onDelete: 'CASCADE'
     });
     PressingQueue.belongsTo(models.User, { 

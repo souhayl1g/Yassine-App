@@ -96,6 +96,12 @@ export default (sequelize) => {
       defaultValue: 0,
       comment: 'Number of boxes loaded into pressing (cannot exceed number_of_boxes)'
     },
+    boxes_committed_to_queue: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Number of boxes committed to pressing queue (reserved but not yet loaded)'
+    },
     taux: {
       type: DataTypes.DECIMAL(5, 2),
       allowNull: true,

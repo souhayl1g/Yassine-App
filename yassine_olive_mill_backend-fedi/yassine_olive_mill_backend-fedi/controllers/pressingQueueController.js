@@ -1,8 +1,8 @@
 import db from '../models/index.js';
-const { PressingQueue, Batch, User, PressingSession, PressingRoom } = db;
+const { PressingQueue, Batch, User, PressingSession, PressingRoom, BatchLoading } = db;
 
 const pressingQueueController = {
-  // Add a new session to the queue
+  // Add a new batch loading to the queue
   addToQueue: async (req, res) => {
     try {
       const { batch_id, number_of_boxes, operator_id, notes, priority = 0 } = req.body;
@@ -14,29 +14,38 @@ const pressingQueueController = {
         });
       }
 
-      // Check if batch exists and is valid for queuing
+      // Check if batch exists and has available boxes
       const batch = await Batch.findByPk(batch_id);
       if (!batch) {
         return res.status(404).json({ error: 'Batch not found' });
       }
 
-      // Check if batch is already in queue
-      const existingQueueEntry = await PressingQueue.findOne({
-        where: { 
-          batch_id, 
-          status: 'queued' 
-        }
-      });
+      // Calculate available boxes
+      const totalBoxes = batch.number_of_boxes || 0;
+      const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
+      const committedBoxes = batch.boxes_committed_to_queue || 0;
+      const availableBoxes = totalBoxes - loadedBoxes - committedBoxes;
 
-      if (existingQueueEntry) {
+      if (number_of_boxes > availableBoxes) {
         return res.status(400).json({ 
-          error: 'Batch is already in the pressing queue' 
+          error: `Not enough available boxes. Available: ${availableBoxes}, Requested: ${number_of_boxes}` 
         });
       }
+
+      // Create a batch loading entry first
+      const batchLoading = await BatchLoading.create({
+        batchId: batch_id,
+        pressingSessionId: null, // Will be set when processing starts
+        pressingRoomId: null,    // Will be set when processing starts
+        operatorId: operator_id,
+        boxesLoaded: number_of_boxes,
+        notes
+      });
 
       // Create queue entry
       const queueEntry = await PressingQueue.create({
         batch_id,
+        batch_loading_id: batchLoading.id,
         number_of_boxes,
         operator_id,
         priority,
@@ -44,12 +53,19 @@ const pressingQueueController = {
         status: 'queued'
       });
 
+      // Update batch to reserve these boxes
+      await batch.update({
+        boxes_committed_to_queue: committedBoxes + number_of_boxes
+      });
+
       // Return queue entry with position
       const position = await getQueuePosition(queueEntry.id);
 
       res.status(201).json({
         ...queueEntry.toJSON(),
-        position
+        batchLoading,
+        position,
+        availableBoxesAfter: availableBoxes - number_of_boxes
       });
     } catch (error) {
       console.error('Add to queue error:', error);
@@ -57,7 +73,7 @@ const pressingQueueController = {
     }
   },
 
-  // Get all queued sessions
+  // Get all queued batch loadings
   getQueuedSessions: async (req, res) => {
     try {
       const { status = 'queued' } = req.query;
@@ -69,6 +85,17 @@ const pressingQueueController = {
             model: Batch,
             as: 'batch',
             include: ['client']
+          },
+          {
+            model: BatchLoading,
+            as: 'batchLoading',
+            include: [
+              {
+                model: Batch,
+                as: 'batch',
+                include: ['client']
+              }
+            ]
           },
           {
             model: User,
@@ -89,7 +116,7 @@ const pressingQueueController = {
     }
   },
 
-  // Process next session in queue (auto-assign to available room)
+  // Process next batch loading in queue (auto-assign to available room)
   processNextInQueue: async (req, res) => {
     try {
       const { room_id } = req.body;
@@ -122,13 +149,17 @@ const pressingQueueController = {
         }
       }
 
-      // Get next queued session
+      // Get next queued batch loading
       const nextInQueue = await PressingQueue.findOne({
         where: { status: 'queued' },
         include: [
           {
             model: Batch,
             as: 'batch'
+          },
+          {
+            model: BatchLoading,
+            as: 'batchLoading'
           }
         ],
         order: [
@@ -139,7 +170,7 @@ const pressingQueueController = {
 
       if (!nextInQueue) {
         return res.status(404).json({ 
-          error: 'No sessions in queue' 
+          error: 'No batch loadings in queue' 
         });
       }
 
@@ -154,22 +185,30 @@ const pressingQueueController = {
         status: 'active'
       });
 
+      // Update batch loading with session and room info
+      await nextInQueue.batchLoading.update({
+        pressingSessionId: pressingSession.id,
+        pressingRoomId: availableRoom.id
+      });
+
       // Update room status
       await availableRoom.update({ status: 'active' });
 
-      // Update batch boxes loaded to pressing
+      // Update batch boxes loaded to pressing and reduce committed boxes
       const batch = nextInQueue.batch;
       await batch.update({
-        boxes_loaded_to_pressing: (batch.boxes_loaded_to_pressing || 0) + nextInQueue.number_of_boxes
+        boxes_loaded_to_pressing: (batch.boxes_loaded_to_pressing || 0) + nextInQueue.number_of_boxes,
+        boxes_committed_to_queue: Math.max(0, (batch.boxes_committed_to_queue || 0) - nextInQueue.number_of_boxes)
       });
 
       // Mark queue entry as completed
       await nextInQueue.update({ status: 'completed' });
 
       res.json({
-        message: 'Successfully processed next session in queue',
+        message: 'Successfully processed next batch loading in queue',
         pressingSession,
         queueEntry: nextInQueue,
+        batchLoading: nextInQueue.batchLoading,
         room: availableRoom
       });
     } catch (error) {
@@ -178,25 +217,52 @@ const pressingQueueController = {
     }
   },
 
-  // Remove session from queue
+  // Remove batch loading from queue
   removeFromQueue: async (req, res) => {
     try {
       const { id } = req.params;
 
-      const queueEntry = await PressingQueue.findByPk(id);
+      const queueEntry = await PressingQueue.findByPk(id, {
+        include: [
+          {
+            model: Batch,
+            as: 'batch'
+          },
+          {
+            model: BatchLoading,
+            as: 'batchLoading'
+          }
+        ]
+      });
+
       if (!queueEntry) {
         return res.status(404).json({ error: 'Queue entry not found' });
       }
 
       if (queueEntry.status === 'processing') {
         return res.status(400).json({ 
-          error: 'Cannot remove session that is currently being processed' 
+          error: 'Cannot remove batch loading that is currently being processed' 
         });
       }
 
+      // Release committed boxes back to batch
+      const batch = queueEntry.batch;
+      await batch.update({
+        boxes_committed_to_queue: Math.max(0, (batch.boxes_committed_to_queue || 0) - queueEntry.number_of_boxes)
+      });
+
+      // Remove the batch loading entry
+      if (queueEntry.batchLoading) {
+        await queueEntry.batchLoading.destroy();
+      }
+
+      // Remove queue entry
       await queueEntry.destroy();
 
-      res.json({ message: 'Session removed from queue successfully' });
+      res.json({ 
+        message: 'Batch loading removed from queue successfully',
+        releasedBoxes: queueEntry.number_of_boxes
+      });
     } catch (error) {
       console.error('Remove from queue error:', error);
       res.status(500).json({ error: error.message });
@@ -235,6 +301,35 @@ const pressingQueueController = {
       });
     } catch (error) {
       console.error('Get queue stats error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // Get available boxes for a batch
+  getBatchAvailableBoxes: async (req, res) => {
+    try {
+      const { batch_id } = req.params;
+
+      const batch = await Batch.findByPk(batch_id);
+      if (!batch) {
+        return res.status(404).json({ error: 'Batch not found' });
+      }
+
+      const totalBoxes = batch.number_of_boxes || 0;
+      const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
+      const committedBoxes = batch.boxes_committed_to_queue || 0;
+      const availableBoxes = totalBoxes - loadedBoxes - committedBoxes;
+
+      res.json({
+        batchId: batch_id,
+        totalBoxes,
+        loadedBoxes,
+        committedBoxes,
+        availableBoxes,
+        status: batch.status
+      });
+    } catch (error) {
+      console.error('Get batch available boxes error:', error);
       res.status(500).json({ error: error.message });
     }
   }

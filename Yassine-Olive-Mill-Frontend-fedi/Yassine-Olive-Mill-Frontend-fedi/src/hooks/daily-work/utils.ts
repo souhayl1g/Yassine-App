@@ -114,3 +114,43 @@ export const deleteBatch = async (id: string) => {
   }
   throw lastErr;
 };
+
+// Fetch container contents for a specific batch ID and calculate total weight
+export const getContainerContentsWeight = async (batchId: string): Promise<number> => {
+  try {
+    // Try to get container contents for this batch
+    const response = await api.get(`/container-contents?batchId=${batchId}`);
+    const payload = getPayload<any>(response);
+    
+    let containerContents = [];
+    
+    // Handle different response formats
+    if (Array.isArray(payload)) {
+      containerContents = payload.filter(content => 
+        String(content.batch_id) === String(batchId) || 
+        String(content.batchId) === String(batchId)
+      );
+    } else if (payload && Array.isArray(payload.containerContents)) {
+      containerContents = payload.containerContents.filter(content => 
+        String(content.batch_id) === String(batchId) || 
+        String(content.batchId) === String(batchId)
+      );
+    } else if (payload && Array.isArray(payload.data)) {
+      containerContents = payload.data.filter(content => 
+        String(content.batch_id) === String(batchId) || 
+        String(content.batchId) === String(batchId)
+      );
+    }
+    
+    // Sum all weights from container contents
+    const totalWeight = containerContents.reduce((sum, content) => {
+      const weight = parseFloat(content.weight || content.net_weight || 0);
+      return sum + weight;
+    }, 0);
+    
+    return totalWeight;
+  } catch (error) {
+    console.error('Error fetching container contents:', error);
+    return 0;
+  }
+};

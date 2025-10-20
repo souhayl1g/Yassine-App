@@ -12,7 +12,8 @@ import {
   Building2,
   Plus,
   Activity,
-  TrendingUp
+  TrendingUp,
+  RefreshCw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentDayInfo, formatDayTime, formatDayDate, getDayStatusText } from '@/lib/daySystem';
@@ -30,10 +31,42 @@ export function DashboardPage() {
 
   const [metrics, setMetrics] = useState<Metrics>({ todayTickets: 0, totalWeight: 0, currentBoxes: 0, activeRooms: 0 });
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [totalRooms, setTotalRooms] = useState(5); // Default, will be fetched
 
   const loadDashboard = async () => {
     try {
-      const overview = await api.get<{ metrics: any }>(`/dashboard/overview`);
+      setLoading(true);
+      setError(null);
+      
+      console.log('Loading dashboard data...');
+      
+      // Fetch dashboard data and rooms info in parallel
+      const [overview, acts, roomsData] = await Promise.all([
+        api.get<{ metrics: any }>(`/dashboard/overview`).then(data => {
+          console.log('Dashboard overview response:', data);
+          return data;
+        }).catch((err) => {
+          console.error('Overview API error:', err);
+          throw err;
+        }),
+        api.get<Activity[]>(`/dashboard/activity?limit=20`).then(data => {
+          console.log('Dashboard activity response:', data);
+          return data;
+        }).catch((err) => {
+          console.warn('Activity API error:', err);
+          return [];
+        }), // Fallback to empty array
+        api.get<any[]>(`/pressing-rooms`).then(data => {
+          console.log('Pressing rooms response:', data);
+          return data;
+        }).catch((err) => {
+          console.warn('Rooms API error:', err);
+          return [];
+        }) // Fallback to empty array
+      ]);
+      
       const m = overview.metrics || {};
       setMetrics({
         todayTickets: Number(m.todayTickets || 0),
@@ -41,22 +74,49 @@ export function DashboardPage() {
         currentBoxes: Number(m.currentBoxes || 0),
         activeRooms: Number(m.activeRooms || 0),
       });
-      const acts = await api.get<Activity[]>(`/dashboard/activity?limit=20`);
-      setActivities(acts || []);
-    } catch (e) {
-      // silent fail; UI shows zeros
+      
+      setActivities(Array.isArray(acts) ? acts : []);
+      
+      // Set total rooms count from API
+      if (roomsData && Array.isArray(roomsData)) {
+        setTotalRooms(roomsData.length);
+      }
+      
+    } catch (e: any) {
+      console.error('Dashboard load error:', e);
+      const errorMessage = e?.message || e?.toString() || 'Failed to load dashboard data';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     loadDashboard();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(loadDashboard, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const quickActions = [
     {
+      key: 'dailyWork',
+      icon: Activity,
+      onClick: () => navigate('/'),
+      roles: ['admin', 'operator']
+    },
+    {
       key: 'newTicket',
       icon: FileText,
       onClick: () => navigate('/tickets'),
+      roles: ['admin', 'operator']
+    },
+    {
+      key: 'pressingRooms',
+      icon: Building2,
+      onClick: () => navigate('/rooms'),
       roles: ['admin', 'operator']
     },
     {
@@ -65,12 +125,18 @@ export function DashboardPage() {
       onClick: () => navigate('/clients'),
       roles: ['admin', 'operator']
     },
-    // {
-    //   key: 'scanQR',
-    //   icon: QrCode,
-    //   onClick: () => navigate('/qr'),
-    //   roles: ['admin', 'operator', 'scanner']
-    // },
+    {
+      key: 'containers',
+      icon: Box,
+      onClick: () => navigate('/containers'),
+      roles: ['admin', 'operator']
+    },
+    {
+      key: 'settings',
+      icon: Plus,
+      onClick: () => navigate('/settings'),
+      roles: ['admin']
+    },
   ];
 
   const filteredActions = quickActions.filter(action => 
@@ -90,6 +156,24 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
+            <Activity className="h-4 w-4" />
+            <span className="text-sm font-medium">{error}</span>
+            <OliveButton 
+              variant="outline" 
+              size="sm" 
+              onClick={loadDashboard}
+              className="ml-auto"
+            >
+              إعادة المحاولة
+            </OliveButton>
+          </div>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -100,15 +184,29 @@ export function DashboardPage() {
             {t('common.welcome')}, {user?.firstname}! 👋
           </p>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-primary">
-            {formatDayTime(new Date())}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {formatDayDate(new Date())}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {getDayStatusText()} • {Math.round(dayInfo.dayProgress)}% من اليوم
+        <div className="flex items-center gap-4">
+          {/* Refresh Button */}
+          <OliveButton
+            variant="outline"
+            size="sm"
+            onClick={loadDashboard}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            تحديث
+          </OliveButton>
+          
+          {/* Day Info */}
+          <div className="text-right">
+            <div className="text-2xl font-bold text-primary">
+              {formatDayTime(new Date())}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {formatDayDate(new Date())}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {getDayStatusText()} • {Math.round(dayInfo.dayProgress)}% من اليوم
+            </div>
           </div>
         </div>
       </div>
@@ -123,10 +221,10 @@ export function DashboardPage() {
             <FileText className="h-5 w-5 text-primary" />
           </OliveCardHeader>
           <OliveCardContent>
-            <div className="text-3xl font-bold text-primary">{metrics.todayTickets}</div>
+            <div className="text-3xl font-bold text-primary">{loading ? '...' : metrics.todayTickets}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-2">
               <TrendingUp className="h-3 w-3" />
-              +12% من الأمس
+              {t('dashboard.ticketsToday')}
             </p>
           </OliveCardContent>
         </OliveCard>
@@ -140,7 +238,7 @@ export function DashboardPage() {
           </OliveCardHeader>
           <OliveCardContent>
             <div className="text-3xl font-bold text-secondary">
-              {metrics.totalWeight.toLocaleString()}
+              {loading ? '...' : metrics.totalWeight.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               {t('dashboard.kg')}
@@ -156,7 +254,7 @@ export function DashboardPage() {
             <Box className="h-5 w-5 text-info" />
           </OliveCardHeader>
           <OliveCardContent>
-            <div className="text-3xl font-bold text-info">{metrics.currentBoxes}</div>
+            <div className="text-3xl font-bold text-info">{loading ? '...' : metrics.currentBoxes}</div>
             <p className="text-xs text-muted-foreground">
               في المعالجة
             </p>
@@ -171,9 +269,9 @@ export function DashboardPage() {
             <Building2 className="h-5 w-5 text-success" />
           </OliveCardHeader>
           <OliveCardContent>
-            <div className="text-3xl font-bold text-success">{metrics.activeRooms}</div>
+            <div className="text-3xl font-bold text-success">{loading ? '...' : metrics.activeRooms}</div>
             <p className="text-xs text-muted-foreground">
-              من أصل 5 غرف
+              من أصل {totalRooms} غرف
             </p>
           </OliveCardContent>
         </OliveCard>
@@ -217,7 +315,19 @@ export function DashboardPage() {
               </OliveCardTitle>
             </OliveCardHeader>
             <OliveCardContent>
-              {activities.length === 0 ? (
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg animate-pulse">
+                      <div className="h-9 w-9 bg-muted rounded-lg"></div>
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-muted rounded w-3/4"></div>
+                        <div className="h-3 bg-muted rounded w-1/2"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : activities.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>{t('dashboard.noActivity')}</p>
