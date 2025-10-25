@@ -2,6 +2,9 @@ import express from 'express';
 const router = express.Router();
 import batchController from "../controllers/batchController.js"
 
+// GET /api/batches/next-ticket-number - Get next daily ticket number
+router.get('/next-ticket-number', batchController.getNextTicketNumber);
+
 // GET /api/batches - Get all batches with filtering
 router.get('/', batchController.getAllBatches);
 

@@ -5,7 +5,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -19,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus } from 'lucide-react';
+
 import { Client, NewTicketForm } from '@/types/daily-work';
 import { getClientDisplayName } from '@/hooks/daily-work/utils';
 
@@ -50,12 +49,6 @@ export function AddTicketModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <OliveButton size="lg" className="gap-3 px-8 py-4 text-lg">
-          <Plus className="h-6 w-6" />
-          {t('dailyWork.startOperations')}
-        </OliveButton>
-      </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>إضافة تذكرة جديدة</DialogTitle>

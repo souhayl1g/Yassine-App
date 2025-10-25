@@ -8,3 +8,4 @@ export { EditTicketModal } from './EditTicketModal';
 export { PrintTicketModal } from './PrintTicketModal';
 export { QRDisplayModal } from './QRDisplayModal';
 export { TicketDetailsModal } from './TicketDetailsModal';
+export { OperationButtons } from './OperationButtons';

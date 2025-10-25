@@ -8,6 +8,7 @@ import { EditTicketModal } from '@/components/daily-work/EditTicketModal';
 import { PrintTicketModal } from '@/components/daily-work/PrintTicketModal';
 import { QRDisplayModal } from '@/components/daily-work/QRDisplayModal';
 import { TicketDetailsModal } from '@/components/daily-work/TicketDetailsModal';
+import { OperationButtons } from '@/components/daily-work/OperationButtons';
 import { useDailyWork } from '@/hooks/daily-work/useDailyWork';
 
 export function DailyWorkPage() {
@@ -19,33 +20,11 @@ export function DailyWorkPage() {
         {/* Page Header */}
         <DailyWorkHeader dailyTicketCount={dailyWork.dailyTicketCount} />
 
-        {/* Start Operations - Ticket Creation */}
-        <div className="flex justify-center">
-          <AddTicketModal
-            isOpen={dailyWork.isAddTicketOpen}
-            onOpenChange={dailyWork.setIsAddTicketOpen}
-            newTicket={dailyWork.newTicket}
-            setNewTicket={dailyWork.setNewTicket}
-            searchResults={dailyWork.searchResults}
-            selectedClient={dailyWork.selectedClient}
-            setSelectedClient={dailyWork.setSelectedClient}
-            onAddTicket={dailyWork.handleAddTicket}
-            onCancel={dailyWork.handleCancelAddTicket}
-          />
-        </div>
-
-        {/* QR Code Scan for Completion */}
-        <div className="flex justify-center">
-          <QRScanModal
-            isOpen={dailyWork.isQrScanOpen}
-            onOpenChange={dailyWork.setIsQrScanOpen}
-            onFileUpload={dailyWork.handleQRScan}
-            onOpenCamera={() => {
-              dailyWork.setIsQrScanOpen(false);
-              dailyWork.setIsCameraScanOpen(true);
-            }}
-          />
-        </div>
+        {/* Operation Buttons - Truck In/Out */}
+        <OperationButtons
+          onStartOperation={() => dailyWork.setIsAddTicketOpen(true)}
+          onFinishOperation={() => dailyWork.setIsQrScanOpen(true)}
+        />
 
         {/* Recent Tickets Section */}
         <RecentTicketsSection
@@ -137,6 +116,29 @@ export function DailyWorkPage() {
           dailyWork.setIsDetailsModalOpen(false);
           dailyWork.setQrCodeImage(ticket.qrCode!);
           dailyWork.setIsQrDisplayOpen(true);
+        }}
+      />
+
+      {/* Hidden Modals - Controlled by Operation Buttons */}
+      <AddTicketModal
+        isOpen={dailyWork.isAddTicketOpen}
+        onOpenChange={dailyWork.setIsAddTicketOpen}
+        newTicket={dailyWork.newTicket}
+        setNewTicket={dailyWork.setNewTicket}
+        searchResults={dailyWork.searchResults}
+        selectedClient={dailyWork.selectedClient}
+        setSelectedClient={dailyWork.setSelectedClient}
+        onAddTicket={dailyWork.handleAddTicket}
+        onCancel={dailyWork.handleCancelAddTicket}
+      />
+
+      <QRScanModal
+        isOpen={dailyWork.isQrScanOpen}
+        onOpenChange={dailyWork.setIsQrScanOpen}
+        onFileUpload={dailyWork.handleQRScan}
+        onOpenCamera={() => {
+          dailyWork.setIsQrScanOpen(false);
+          dailyWork.setIsCameraScanOpen(true);
         }}
       />
     </>

@@ -9,14 +9,33 @@ const batchController = {
   // GET /api/batches
   getAllBatches: async (req, res) => {
     try {
-      const { page = 1, limit = 10, status, clientId } = req.query;
+      const { page = 1, limit = 10, status, clientId, date } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
       
       const whereClause = {};
       if (status) whereClause.status = status;
       if (clientId) whereClause.clientId = parseInt(clientId);
+      
+      // Filter by date if provided (for daily ticket counting)
+      if (date) {
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        whereClause.date_received = {
+          [Op.gte]: startOfDay,
+          [Op.lte]: endOfDay
+        };
+      }
 
-      const batches = await Batch.findAndCountAll({
+      // Get the total count separately to avoid JOIN inflation
+      const totalCount = await Batch.count({
+        where: whereClause
+      });
+
+      // Get the batch data with includes
+      const batchRows = await Batch.findAll({
         where: whereClause,
         limit: parseInt(limit),
         offset: parseInt(offset),
@@ -46,11 +65,11 @@ const batchController = {
       });
 
       res.json({
-        batches: batches.rows,
+        batches: batchRows,
         pagination: {
-          total: batches.count,
+          total: totalCount,
           page: parseInt(page),
-          pages: Math.ceil(batches.count / parseInt(limit))
+          pages: Math.ceil(totalCount / parseInt(limit))
         }
       });
     } catch (error) {
@@ -439,6 +458,56 @@ const batchController = {
     } catch (error) {
       console.error('Delete batch error:', error);
       res.status(400).json({ error: error.message });
+    }
+  },
+
+  // GET /api/batches/next-ticket-number - Get next daily ticket number  
+  getNextTicketNumber: async (req, res) => {
+    try {
+      const { date = new Date().toISOString().split('T')[0] } = req.query;
+      
+      // Get today's batches to find the highest ticket number
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      const todayBatches = await Batch.findAll({
+        where: {
+          date_received: {
+            [Op.gte]: startOfDay,
+            [Op.lte]: endOfDay
+          }
+        },
+        attributes: ['ticket_number'],
+        order: [['date_received', 'DESC']]
+      });
+
+      let nextNumber = 1;
+      if (todayBatches.length > 0) {
+        // Find the highest number from today's tickets
+        const highestNumber = todayBatches.reduce((max, batch) => {
+          if (batch.ticket_number) {
+            const parts = batch.ticket_number.split('/');
+            const number = parseInt(parts[parts.length - 1], 10);
+            return Math.max(max, number || 0);
+          }
+          return max;
+        }, 0);
+        nextNumber = highestNumber + 1;
+      }
+
+      const formattedDate = date.replace(/-/g, '/');
+      const ticketNumber = `${formattedDate}/${nextNumber.toString().padStart(3, '0')}`;
+      
+      res.json({
+        nextTicketNumber: ticketNumber,
+        dailyCount: todayBatches.length,
+        nextSequence: nextNumber
+      });
+    } catch (error) {
+      console.error('Get next ticket number error:', error);
+      res.status(500).json({ error: error.message });
     }
   }
 };

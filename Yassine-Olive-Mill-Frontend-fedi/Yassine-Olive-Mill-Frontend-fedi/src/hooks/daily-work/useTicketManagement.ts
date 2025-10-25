@@ -98,6 +98,12 @@ export const useTicketManagement = () => {
       const payload = getPayload<any>(res);
       
       const tickets = payload?.batches || payload || [];
+      
+      console.log('📊 API Response - Tickets order:');
+      tickets.forEach((ticket: any, index: number) => {
+        console.log(`${index + 1}. ID: ${ticket.id}, ticket_number: ${ticket.ticket_number}, date: ${ticket.date_received}`);
+      });
+      
       // Enhance tickets with QR codes
       const ticketsWithQR = await Promise.all(
         tickets.map(async (ticket: any) => {

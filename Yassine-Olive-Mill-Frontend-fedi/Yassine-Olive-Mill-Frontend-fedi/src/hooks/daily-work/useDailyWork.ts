@@ -92,7 +92,7 @@ export const useDailyWork = () => {
         await ticketManagement.loadClients();
       }
 
-      const ticketNumber = generateDailyTicketNumber(ticketManagement.dailyTicketCount);
+      const ticketNumber = await generateDailyTicketNumber();
       const payload: any = {
         clientId: clientId,
         ticket_number: ticketNumber,

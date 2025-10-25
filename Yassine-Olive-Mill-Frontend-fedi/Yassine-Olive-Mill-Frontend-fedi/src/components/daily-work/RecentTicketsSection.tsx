@@ -74,7 +74,11 @@ export function RecentTicketsSection({
                     <div className="flex-shrink-0">
                       <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                         <span className="text-sm font-semibold text-primary">
-                          {ticket.ticketNumber?.split('/').pop() || '#'}
+                          {(() => {
+                            if (!ticket.ticketNumber) return '#';
+                            const parts = ticket.ticketNumber.split('/');
+                            return parts[parts.length - 1] || '#';
+                          })()}
                         </span>
                       </div>
                     </div>
@@ -187,21 +191,32 @@ export function RecentTicketsSection({
                   السابق
                 </OliveButton>
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const pageNum = i + 1;
-                    return (
-                      <OliveButton
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "primary" : "outline"}
-                        size="sm"
-                        onClick={() => onPageChange?.(pageNum)}
-                        disabled={loadingTickets}
-                        className="w-8 h-8 p-0"
-                      >
-                        {pageNum}
-                      </OliveButton>
-                    );
-                  })}
+                  {(() => {
+                    const maxVisiblePages = 5;
+                    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                    
+                    // Adjust start page if we're near the end
+                    if (endPage - startPage < maxVisiblePages - 1) {
+                      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                    }
+                    
+                    return Array.from({ length: endPage - startPage + 1 }, (_, i) => {
+                      const pageNum = startPage + i;
+                      return (
+                        <OliveButton
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "primary" : "outline"}
+                          size="sm"
+                          onClick={() => onPageChange?.(pageNum)}
+                          disabled={loadingTickets}
+                          className="w-8 h-8 p-0"
+                        >
+                          {pageNum}
+                        </OliveButton>
+                      );
+                    });
+                  })()}
                 </div>
                 <OliveButton
                   variant="outline"

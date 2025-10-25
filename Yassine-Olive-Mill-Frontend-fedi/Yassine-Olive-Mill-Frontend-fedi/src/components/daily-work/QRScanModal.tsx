@@ -4,7 +4,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -26,16 +25,6 @@ export function QRScanModal({
 }: QRScanModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <OliveButton
-          variant="outline"
-          size="lg"
-          className="gap-3 px-8 py-4 text-lg"
-        >
-          <QrCode className="h-6 w-6" />
-          مسح QR لإكمال التذكرة
-        </OliveButton>
-      </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>مسح رمز QR لإكمال التذكرة</DialogTitle>

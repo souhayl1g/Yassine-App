@@ -5,6 +5,14 @@ import QRCode from 'qrcode';
 export const getPayload = <T,>(res: any): T => 
   (res && typeof res === 'object' && 'data' in res ? res.data : res);
 
+// Format date for ticket number (YYYY/MM/DD)
+export const formatDateForTicket = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}/${month}/${day}`;
+};
+
 // Generate QR code for ticket
 export const generateQRCode = async (ticketData: any): Promise<string> => {
   try {
@@ -30,11 +38,27 @@ export const generateQRCode = async (ticketData: any): Promise<string> => {
   }
 };
 
-// Generate daily ticket number (reset each day, starting from 1)
-export const generateDailyTicketNumber = (dailyTicketCount: number): string => {
-  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-  const count = dailyTicketCount + 1;
-  return `${today.replace(/-/g, '/')}/${count.toString().padStart(3, '0')}`;
+// Generate today's ticket number
+export const generateDailyTicketNumber = async (): Promise<string> => {
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('en-CA');
+  
+  try {
+    // Use the new next-ticket-number endpoint to get the next sequential number
+    const res = await api.get<any>(`/batches/next-ticket-number?date=${todayStr}`);
+    const payload = getPayload<any>(res);
+    return payload?.nextTicketNumber || `${formatDateForTicket(today)}/001`;
+  } catch (error) {
+    // Fallback to the old method
+    const formattedDate = formatDateForTicket(today);
+    const ticketCount = await loadDailyTicketCount();
+    
+    // Generate sequential number (starting from 1)
+    const nextNumber = ticketCount + 1;
+    const paddedNumber = nextNumber.toString().padStart(3, '0');
+    
+    return `${formattedDate}/${paddedNumber}`;
+  }
 };
 
 // Load daily ticket count from localStorage or API
@@ -42,18 +66,25 @@ export const loadDailyTicketCount = async (): Promise<number> => {
   const today = new Date().toLocaleDateString('en-CA');
   
   try {
-    // Try to get today's tickets count from API
-    const res = await api.get<any>(`/batches?date=${today}`);
+    // Use the new next-ticket-number endpoint to get accurate daily count
+    const res = await api.get<any>(`/batches/next-ticket-number?date=${today}`);
     const payload = getPayload<any>(res);
-    const todayTickets = payload?.batches || payload || [];
-    return todayTickets.length;
+    return payload?.dailyCount || 0;
   } catch (error) {
-    // Fallback to localStorage
-    const stored = localStorage.getItem(`dailyTicketCount_${today}`);
-    if (stored) {
-      return parseInt(stored, 10);
-    } else {
-      return 0;
+    // Fallback to the old method
+    try {
+      const res = await api.get<any>(`/batches?date=${today}`);
+      const payload = getPayload<any>(res);
+      const todayTickets = payload?.batches || payload || [];
+      return todayTickets.length;
+    } catch (fallbackError) {
+      // Final fallback to localStorage
+      const stored = localStorage.getItem(`dailyTicketCount_${today}`);
+      if (stored) {
+        return parseInt(stored, 10);
+      } else {
+        return 0;
+      }
     }
   }
 };
