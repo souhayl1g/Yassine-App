@@ -36,7 +36,7 @@ const pressingQueueController = {
       const totalBoxes = batch.number_of_boxes || 0;
       const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
       const committedBoxes = batch.boxes_committed_to_queue || 0;
-      const availableBoxes = totalBoxes - loadedBoxes - committedBoxes;
+      const availableBoxes = totalBoxes - loadedBoxes;
 
       if (number_of_boxes > availableBoxes) {
         return res.status(400).json({ 
@@ -336,7 +336,7 @@ const pressingQueueController = {
       const totalBoxes = batch.number_of_boxes || 0;
       const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
       const committedBoxes = batch.boxes_committed_to_queue || 0;
-      const availableBoxes = totalBoxes - loadedBoxes - committedBoxes;
+      const availableBoxes = totalBoxes - loadedBoxes;
 
       res.json({
         batchId: batch_id,
