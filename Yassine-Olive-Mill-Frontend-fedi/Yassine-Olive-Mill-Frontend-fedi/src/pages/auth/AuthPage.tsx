@@ -32,7 +32,7 @@ const signupSchema = loginSchema.extend({
   firstname: z.string().min(2, 'validation.minLength'),
   lastname: z.string().min(2, 'validation.minLength'),
   phone: z.string().optional(),
-  role: z.enum(['admin', 'operator', 'scanner', 'employee'], {
+  role: z.enum(['admin', 'operator', 'scanner', 'employee', 'queuer'], {
     required_error: 'validation.roleRequired',
   }),
   confirmPassword: z.string(),
@@ -336,7 +336,7 @@ export const AuthPage: React.FC = () => {
                   <Label htmlFor="role">{t('auth.role')}</Label>
                   <Select
                     value={signupForm.watch('role')}
-                    onValueChange={(value) => signupForm.setValue('role', value as 'admin' | 'operator' | 'scanner' | 'employee')}
+                    onValueChange={(value) => signupForm.setValue('role', value as 'admin' | 'operator' | 'scanner' | 'employee' | 'queuer')}
                   >
                     <SelectTrigger className="olive-input">
                       <SelectValue placeholder={t('auth.selectRole')} />
@@ -346,6 +346,7 @@ export const AuthPage: React.FC = () => {
                       <SelectItem value="operator">{t('auth.roles.operator')}</SelectItem>
                       <SelectItem value="scanner">{t('auth.roles.scanner')}</SelectItem>
                       <SelectItem value="employee">{t('auth.roles.employee')}</SelectItem>
+                      <SelectItem value="queuer">{t('auth.roles.queuer')}</SelectItem>
                     </SelectContent>
                   </Select>
                   {signupForm.formState.errors.role && (

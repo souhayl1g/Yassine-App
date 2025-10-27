@@ -45,7 +45,7 @@ export default (sequelize) => {
       allowNull: true
     },
     status: {
-      type: DataTypes.ENUM('received', 'in_process', 'completed'),
+      type: DataTypes.ENUM('received', 'in_queue', 'in_process', 'completed'),
       allowNull: false,
       defaultValue: 'received'
     },

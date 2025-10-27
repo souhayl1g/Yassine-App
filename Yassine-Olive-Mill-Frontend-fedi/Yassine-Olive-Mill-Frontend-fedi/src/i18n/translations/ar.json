@@ -21,7 +21,8 @@
       "admin": "مدير النظام",
       "operator": "مدير",
       "scanner": "ماسح",
-      "employee": "موظف"
+      "employee": "موظف",
+      "queuer" :"مشرف الطابور"
     }
   },
   "nav": {
@@ -33,6 +34,7 @@
     "sessions": "جلسات العمل",
     "qr": "مسح QR",
     "scanner": "ماسح التذاكر",
+    "queuerScanner": "ماسح قائمة الانتظار",
     "operatorScanner": "ماسح المشغل",
     "employeeScanner": "ماسح الغرف",
     "batchManagement": "إدارة الدفعات",

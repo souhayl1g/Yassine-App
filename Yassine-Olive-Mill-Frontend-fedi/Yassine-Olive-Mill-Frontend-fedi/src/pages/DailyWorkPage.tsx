@@ -23,7 +23,10 @@ export function DailyWorkPage() {
         {/* Operation Buttons - Truck In/Out */}
         <OperationButtons
           onStartOperation={() => dailyWork.setIsAddTicketOpen(true)}
-          onFinishOperation={() => dailyWork.setIsQrScanOpen(true)}
+          onFinishOperation={() => {
+            dailyWork.setIsFinishingOperation(true);
+            dailyWork.setIsQrScanOpen(true);
+          }}
         />
 
         {/* Recent Tickets Section */}
@@ -54,6 +57,7 @@ export function DailyWorkPage() {
         onClose={() => {
           dailyWork.setIsCameraScanOpen(false);
           dailyWork.stopCamera();
+          dailyWork.setIsFinishingOperation(false);
         }}
         isCameraActive={dailyWork.isCameraActive}
         videoRef={dailyWork.videoRef}
@@ -76,11 +80,15 @@ export function DailyWorkPage() {
           dailyWork.setIsDetailsModalOpen(true);
           dailyWork.loadPressingHistory(ticket.id);
         }}
-        onClose={() => dailyWork.setIsEditModalOpen(false)}
+        onClose={() => {
+          dailyWork.setIsEditModalOpen(false);
+          dailyWork.setIsFinishingOperation(false);
+        }}
         calculateEditNetWeight={dailyWork.calculateEditNetWeight}
         calculateEditTotalAmount={dailyWork.calculateEditTotalAmount}
         calculateEditTotalAmountWithDetails={dailyWork.calculateEditTotalAmountWithDetails}
         isMinimumPriceApplied={dailyWork.isMinimumPriceApplied}
+        isFinishingOperation={dailyWork.isFinishingOperation}
       />
 
       {/* Print Ticket Modal */}
@@ -134,7 +142,12 @@ export function DailyWorkPage() {
 
       <QRScanModal
         isOpen={dailyWork.isQrScanOpen}
-        onOpenChange={dailyWork.setIsQrScanOpen}
+        onOpenChange={(open) => {
+          dailyWork.setIsQrScanOpen(open);
+          if (!open) {
+            dailyWork.setIsFinishingOperation(false);
+          }
+        }}
         onFileUpload={dailyWork.handleQRScan}
         onOpenCamera={() => {
           dailyWork.setIsQrScanOpen(false);

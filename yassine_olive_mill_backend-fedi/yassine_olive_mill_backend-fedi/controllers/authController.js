@@ -15,7 +15,7 @@ const getConfig = async () => {
   return JSON.parse(configFile);
 };
 
-const EN_WHITELIST = ['admin', 'operator', 'scanner', 'employee'];
+const EN_WHITELIST = ['admin', 'operator', 'scanner', 'employee', 'queuer'];
 
 const normalizeRole = (raw) => {
   if (!raw) return null;

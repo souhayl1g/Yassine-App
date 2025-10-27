@@ -15,6 +15,7 @@ import { ClientsPage } from "@/pages/ClientsPage";
 import { TicketsPage } from "@/pages/TicketsPage";
 import { QRScannerPage } from "@/pages/QRScannerPage";
 import { ScannerPage } from "./pages/ScannerPage";
+import { QueuerScannerPage } from "./pages/QueuerScannerPage";
 import { BatchManagementPage } from "./pages/BatchManagementPage";
 import { PressingDisplayPage } from "./pages/PressingDisplayPage";
 import { RoomsPage } from "@/pages/RoomsPage";
@@ -63,6 +64,7 @@ const App = () => {
                 <Route path="/sessions" element={<ProtectedRoute roles={['admin', 'operator']}><SessionsPage /></ProtectedRoute>} />
                 {/* <Route path="/qr" element={<QRScannerPage />} /> */}
                 <Route path="/scanner" element={<ScannerPage />} />
+                <Route path="/queuer-scanner" element={<ProtectedRoute roles={['queuer']}><QueuerScannerPage /></ProtectedRoute>} />
                 <Route path="/operator-scanner" element={<ProtectedRoute roles={['operator']}><OperatorScannerPage /></ProtectedRoute>} />
                 <Route path="/employee-scanner" element={<ProtectedRoute roles={['employee']}><EmployeeScannerPage /></ProtectedRoute>} />
                 <Route path="/batch-management" element={<ProtectedRoute roles={['admin', 'operator', 'presser']}><BatchManagementPage /></ProtectedRoute>} />

@@ -26,6 +26,7 @@ interface EditTicketModalProps {
     containerWeight?: number;
   }>;
   isMinimumPriceApplied: (operationType?: string) => Promise<boolean>;
+  isFinishingOperation?: boolean; // New prop to indicate if this is a finishing operation
 }
 
 export function EditTicketModal({
@@ -44,10 +45,20 @@ export function EditTicketModal({
   calculateEditTotalAmount,
   calculateEditTotalAmountWithDetails,
   isMinimumPriceApplied,
+  isFinishingOperation = false,
 }: EditTicketModalProps) {
   const [totalAmount, setTotalAmount] = useState<number>(0);
   const [isMinimumApplied, setIsMinimumApplied] = useState<boolean>(false);
   const [calculationLoading, setCalculationLoading] = useState<boolean>(false);
+
+  // Check if the form is valid for saving
+  const isFormValid = () => {
+    if (isFinishingOperation) {
+      const numberOfBoxes = parseInt(editForm.numberOfBoxes) || 0;
+      return numberOfBoxes > 0;
+    }
+    return true;
+  };
 
   // Update calculations when form changes
   useEffect(() => {
@@ -129,7 +140,13 @@ export function EditTicketModal({
                   onChange={(e) => setEditForm((p) => ({ ...p, numberOfBoxes: e.target.value }))}
                   placeholder="0"
                   className="w-full"
+                  disabled={isFinishingOperation}
                 />
+                {isFinishingOperation && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    لا يمكن تعديل عدد الصناديق أثناء إكمال العملية. انتظر حتى يقوم المسؤول بمسح وإدخال العدد.
+                  </p>
+                )}
               </label>
             </div>
           </div>
@@ -242,11 +259,20 @@ export function EditTicketModal({
           </label>
         </div>
 
+        {/* Validation message for finishing operations */}
+        {isFinishingOperation && !isFormValid() && (
+          <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded">
+            <div className="text-orange-800 dark:text-orange-200 text-sm">
+              <strong>تنبيه:</strong> لا يمكن إكمال العملية بدون تحديد عدد الصناديق. يرجى انتظار المسؤول لمسح وإدخال عدد الصناديق المطلوب.
+            </div>
+          </div>
+        )}
+
         <div className="space-y-3">
           {/* Primary Action */}
           <OliveButton 
             onClick={onSave} 
-            disabled={isSaving}
+            disabled={isSaving || !isFormValid()}
             className="w-full"
             size="lg"
           >

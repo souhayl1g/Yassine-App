@@ -27,6 +27,7 @@ export const useDailyWork = () => {
   const [isQrDisplayOpen, setIsQrDisplayOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isCameraScanOpen, setIsCameraScanOpen] = useState(false);
+  const [isFinishingOperation, setIsFinishingOperation] = useState(false);
 
   // Oil batch weights cache for sale calculations
   const [oilBatchWeights, setOilBatchWeights] = useState<{ [batchId: string]: number }>({});
@@ -46,7 +47,8 @@ export const useDailyWork = () => {
     ticketManagement.setEditForm,
     setIsEditModalOpen,
     setIsCameraScanOpen,
-    ticketManagement.fetchTicketByCode
+    ticketManagement.fetchTicketByCode,
+    setIsFinishingOperation
   );
 
   // Handle add ticket
@@ -204,6 +206,7 @@ export const useDailyWork = () => {
         console.log('🎫 TICKET DEBUG: Non-sale operation, skipping oil batch loading');
       }
 
+      setIsFinishingOperation(true);
       setIsEditModalOpen(true);
     } catch (error: any) {
       console.error('Error opening ticket:', error);
@@ -244,6 +247,7 @@ export const useDailyWork = () => {
       }
     });
     setIsEditModalOpen(false);
+    setIsFinishingOperation(false);
     setIsPrintModalOpen(false);
   };
 
@@ -287,6 +291,7 @@ export const useDailyWork = () => {
       
       if (response.success) {
         setIsEditModalOpen(false);
+        setIsFinishingOperation(false);
         ticketManagement.loadRecentTickets(); // Refresh the tickets list
         
         // Show print modal for completed ticket
@@ -883,6 +888,8 @@ export const useDailyWork = () => {
     setIsDetailsModalOpen,
     isCameraScanOpen,
     setIsCameraScanOpen,
+    isFinishingOperation,
+    setIsFinishingOperation,
 
     // Additional States
     ticketToPrint,

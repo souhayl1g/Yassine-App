@@ -1,8 +1,8 @@
 'use strict';
 
 /** @type {import('sequelize-cli').Migration} */
-module.exports = {
-  async up(queryInterface, Sequelize) {
+export default {
+  up: async (queryInterface, Sequelize) => {
     // Drop the existing foreign key constraint
     await queryInterface.removeConstraint('pressing_queue', 'pressing_queue_batch_id_fkey');
     
@@ -20,7 +20,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface, Sequelize) {
+  down: async (queryInterface, Sequelize) => {
     // Drop the CASCADE foreign key constraint
     await queryInterface.removeConstraint('pressing_queue', 'pressing_queue_batch_id_fkey');
     

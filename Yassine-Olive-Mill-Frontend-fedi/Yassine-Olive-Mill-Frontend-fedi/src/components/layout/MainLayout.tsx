@@ -32,6 +32,7 @@ const navigationItems = [
   { key: 'containers', icon: Container, href: '/containers', roles: ['admin', 'operator'] },
   { key: 'sessions', icon: Clock, href: '/sessions', roles: ['admin', 'operator'] },
   { key: 'scanner', icon: QrCode, href: '/scanner', roles: [ 'scanner'] },
+  { key: 'queuerScanner', icon: Users, href: '/queuer-scanner', roles: ['queuer'] },
   { key: 'operatorScanner', icon: QrCode, href: '/operator-scanner', roles: ['operator'] },
   { key: 'employeeScanner', icon: Building2, href: '/employee-scanner', roles: ['employee'] },
   // { key: 'batchManagement', icon: ClipboardList, href: '/batch-management', roles: ['admin', 'operator', 'presser'] },

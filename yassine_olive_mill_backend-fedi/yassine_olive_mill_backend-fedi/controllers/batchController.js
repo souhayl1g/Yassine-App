@@ -172,7 +172,7 @@ const batchController = {
         return res.status(400).json({ error: 'Invalid batch ID' });
       }
 
-      if (!status || !['received', 'in_process', 'completed'].includes(status)) {
+      if (!status || !['received', 'in_queue', 'in_process', 'completed'].includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
       }
 

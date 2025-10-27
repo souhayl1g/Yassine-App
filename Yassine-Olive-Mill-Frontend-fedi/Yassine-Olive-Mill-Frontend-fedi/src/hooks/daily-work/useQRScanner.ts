@@ -10,7 +10,8 @@ export const useQRScanner = (
   setEditForm: React.Dispatch<React.SetStateAction<EditTicketForm>>,
   setIsEditModalOpen: React.Dispatch<React.SetStateAction<boolean>>,
   setIsCameraScanOpen: React.Dispatch<React.SetStateAction<boolean>>,
-  fetchTicketByCode: (code: string | number) => Promise<ScannedTicket>
+  fetchTicketByCode: (code: string | number) => Promise<ScannedTicket>,
+  setIsFinishingOperation: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
   const { toast } = useToast();
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -110,6 +111,7 @@ export const useQRScanner = (
         taux: '', // Reset taux for each ticket
       });
 
+      setIsFinishingOperation(true);
       setIsEditModalOpen(true);
       setIsCameraScanOpen(false);
       stopCamera();
