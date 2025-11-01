@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/integrations/api/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from 'qr-scanner';
 
 // Set the worker path for QR Scanner
@@ -30,6 +31,7 @@ interface ScannedTicketData {
 
 export function QueuerScannerPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Scanner state
   const [isCameraActive, setIsCameraActive] = useState(true);
@@ -39,12 +41,50 @@ export function QueuerScannerPage() {
   // Form state
   const [numberOfBoxes, setNumberOfBoxes] = useState('');
 
+  // Active queuer sessions state
+  const [hasPartiallyQueued, setHasPartiallyQueued] = useState(false);
+  const [partiallyQueuedInfo, setPartiallyQueuedInfo] = useState<any>(null);
+
   // Camera refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const qrScannerRef = useRef<QrScanner | null>(null);
 
   // Helper function to extract payload from API responses
   const getPayload = <T,>(res: any): T => (res && typeof res === 'object' && 'data' in res ? res.data : res);
+
+  // Check queuer session status
+  const checkQueuerSession = async (): Promise<any> => {
+    try {
+      if (!user?.id) {
+        console.error('No user ID available');
+        return null;
+      }
+      const res = await api.get<any>(`/pressing-queue/queuer/${user.id}/session`);
+      return getPayload<any>(res);
+    } catch (error) {
+      console.error('Failed to check queuer session:', error);
+      return null;
+    }
+  };
+
+  // Check for active queuer sessions (batches currently being queued) system-wide
+  const checkPartiallyQueuedBatches = async () => {
+    try {
+      const res = await api.get<any>('/pressing-queue/partially-queued');
+      const data = getPayload<any>(res);
+      
+      setHasPartiallyQueued(data.hasPartiallyQueued);
+      if (data.hasPartiallyQueued && data.partiallyQueuedBatches.length > 0) {
+        setPartiallyQueuedInfo(data.partiallyQueuedBatches[0]); // Show info for the first active queuer session
+      } else {
+        setPartiallyQueuedInfo(null);
+      }
+    } catch (error) {
+      console.error('Failed to check active queuer sessions:', error);
+      setHasPartiallyQueued(false);
+      setPartiallyQueuedInfo(null);
+    }
+  };
 
   // Initialize camera for QR scanning
   const initializeCamera = async () => {
@@ -144,6 +184,10 @@ export function QueuerScannerPage() {
         throw new Error('لم يتم العثور على معرف التذكرة في رمز QR');
       }
 
+      // Note: We'll check for active queuer sessions system-wide later in the form display
+      // Allow the scan to proceed even if there are active sessions
+      // The warning will be shown in the form interface instead of blocking the scan
+
       const ticket = await fetchTicketByCode(ticketId);
       setScannedTicket(ticket);
       
@@ -183,10 +227,44 @@ export function QueuerScannerPage() {
         throw new Error('التذكرة غير موجودة');
       }
 
-      // Calculate available boxes (total - loaded to pressing)
+      // Calculate available boxes 
+      // We need to check if this batch has an active queuer session
+      // If it does, use the session data instead of the batch loading data
       const totalBoxes = data.number_of_boxes || 0;
-      const loadedBoxes = data.boxes_loaded_to_pressing || 0;
-      const availableBoxes = totalBoxes - loadedBoxes;
+      let availableBoxes = totalBoxes;
+      
+      // Check if there's an active queuer session for this batch
+      try {
+        const sessionRes = await api.get<any>('/pressing-queue/partially-queued');
+        const sessionData = getPayload<any>(sessionRes);
+        
+        if (sessionData.hasPartiallyQueued && sessionData.partiallyQueuedBatches.length > 0) {
+          const thisSessionBatch = sessionData.partiallyQueuedBatches.find(
+            (batch: any) => batch.id === parseInt(data.id)
+          );
+          
+          if (thisSessionBatch) {
+            // This batch has an active session, use remaining boxes from session
+            availableBoxes = thisSessionBatch.remainingBoxes;
+          } else {
+            // This batch doesn't have an active session, but others might
+            // Use the normal calculation but subtract committed boxes instead of loaded boxes
+            const loadedBoxes = data.boxes_loaded_to_pressing || 0;
+            const committedBoxes = data.boxes_committed_to_queue || 0;
+            availableBoxes = totalBoxes - Math.max(loadedBoxes - committedBoxes, 0);
+          }
+        } else {
+          // No active sessions, use normal calculation
+          const loadedBoxes = data.boxes_loaded_to_pressing || 0;
+          const committedBoxes = data.boxes_committed_to_queue || 0;
+          availableBoxes = totalBoxes - Math.max(loadedBoxes - committedBoxes, 0);
+        }
+      } catch (error) {
+        console.error('Error checking queuer sessions:', error);
+        // Fallback to basic calculation
+        const loadedBoxes = data.boxes_loaded_to_pressing || 0;
+        availableBoxes = totalBoxes - loadedBoxes;
+      }
 
       return {
         id: String(data.id),
@@ -211,6 +289,12 @@ export function QueuerScannerPage() {
   // Add ticket to queue - specific functionality for queuer role
   const handleAddToQueue = async () => {
     if (!scannedTicket) return;
+
+    // Check for conflicting sessions before proceeding
+    if (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) {
+      // Don't show error toast - the UI already shows the warning and button is disabled
+      return;
+    }
 
     const boxes = parseInt(numberOfBoxes || '0', 10);
 
@@ -239,13 +323,22 @@ export function QueuerScannerPage() {
       const payload = {
         ticketId: scannedTicket.id,
         number_of_boxes: boxes,
-        operator_id: 1, // TODO: Get actual operator ID from auth context
+        operator_id: user?.id || 1,
         notes: 'Added to queue by queuer'
       };
 
       await api.post('/pressing-queue', payload);
 
-      const successMessage = 'تم إضافة التذكرة إلى قائمة الانتظار بنجاح';
+      // Check if session is now complete
+      const sessionStatus = await checkQueuerSession();
+      const isSessionComplete = !sessionStatus?.hasActiveSession;
+      
+      let successMessage = 'تم إضافة التذكرة إلى قائمة الانتظار بنجاح';
+      if (isSessionComplete) {
+        successMessage += ' - تم إنهاء معالجة الدفعة بالكامل!';
+      } else if (sessionStatus?.session?.remainingBoxes) {
+        successMessage += ` - متبقي ${sessionStatus.session.remainingBoxes} صندوق`;
+      }
       
       toast({ 
         title: 'نجح', 
@@ -256,10 +349,146 @@ export function QueuerScannerPage() {
       resetScanner();
     } catch (error: any) {
       console.error('Queue addition failed:', error);
+      
+      // Handle all conflicting session errors - show in UI instead of toast
+      const errorData = error?.response?.data;
+      const errorText = errorData?.message || errorData?.error || error?.message || '';
+      
+      // Comprehensive check for conflicting session errors
+      const isConflictingSessionError = (
+        // Status code checks
+        error?.response?.status === 409 ||
+        error?.response?.status === 400 ||
+        
+        // Data property checks
+        errorData?.activeSession || 
+        errorData?.conflictingSession ||
+        errorData?.cannotQueue ||
+        errorData?.hasPartiallyQueued ||
+        errorData?.partiallyQueuedBatches ||
+        
+        // English error message patterns
+        (errorText && (
+          errorText.includes('Cannot queue a new batch') ||
+          errorText.includes('Cannot switch to a different batch') ||
+          errorText.includes('another batch is being queued') ||
+          errorText.includes('while processing another batch') ||
+          errorText.includes('partially queued') ||
+          errorText.includes('active session') ||
+          errorText.includes('finish the batch in progress') ||
+          errorText.includes('must finish processing the current batch')
+        )) ||
+        
+        // Arabic error message patterns  
+        (errorText && (
+          errorText.includes('يجب إنهاء معالجة الدفعة الحالية') ||
+          errorText.includes('دفعة أخرى قيد المعالجة') ||
+          errorText.includes('لا يمكن بدء دفعة جديدة') ||
+          errorText.includes('إنهاء الدفعة الحالية أولاً') ||
+          errorText.includes('جلسة نشطة') ||
+          errorText.includes('معالجة جارية')
+        )) ||
+        
+        // Generic conflict indicators
+        (errorText && (
+          errorText.toLowerCase().includes('conflict') ||
+          errorText.toLowerCase().includes('session') ||
+          errorText.toLowerCase().includes('batch') ||
+          errorText.toLowerCase().includes('queue')
+        ) && (
+          errorText.toLowerCase().includes('active') ||
+          errorText.toLowerCase().includes('progress') ||
+          errorText.toLowerCase().includes('processing') ||
+          errorText.toLowerCase().includes('current')
+        ))
+      );
+
+      if (isConflictingSessionError) {
+        // This is a conflicting session error, refresh the status to show in UI
+        console.log('Detected conflicting session error:', {
+          status: error?.response?.status,
+          errorData,
+          errorText,
+          fullError: error
+        });
+        
+        // Extract conflict information from the error message if available
+        // Backend sends Arabic message like: "يجب إنهاء معالجة الدفعة الحالية قبل البدء في دفعة جديدة: 2025/10/27/001 - rick james (متبقي 740 صندوق) - جاري المعالجة بواسطة: queuer queuer"
+        let conflictInfo = null;
+        if (errorText && errorText.includes('يجب إنهاء معالجة الدفعة الحالية')) {
+          // Parse the Arabic error message to extract batch info
+          const ticketMatch = errorText.match(/:\s*([^\s]+)\s*-\s*([^(]+)/);
+          const remainingMatch = errorText.match(/متبقي\s+(\d+)\s+صندوق/);
+          const queuerMatch = errorText.match(/جاري المعالجة بواسطة:\s*([^)]+)/);
+          
+          if (ticketMatch) {
+            const ticketNumber = ticketMatch[1].trim();
+            const clientName = ticketMatch[2].trim();
+            const remainingBoxes = remainingMatch ? parseInt(remainingMatch[1]) : 0;
+            const queuerName = queuerMatch ? queuerMatch[1].trim() : 'معالج آخر';
+            
+            conflictInfo = {
+              id: 0, // We don't have the actual ID from the message
+              ticketNumber,
+              clientName,
+              totalBoxes: remainingBoxes, // We only know remaining boxes
+              remainingBoxes,
+              queuedBoxes: 0,
+              queuerName
+            };
+          }
+        }
+        
+        // Try to refresh from server, but don't fail if it's not working
+        try {
+          await checkPartiallyQueuedBatches();
+        } catch (refreshError) {
+          console.log('Server refresh failed, using parsed conflict info:', refreshError);
+        }
+        
+        // If we have parsed conflict info and server refresh didn't work, use it
+        if (conflictInfo && (!hasPartiallyQueued || !partiallyQueuedInfo)) {
+          setHasPartiallyQueued(true);
+          setPartiallyQueuedInfo(conflictInfo);
+        }
+        
+        // If there's conflicting session data in the error response, use it immediately
+        if (errorData?.activeSession || errorData?.conflictingSession) {
+          const conflictingBatch = errorData.activeSession || errorData.conflictingSession;
+          if (conflictingBatch && conflictingBatch.id !== parseInt(scannedTicket.id)) {
+            setHasPartiallyQueued(true);
+            setPartiallyQueuedInfo({
+              id: conflictingBatch.id,
+              ticketNumber: conflictingBatch.ticketNumber || `#${conflictingBatch.id}`,
+              clientName: conflictingBatch.clientName || 'عميل غير محدد',
+              totalBoxes: conflictingBatch.totalBoxes || 0,
+              remainingBoxes: conflictingBatch.remainingBoxes || 0,
+              queuedBoxes: conflictingBatch.queuedBoxes || 0,
+              queuerName: conflictingBatch.queuerName || 'معالج آخر'
+            });
+          }
+        }
+        
+        return;
+      }
+      
+      // Extract error message from different response formats for other errors
+      let errorMessage = 'فشل في إضافة التذكرة إلى قائمة الانتظار';
+      
+      if (error?.response?.data?.message) {
+        // Backend sent Arabic message
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        // Backend sent English error
+        errorMessage = error.response.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         variant: 'destructive',
         title: 'خطأ',
-        description: error?.message || 'فشل في إضافة التذكرة إلى قائمة الانتظار',
+        description: errorMessage,
       });
     } finally {
       setIsSaving(false);
@@ -272,17 +501,26 @@ export function QueuerScannerPage() {
     setNumberOfBoxes('');
     setIsCameraActive(true);
     setTimeout(() => {
+      checkPartiallyQueuedBatches(); // Refresh active queuer sessions status
       initializeCamera();
     }, 500);
   };
 
-  // Start camera when component mounts
+  // Start camera when component mounts and check for active queuer sessions
   useEffect(() => {
+    checkPartiallyQueuedBatches();
     initializeCamera();
     return () => {
       stopCamera();
     };
   }, []);
+
+  // Re-check active queuer sessions when scanner resets
+  useEffect(() => {
+    if (!scannedTicket) {
+      checkPartiallyQueuedBatches();
+    }
+  }, [scannedTicket]);
 
   if (scannedTicket) {
     // Show queue form when ticket is scanned
@@ -347,6 +585,28 @@ export function QueuerScannerPage() {
             </div>
           </div>
 
+          {/* Active Session Warning */}
+          {hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id) && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <div className="text-center">
+                <h3 className="text-red-800 dark:text-red-200 font-bold text-lg mb-3">
+                  ⚠️ يجب إنهاء الدفعة الحالية أولاً
+                </h3>
+                <div className="bg-white dark:bg-red-800/30 border border-red-300 dark:border-red-700 rounded-lg p-3 mb-3">
+                  <p className="text-red-900 dark:text-red-100 font-bold text-xl mb-1">
+                    {partiallyQueuedInfo.clientName}
+                  </p>
+                  <p className="text-red-700 dark:text-red-300 text-sm">
+                    {partiallyQueuedInfo.ticketNumber}
+                  </p>
+                </div>
+                <p className="text-red-600 dark:text-red-400 text-sm">
+                  متبقي: {partiallyQueuedInfo.remainingBoxes} صندوق
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Input Form */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
             <div className="space-y-2">
@@ -363,6 +623,7 @@ export function QueuerScannerPage() {
                 onChange={(e) => setNumberOfBoxes(e.target.value)}
                 placeholder={`أدخل عدد الصناديق (الحد الأقصى: ${scannedTicket.numberOfBoxes || 0})`}
                 className="text-lg p-3"
+                disabled={hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)}
               />
             </div>
 
@@ -398,12 +659,17 @@ export function QueuerScannerPage() {
             <OliveButton
               onClick={handleAddToQueue}
               className="flex-1 text-lg py-3 bg-purple-600 hover:bg-purple-700"
-              disabled={isSaving}
+              disabled={isSaving || (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id))}
             >
               {isSaving ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                   جاري الإضافة...
+                </>
+              ) : (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) ? (
+                <>
+                  <Clock className="h-5 w-5 mr-2" />
+                  انتظار إنهاء {partiallyQueuedInfo.ticketNumber}
                 </>
               ) : (
                 <>
@@ -434,6 +700,34 @@ export function QueuerScannerPage() {
             وجه الكاميرا نحو رمز QR لإضافة التذكرة إلى قائمة الانتظار
           </p>
         </div>
+
+        {/* Partially Queued Warning Banner */}
+        {hasPartiallyQueued && partiallyQueuedInfo && (
+          <div className="mx-4 mb-4 p-4 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
+                  تحذير: يوجد دفعة غير مكتملة
+                </h3>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  يجب إنهاء معالجة الدفعة الحالية قبل البدء في دفعة جديدة:
+                </p>
+                <div className="mt-2 text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  {partiallyQueuedInfo.ticketNumber} - {partiallyQueuedInfo.clientName}
+                  <br />
+                  متبقي: {partiallyQueuedInfo.remainingBoxes} صندوق من أصل {partiallyQueuedInfo.totalBoxes}
+                  {partiallyQueuedInfo.queuerName && (
+                    <>
+                      <br />
+                      جاري المعالجة بواسطة: {partiallyQueuedInfo.queuerName}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Camera View */}
         <div className="flex-1 flex items-center justify-center p-4 bg-gray-100 dark:bg-gray-900">

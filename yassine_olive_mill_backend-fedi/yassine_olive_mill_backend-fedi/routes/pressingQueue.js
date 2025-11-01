@@ -25,4 +25,13 @@ router.get('/stats', pressingQueueController.getQueueStats);
 // GET /api/pressing-queue/batch/:batch_id/available-boxes - Get available boxes for a batch
 router.get('/batch/:batch_id/available-boxes', pressingQueueController.getBatchAvailableBoxes);
 
+// GET /api/pressing-queue/queuer/:queuer_id/session - Get queuer session status
+router.get('/queuer/:queuer_id/session', pressingQueueController.getQueuerSessionStatus);
+
+// PUT /api/pressing-queue/queuer/:queuer_id/session - Update queuer session (cancel/complete)
+router.put('/queuer/:queuer_id/session', pressingQueueController.updateQueuerSession);
+
+// GET /api/pressing-queue/partially-queued - Get active queuer sessions (batches being queued) system-wide
+router.get('/partially-queued', pressingQueueController.getPartiallyQueuedBatches);
+
 export default router;

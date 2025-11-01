@@ -1,7 +1,7 @@
 'use strict';
 
 /** @type {import('sequelize-cli').Migration} */
-module.exports = {
+export default {
     up: async (queryInterface, Sequelize) => {
         const dialect = queryInterface.sequelize.getDialect();
         

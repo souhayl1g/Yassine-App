@@ -81,12 +81,55 @@ export function OperatorScannerPage() {
   const [isSaving, setIsSaving] = useState(false);
   
   // Form state
-  const [numberOfBoxesToProcess, setNumberOfBoxesToProcess] = useState('1');  // Camera refs
+  const [numberOfBoxesToProcess, setNumberOfBoxesToProcess] = useState('1');
+  
+  // Queue session state
+  const [hasPartiallyQueued, setHasPartiallyQueued] = useState(false);
+  const [partiallyQueuedInfo, setPartiallyQueuedInfo] = useState<any>(null);  // Camera refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const qrScannerRef = useRef<QrScanner | null>(null);
 
   // Helper function to extract payload from API responses
   const getPayload = <T,>(res: any): T => (res && typeof res === 'object' && 'data' in res ? res.data : res);
+
+  // Check for active queuer sessions (batches currently being queued) system-wide
+  const checkPartiallyQueuedBatches = async () => {
+    try {
+      const res = await api.get<any>('/pressing-queue/partially-queued');
+      const data = getPayload<any>(res);
+      
+      setHasPartiallyQueued(data.hasPartiallyQueued);
+      if (data.hasPartiallyQueued && data.partiallyQueuedBatches.length > 0) {
+        setPartiallyQueuedInfo(data.partiallyQueuedBatches[0]); // Show info for the first active queuer session
+      } else {
+        setPartiallyQueuedInfo(null);
+      }
+    } catch (error: any) {
+      console.error('Failed to check active queuer sessions:', error);
+      
+      // Check if this is the known database error - check multiple possible error message locations
+      const errorMessage = error?.message || error?.response?.data?.error || error?.response?.data?.message || String(error);
+      const isBackendError = error?.response?.status === 500 || 
+                            errorMessage.includes('column QueuerSession.updated_at does not exist') ||
+                            errorMessage.includes('column QueuerSession.updatedAt does not exist') ||
+                            errorMessage.includes('QueuerSession.updated_at') ||
+                            errorMessage.includes('QueuerSession.updatedAt') ||
+                            errorMessage.includes('does not exist') ||
+                            errorMessage.includes('column') && errorMessage.includes('QueuerSession') ||
+                            (error?.response?.status === 500 && errorMessage.includes('/pressing-queue/partially-queued'));
+      
+      if (isBackendError) {
+        console.log('Backend database error detected, assuming no active sessions');
+        // When backend is broken, assume no active sessions to avoid blocking the operator
+        setHasPartiallyQueued(false);
+        setPartiallyQueuedInfo(null);
+      } else {
+        // For other errors, also default to no active sessions to not block workflow
+        setHasPartiallyQueued(false);
+        setPartiallyQueuedInfo(null);
+      }
+    }
+  };
 
   // Helper function to calculate duration from start time
   const calculateDuration = (startTime: string): string => {
@@ -283,6 +326,51 @@ export function OperatorScannerPage() {
 
   // Handle proceeding to room selection
   const handleProceedToRoomSelection = async () => {
+    if (!scannedTicket) return;
+
+    // Check if there's an active queuer session that prevents processing
+    try {
+      await checkPartiallyQueuedBatches();
+      
+      // If there's a partially queued batch (any batch being queued), block the operation
+      if (hasPartiallyQueued && partiallyQueuedInfo) {
+        // Check if it's a different batch
+        if (partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) {
+          toast({
+            variant: 'destructive',
+            title: 'خطأ',
+            description: `يجب إنهاء معالجة الدفعة الحالية (${partiallyQueuedInfo.clientName}) أولاً`,
+          });
+          return;
+        } else {
+          // Same batch but not fully queued yet
+          toast({
+            variant: 'destructive',
+            title: 'خطأ',
+            description: `يجب إنهاء تحميل هذه الدفعة للطابور قبل اختيار غرفة العصر. متبقي: ${partiallyQueuedInfo.remainingBoxes} صندوق`,
+          });
+          return;
+        }
+      }
+    } catch (error: any) {
+      console.log('Session check failed, proceeding anyway:', error);
+      // Check if this is a backend database error and handle gracefully
+      const errorMessage = error?.message || error?.response?.data?.error || error?.response?.data?.message || String(error);
+      const isBackendError = error?.response?.status === 500 || 
+                            errorMessage.includes('column QueuerSession.updated_at does not exist') ||
+                            errorMessage.includes('column QueuerSession.updatedAt does not exist') ||
+                            errorMessage.includes('QueuerSession.updated_at') ||
+                            errorMessage.includes('QueuerSession.updatedAt') ||
+                            errorMessage.includes('does not exist') ||
+                            errorMessage.includes('column') && errorMessage.includes('QueuerSession') ||
+                            (error?.response?.status === 500 && errorMessage.includes('/pressing-queue/partially-queued'));
+      
+      if (isBackendError) {
+        console.log('Backend database issue detected, continuing workflow');
+      }
+      // If session check fails, proceed anyway to not block the operator
+    }
+
     await fetchPressingRooms();
     setCurrentStep('room-selection');
   };
@@ -452,6 +540,13 @@ export function OperatorScannerPage() {
     };
   }, [currentStep]);
 
+  // Check for partially queued batches when ticket-info step loads
+  useEffect(() => {
+    if (currentStep === 'ticket-info' && scannedTicket) {
+      checkPartiallyQueuedBatches();
+    }
+  }, [currentStep, scannedTicket]);
+
   // Ticket Info Step
   if (currentStep === 'ticket-info' && scannedTicket) {
     return (
@@ -464,6 +559,28 @@ export function OperatorScannerPage() {
             </h1>
             <p className="text-gray-600 dark:text-gray-300">معلومات التذكرة</p>
           </div>
+
+          {/* Active Session Warning */}
+          {hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id) && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <div className="text-center">
+                <h3 className="text-red-800 dark:text-red-200 font-bold text-lg mb-3">
+                  ⚠️ يجب إنهاء الدفعة الحالية أولاً
+                </h3>
+                <div className="bg-white dark:bg-red-800/30 border border-red-300 dark:border-red-700 rounded-lg p-3 mb-3">
+                  <p className="text-red-900 dark:text-red-100 font-bold text-xl mb-1">
+                    {partiallyQueuedInfo.clientName}
+                  </p>
+                  <p className="text-red-700 dark:text-red-300 text-sm">
+                    {partiallyQueuedInfo.ticketNumber}
+                  </p>
+                </div>
+                <p className="text-red-600 dark:text-red-400 text-sm">
+                  متبقي: {partiallyQueuedInfo.remainingBoxes} صندوق
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Ticket Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
@@ -517,8 +634,23 @@ export function OperatorScannerPage() {
             <OliveButton
               onClick={handleProceedToRoomSelection}
               className="flex-1 text-lg py-3"
+              disabled={hasPartiallyQueued && partiallyQueuedInfo}
             >
-              متابعة لاختيار الغرفة
+              {hasPartiallyQueued && partiallyQueuedInfo ? (
+                partiallyQueuedInfo.id !== parseInt(scannedTicket.id) ? (
+                  <>
+                    <Clock className="h-5 w-5 mr-2" />
+                    انتظار إنهاء {partiallyQueuedInfo.ticketNumber}
+                  </>
+                ) : (
+                  <>
+                    <Clock className="h-5 w-5 mr-2" />
+                    انتظار إنهاء التحميل (متبقي {partiallyQueuedInfo.remainingBoxes})
+                  </>
+                )
+              ) : (
+                'متابعة لاختيار الغرفة'
+              )}
             </OliveButton>
           </div>
         </div>

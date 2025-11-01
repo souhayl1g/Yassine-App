@@ -1,5 +1,5 @@
 import db from '../models/index.js';
-const { PressingQueue, Batch, User, PressingSession, PressingRoom, BatchLoading } = db;
+const { PressingQueue, Batch, User, PressingSession, PressingRoom, BatchLoading, QueuerSession } = db;
 
 const pressingQueueController = {
   // Add a new batch loading to the queue
@@ -32,11 +32,115 @@ const pressingQueueController = {
         return res.status(404).json({ error: 'Batch not found (provide batch_id, ticketId or ticketNumber)' });
       }
 
+      // Check if there are any active queuer sessions system-wide for different batches
+      const activeQueuerSessions = await QueuerSession.findAll({
+        where: { 
+          status: 'active'
+        },
+        include: [
+          {
+            model: Batch,
+            as: 'batch',
+            include: ['client']
+          },
+          {
+            model: User,
+            as: 'queuer',
+            attributes: ['id', 'firstname', 'lastname']
+          }
+        ]
+      });
+
+      // Check if there are active sessions for different batches
+      // Instead of preventing the request, we'll allow it to proceed but mark it for frontend handling
+      let hasConflictingSession = false;
+      let conflictingSessionInfo = null;
+      
+      if (activeQueuerSessions.length > 0) {
+        const differentBatchSession = activeQueuerSessions.find(session => session.currentBatchId !== batch.id);
+        if (differentBatchSession) {
+          hasConflictingSession = true;
+          const currentBatch = differentBatchSession.batch;
+          const remainingBoxes = differentBatchSession.totalBoxes - differentBatchSession.boxesQueued;
+          const batchName = `${currentBatch.ticket_number || `#${currentBatch.id}`}`;
+          const clientName = currentBatch.client 
+            ? `${currentBatch.client.firstname} ${currentBatch.client.lastname}` 
+            : `Client #${currentBatch.clientId}`;
+          const queuerName = differentBatchSession.queuer 
+            ? `${differentBatchSession.queuer.firstname} ${differentBatchSession.queuer.lastname}`
+            : `Queuer #${differentBatchSession.queueId}`;
+          
+          conflictingSessionInfo = {
+            id: currentBatch.id,
+            ticketNumber: currentBatch.ticket_number,
+            clientName: clientName,
+            remainingBoxes: remainingBoxes,
+            queuerName: queuerName,
+            message: `يجب إنهاء معالجة الدفعة الحالية قبل البدء في دفعة جديدة: ${batchName} - ${clientName} (متبقي ${remainingBoxes} صندوق) - جاري المعالجة بواسطة: ${queuerName}`
+          };
+          
+          // Return early with conflict information but don't create queue entry
+          return res.status(409).json({ 
+            error: 'Cannot queue a new batch while another batch is being queued',
+            conflictingSession: conflictingSessionInfo,
+            cannotQueue: true,
+            message: conflictingSessionInfo.message
+          });
+        }
+      }
+
+      // Check if queuer has an active session and enforce batch consistency
+      const operator = await User.findByPk(operator_id);
+      if (operator && operator.role === 'queuer') {
+        const activeSession = await QueuerSession.findOne({
+          where: { 
+            queueId: operator_id, 
+            status: 'active' 
+          },
+          include: [
+            {
+              model: Batch,
+              as: 'batch',
+              include: ['client']
+            }
+          ]
+        });
+
+        if (activeSession) {
+          // Queuer has an active session, must continue with the same batch
+          if (activeSession.currentBatchId !== batch.id) {
+            const currentBatch = activeSession.batch;
+            const currentBatchName = currentBatch 
+              ? `${currentBatch.ticket_number || `#${currentBatch.id}`} - ${currentBatch.client ? `${currentBatch.client.firstname} ${currentBatch.client.lastname}` : `Client #${currentBatch.clientId}`}`
+              : `Batch #${activeSession.currentBatchId}`;
+            
+            const remainingBoxes = activeSession.totalBoxes - activeSession.boxesQueued;
+            
+            return res.status(400).json({ 
+              error: 'Cannot switch to a different batch while processing another batch',
+              currentBatch: currentBatchName,
+              remainingBoxes: remainingBoxes,
+              message: `يجب إنهاء معالجة الدفعة الحالية قبل البدء في دفعة جديدة: ${currentBatchName} (متبقي ${remainingBoxes} صندوق)`
+            });
+          }
+        } else {
+          // No active session, create a new one for this batch
+          await QueuerSession.create({
+            queueId: operator_id,
+            currentBatchId: batch.id,
+            totalBoxes: batch.number_of_boxes || 0,
+            boxesQueued: 0,
+            status: 'active'
+          });
+        }
+      }
+
       // Calculate available boxes
       const totalBoxes = batch.number_of_boxes || 0;
       const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
       const committedBoxes = batch.boxes_committed_to_queue || 0;
-      const availableBoxes = totalBoxes - loadedBoxes;
+      // Available = total - actually loaded - committed to queue
+      const availableBoxes = totalBoxes - loadedBoxes - committedBoxes;
 
       if (number_of_boxes > availableBoxes) {
         return res.status(400).json({ 
@@ -55,11 +159,38 @@ const pressingQueueController = {
         status: 'queued'
       });
 
-      // Update batch to reflect boxes loaded to pressing (since they're now in queue)
+      // Update batch to reflect boxes committed to queue (but not yet loaded to pressing)
       await batch.update({
-        boxes_loaded_to_pressing: (loadedBoxes || 0) + number_of_boxes,
         boxes_committed_to_queue: (committedBoxes || 0) + number_of_boxes
       });
+
+      // Update queuer session if this is a queuer
+      if (operator && operator.role === 'queuer') {
+        const activeSession = await QueuerSession.findOne({
+          where: { 
+            queueId: operator_id, 
+            status: 'active',
+            currentBatchId: batch.id 
+          }
+        });
+
+        if (activeSession) {
+          const newBoxesQueued = activeSession.boxesQueued + number_of_boxes;
+          
+          // Check if session is complete
+          if (newBoxesQueued >= activeSession.totalBoxes) {
+            await activeSession.update({
+              boxesQueued: newBoxesQueued,
+              status: 'completed',
+              completedAt: new Date()
+            });
+          } else {
+            await activeSession.update({
+              boxesQueued: newBoxesQueued
+            });
+          }
+        }
+      }
 
       // Return queue entry with position and some batch info for UI
       const position = await getQueuePosition(queueEntry.id);
@@ -211,9 +342,10 @@ const pressingQueueController = {
       // Update room status
       await availableRoom.update({ status: 'active' });
 
-      // Reduce committed boxes since they're now being processed
+      // Now that processing has started, move boxes from committed to loaded
       const batch = nextInQueue.batch;
       await batch.update({
+        boxes_loaded_to_pressing: (batch.boxes_loaded_to_pressing || 0) + nextInQueue.number_of_boxes,
         boxes_committed_to_queue: Math.max(0, (batch.boxes_committed_to_queue || 0) - nextInQueue.number_of_boxes)
       });
 
@@ -348,6 +480,178 @@ const pressingQueueController = {
       });
     } catch (error) {
       console.error('Get batch available boxes error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // Get queuer current session status
+  getQueuerSessionStatus: async (req, res) => {
+    try {
+      const { queuer_id } = req.params;
+
+      const queuer = await User.findByPk(queuer_id);
+      if (!queuer) {
+        return res.status(404).json({ error: 'Queuer not found' });
+      }
+
+      if (queuer.role !== 'queuer') {
+        return res.status(400).json({ error: 'User is not a queuer' });
+      }
+
+      const activeSession = await QueuerSession.findOne({
+        where: { 
+          queueId: queuer_id, 
+          status: 'active' 
+        },
+        include: [
+          {
+            model: Batch,
+            as: 'batch',
+            include: ['client']
+          }
+        ]
+      });
+
+      const hasActiveSession = !!activeSession;
+      let sessionInfo = null;
+
+      if (hasActiveSession) {
+        const batch = activeSession.batch;
+        const remainingBoxes = activeSession.totalBoxes - activeSession.boxesQueued;
+        const progress = activeSession.totalBoxes > 0 
+          ? Math.round((activeSession.boxesQueued / activeSession.totalBoxes) * 100) 
+          : 0;
+
+        sessionInfo = {
+          sessionId: activeSession.id,
+          batchId: batch.id,
+          ticketNumber: batch.ticket_number,
+          client: batch.client ? {
+            id: batch.client.id,
+            firstname: batch.client.firstname,
+            lastname: batch.client.lastname
+          } : null,
+          totalBoxes: activeSession.totalBoxes,
+          boxesQueued: activeSession.boxesQueued,
+          remainingBoxes,
+          progress,
+          startedAt: activeSession.startedAt
+        };
+      }
+
+      res.json({
+        queueId: queuer_id,
+        hasActiveSession,
+        session: sessionInfo
+      });
+    } catch (error) {
+      console.error('Get queuer session status error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // Cancel/complete queuer session manually
+  updateQueuerSession: async (req, res) => {
+    try {
+      const { queuer_id } = req.params;
+      const { action } = req.body; // 'cancel' or 'complete'
+
+      if (!['cancel', 'complete'].includes(action)) {
+        return res.status(400).json({ error: 'Invalid action. Must be "cancel" or "complete"' });
+      }
+
+      const queuer = await User.findByPk(queuer_id);
+      if (!queuer) {
+        return res.status(404).json({ error: 'Queuer not found' });
+      }
+
+      if (queuer.role !== 'queuer') {
+        return res.status(400).json({ error: 'User is not a queuer' });
+      }
+
+      const activeSession = await QueuerSession.findOne({
+        where: { 
+          queueId: queuer_id, 
+          status: 'active' 
+        }
+      });
+
+      if (!activeSession) {
+        return res.status(404).json({ error: 'No active session found for this queuer' });
+      }
+
+      const updateData = {
+        status: action === 'cancel' ? 'cancelled' : 'completed'
+      };
+
+      if (action === 'complete') {
+        updateData.completedAt = new Date();
+        updateData.boxesQueued = activeSession.totalBoxes; // Mark all as queued
+      }
+
+      await activeSession.update(updateData);
+
+      res.json({
+        message: `Queuer session ${action}d successfully`,
+        sessionId: activeSession.id,
+        action: action
+      });
+    } catch (error) {
+      console.error('Update queuer session error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // Get active queuer sessions (batches currently being queued) system-wide
+  getPartiallyQueuedBatches: async (req, res) => {
+    try {
+      const activeQueuerSessions = await QueuerSession.findAll({
+        where: { 
+          status: 'active'
+        },
+        include: [
+          {
+            model: Batch,
+            as: 'batch',
+            include: ['client']
+          },
+          {
+            model: User,
+            as: 'queuer',
+            attributes: ['id', 'firstname', 'lastname']
+          }
+        ],
+        order: [['updatedAt', 'DESC']]
+      });
+
+      const result = activeQueuerSessions.map(session => {
+        const batch = session.batch;
+        const remainingBoxes = session.totalBoxes - session.boxesQueued;
+        const queuerName = session.queuer 
+          ? `${session.queuer.firstname} ${session.queuer.lastname}`
+          : `Queuer #${session.queueId}`;
+        
+        return {
+          id: batch.id,
+          ticketNumber: batch.ticket_number,
+          clientName: batch.client 
+            ? `${batch.client.firstname} ${batch.client.lastname}` 
+            : `Client #${batch.clientId}`,
+          totalBoxes: session.totalBoxes,
+          queuedBoxes: session.boxesQueued,
+          remainingBoxes: remainingBoxes,
+          queuerName: queuerName,
+          sessionStarted: session.startedAt,
+          updatedAt: session.updatedAt
+        };
+      });
+
+      res.json({
+        partiallyQueuedBatches: result,
+        hasPartiallyQueued: result.length > 0
+      });
+    } catch (error) {
+      console.error('Get active queuer sessions error:', error);
       res.status(500).json({ error: error.message });
     }
   }
