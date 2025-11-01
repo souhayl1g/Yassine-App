@@ -1,30 +1,34 @@
 import { DataTypes } from 'sequelize';
 
 export async function up(queryInterface, Sequelize) {
-  // Add priceId column to batches table
-  await queryInterface.addColumn('batches', 'priceId', {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    references: {
-      model: 'prices',
-      key: 'id'
-    },
-    onUpdate: 'CASCADE',
-    onDelete: 'SET NULL'
-  });
+  const tableDescription = await queryInterface.describeTable('batches');
+  
+  // Add priceId column to batches table only if it doesn't exist
+  if (!tableDescription.priceId) {
+    await queryInterface.addColumn('batches', 'priceId', {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'prices',
+        key: 'id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
+    });
 
-  // Add foreign key constraint
-  await queryInterface.addConstraint('batches', {
-    fields: ['priceId'],
-    type: 'foreign key',
-    name: 'fk_batches_price_id',
-    references: {
-      table: 'prices',
-      field: 'id'
-    },
-    onUpdate: 'CASCADE',
-    onDelete: 'SET NULL'
-  });
+    // Add foreign key constraint
+    await queryInterface.addConstraint('batches', {
+      fields: ['priceId'],
+      type: 'foreign key',
+      name: 'fk_batches_price_id',
+      references: {
+        table: 'prices',
+        field: 'id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
+    });
+  }
 }
 
 export async function down(queryInterface, Sequelize) {

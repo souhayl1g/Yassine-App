@@ -1,10 +1,17 @@
 export async function up(queryInterface, Sequelize) {
-  // Add taux column to batches table
-  await queryInterface.addColumn('batches', 'taux', {
+
+  const tableDescription = await queryInterface.describeTable('batches');
+
+  if (!tableDescription.taux) {
+
+    await queryInterface.addColumn('batches', 'taux', {
     type: Sequelize.DECIMAL(5, 2),
     allowNull: true,
     comment: 'Oil extraction percentage (taux) used for sale operations calculations'
   });
+
+  }
+  // Add taux column to batches table
 }
 
 export async function down(queryInterface, Sequelize) {
