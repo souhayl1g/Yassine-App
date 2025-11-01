@@ -91,8 +91,10 @@ const pressingQueueController = {
 
       // Check if queuer has an active session and enforce batch consistency
       const operator = await User.findByPk(operator_id);
+      let activeSession = null; // Declare outside the queuer block for later use
+      
       if (operator && operator.role === 'queuer') {
-        const activeSession = await QueuerSession.findOne({
+        activeSession = await QueuerSession.findOne({
           where: { 
             queueId: operator_id, 
             status: 'active' 
@@ -125,7 +127,7 @@ const pressingQueueController = {
           }
         } else {
           // No active session, create a new one for this batch
-          await QueuerSession.create({
+          activeSession = await QueuerSession.create({
             queueId: operator_id,
             currentBatchId: batch.id,
             totalBoxes: batch.number_of_boxes || 0,
@@ -139,8 +141,16 @@ const pressingQueueController = {
       const totalBoxes = batch.number_of_boxes || 0;
       const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
       const committedBoxes = batch.boxes_committed_to_queue || 0;
-      // Available = total - actually loaded - committed to queue
-      const availableBoxes = totalBoxes - loadedBoxes - committedBoxes;
+      let availableBoxes;
+
+      // If this is a queuer with an active session, use session progress
+      if (operator && operator.role === 'queuer' && activeSession) {
+        availableBoxes = totalBoxes - activeSession.boxesQueued;
+      } else {
+        // For operators or no active session, use batch-level calculations
+        // Available = total - actually loaded - committed to queue
+        availableBoxes = totalBoxes - loadedBoxes - committedBoxes;
+      }
 
       if (number_of_boxes > availableBoxes) {
         return res.status(400).json({ 
