@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +41,7 @@ interface ScannedRoomData {
 
 export function EmployeeScannerPage() {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Scanner state
   const [isCameraActive, setIsCameraActive] = useState(true);
@@ -1075,7 +1077,7 @@ export function EmployeeScannerPage() {
         </div>
 
         {/* Camera View */}
-        <div className="flex-1 flex items-center justify-center p-2 sm:p-4 bg-gray-100 dark:bg-gray-900">
+        <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 bg-gray-100 dark:bg-gray-900 space-y-4">
           <div className="relative w-full max-w-xs sm:max-w-sm aspect-square bg-black rounded-lg overflow-hidden shadow-2xl">
             <video
               ref={videoRef}
@@ -1110,6 +1112,24 @@ export function EmployeeScannerPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Navigation Buttons - Below Camera */}
+          <div className="flex gap-2 w-full max-w-xs sm:max-w-sm">
+            <OliveButton
+              variant="outline"
+              onClick={() => navigate('/employee-scanner')}
+              className="flex-1 text-sm sm:text-base py-2"
+            >
+              📷 ماسح الغرف
+            </OliveButton>
+            <OliveButton
+              variant="outline"
+              onClick={() => navigate('/operator-scanner')}
+              className="flex-1 text-sm sm:text-base py-2"
+            >
+              🎯 ماسح المشغل
+            </OliveButton>
           </div>
         </div>
 

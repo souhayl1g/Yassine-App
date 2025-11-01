@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -62,6 +63,7 @@ interface Room {
 export function OperatorScannerPage() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   // Scanner state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -1010,7 +1012,7 @@ export function OperatorScannerPage() {
         </div>
 
         {/* Camera View */}
-        <div className="flex-1 flex items-center justify-center p-4 bg-gray-100 dark:bg-gray-900">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 bg-gray-100 dark:bg-gray-900 space-y-4">
           <div className="relative w-full max-w-sm aspect-square bg-black rounded-lg overflow-hidden shadow-2xl">
             <video
               ref={videoRef}
@@ -1045,6 +1047,24 @@ export function OperatorScannerPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Navigation Buttons - Below Camera */}
+          <div className="flex gap-2 w-full max-w-sm">
+            <OliveButton
+              variant="outline"
+              onClick={() => navigate('/employee-scanner')}
+              className="flex-1 text-sm sm:text-base py-2"
+            >
+              📷 ماسح الغرف
+            </OliveButton>
+            <OliveButton
+              variant="outline"
+              onClick={() => navigate('/employee-scanner')}
+              className="flex-1 text-sm sm:text-base py-2"
+            >
+              🎯 ماسح التذاكر
+            </OliveButton>
           </div>
         </div>
 
