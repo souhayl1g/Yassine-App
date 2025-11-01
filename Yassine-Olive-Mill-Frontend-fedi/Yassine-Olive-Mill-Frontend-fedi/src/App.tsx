@@ -66,7 +66,7 @@ const App = () => {
                 <Route path="/scanner" element={<ScannerPage />} />
                 <Route path="/queuer-scanner" element={<ProtectedRoute roles={['queuer']}><QueuerScannerPage /></ProtectedRoute>} />
                 <Route path="/operator-scanner" element={<ProtectedRoute roles={['operator']}><OperatorScannerPage /></ProtectedRoute>} />
-                <Route path="/employee-scanner" element={<ProtectedRoute roles={['employee']}><EmployeeScannerPage /></ProtectedRoute>} />
+                <Route path="/employee-scanner" element={<ProtectedRoute roles={['operator']}><EmployeeScannerPage /></ProtectedRoute>} />
                 <Route path="/batch-management" element={<ProtectedRoute roles={['admin', 'operator', 'presser']}><BatchManagementPage /></ProtectedRoute>} />
                 <Route path="/pressing-display" element={<PressingDisplayPage />} />
                 <Route path="/rooms" element={<ProtectedRoute roles={['admin', 'operator']}><RoomsPage /></ProtectedRoute>} />
