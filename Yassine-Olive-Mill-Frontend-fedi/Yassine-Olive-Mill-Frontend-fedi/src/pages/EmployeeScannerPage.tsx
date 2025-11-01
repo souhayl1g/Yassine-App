@@ -516,7 +516,7 @@ export function EmployeeScannerPage() {
           {/* Header */}
           <div className="text-center space-y-2">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
-              ماسح الغرف (الموظف)
+              ماسح الغرف (المشغل)
             </h1>
             <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">معلومات الغرفة</p>
           </div>
@@ -1015,7 +1015,7 @@ export function EmployeeScannerPage() {
         {/* Header */}
         <div className="p-3 sm:p-4 text-center bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
-            ماسح الغرف (الموظف)
+            ماسح الغرف (المشغل)
           </h1>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mt-1">
             وجه الكاميرا نحو رمز QR الخاص بالغرفة

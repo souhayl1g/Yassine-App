@@ -1,6 +1,6 @@
 import db from "../models/index.js";
 
-const { PressingRoom, PressingSession } = db;
+const { PressingRoom, PressingSession, PressingQueue, Batch, User, BatchLoading, Client } = db;
 
 const pressingRoomController = {
   // GET /api/pressing-rooms
@@ -186,6 +186,132 @@ const pressingRoomController = {
       res.json(roomsWithStatus);
     } catch (error) {
       console.error("Get pressing rooms display data error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // GET /api/pressing-rooms/combined-display-data - get both rooms and queue data in single response
+  getCombinedDisplayData: async (req, res) => {
+    try {
+      // Get pressing rooms data
+      const rooms = await PressingRoom.findAll({
+        order: [["id", "ASC"]],
+      });
+
+      // Get active sessions with detailed information
+      const activeSessions = await PressingSession.findAll({ 
+        where: { 
+          finish: null,
+          status: 'active' // Only get actively running sessions
+        },
+        include: [
+          {
+            model: db.Batch,
+            as: 'batch',
+            required: false, // LEFT JOIN to allow sessions without batches
+            include: [
+              {
+                model: db.Client,
+                as: 'client',
+                required: false,
+                attributes: ['id', 'firstname', 'lastname']
+              }
+            ]
+          }
+        ]
+      });
+
+      // Create a map of room ID to session data
+      const sessionMap = new Map();
+      activeSessions.forEach(session => {
+        if (session.pressing_roomID) {
+          let clientName = 'Unknown';
+          let ticketId = session.id.toString();
+          let weightIn = 0;
+
+          // Get batch information if available
+          if (session.batch) {
+            weightIn = session.batch.weight_in || 0;
+            ticketId = session.batch.ticket_number || session.batch.id.toString();
+            
+            if (session.batch.client) {
+              clientName = `${session.batch.client.firstname || ''} ${session.batch.client.lastname || ''}`.trim();
+            }
+          }
+
+          sessionMap.set(session.pressing_roomID, {
+            id: ticketId,
+            sessionId: session.id, // Add the actual pressing session ID
+            batchId: session.batch?.id, // Add the actual batch database ID
+            clientName: clientName,
+            weightIn: weightIn,
+            numberOfBatches: session.number_of_boxes, // Using number_of_boxes from session
+            sessionStartTime: session.start,
+            estimatedTime: session.batch?.estimated_time || 60, // Use batch estimated time or default 60 minutes
+            operationType: session.batch?.operation_type || 'milling' // Add operation type from batch
+          });
+        }
+      });
+
+      // Map actual rooms from database with their session status
+      const roomsWithStatus = rooms.map(room => ({
+        id: room.id,
+        name: room.name,
+        status: sessionMap.has(room.id) ? 'busy' : 'available',
+        currentBatch: sessionMap.get(room.id) || undefined
+      }));
+
+      // Get queue data
+      const queuedSessions = await PressingQueue.findAll({
+        where: { status: 'queued' },
+        include: [
+          {
+            model: Batch,
+            as: 'batch',
+            include: [
+              {
+                model: Client,
+                as: 'client',
+                attributes: ['id', 'firstname', 'lastname']
+              }
+            ]
+          },
+          {
+            model: BatchLoading,
+            as: 'batchLoading',
+            include: [
+              {
+                model: Batch,
+                as: 'batch',
+                include: [
+                  {
+                    model: db.Client,
+                    as: 'client',
+                    attributes: ['id', 'firstname', 'lastname']
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            model: User,
+            as: 'operator',
+            attributes: ['id', 'firstname', 'lastname']
+          }
+        ],
+        order: [
+          ['priority', 'DESC'],
+          ['created_at', 'ASC']
+        ]
+      });
+
+      // Return combined data
+      res.json({
+        pressingRooms: roomsWithStatus,
+        queueItems: queuedSessions
+      });
+    } catch (error) {
+      console.error("Get combined display data error:", error);
       res.status(500).json({ error: error.message });
     }
   },

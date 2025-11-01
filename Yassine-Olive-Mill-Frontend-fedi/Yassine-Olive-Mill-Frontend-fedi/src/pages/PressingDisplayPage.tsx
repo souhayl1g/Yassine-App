@@ -55,48 +55,49 @@ interface QueueItem {
   };
 }
 
+interface CombinedDisplayData {
+  pressingRooms: PressingRoomData[];
+  queueItems: QueueItem[];
+}
+
 export function PressingDisplayPage() {
   const [pressingRooms, setPressingRooms] = useState<PressingRoomData[]>([]);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const { isFullscreen, toggleFullscreen } = useFullscreen();
 
-  // Load data from API
-  const loadPressingRooms = async () => {
+  // Load combined data from API (rooms and queue in single call)
+  const loadCombinedData = async () => {
     try {
-      console.log('Loading pressing rooms from API...');
-      const response = await api.get<PressingRoomData[]>('/pressing-rooms/display-data');
-      console.log('Pressing rooms response:', response);
+      console.log('Loading combined display data from API...');
+      const response = await api.get<CombinedDisplayData>('/pressing-rooms/combined-display-data');
+      console.log('Combined display data response:', response);
       
-      if (response && Array.isArray(response)) {
-        setPressingRooms(response);
-      } else {
-        console.warn('Invalid response format, setting empty array');
-        setPressingRooms([]);
-      }
-    } catch (error) {
-      console.error('Error loading pressing rooms:', error);
-      // Set empty array on error
-      setPressingRooms([]);
-    }
-  };
+      if (response && typeof response === 'object') {
+        // Update pressing rooms
+        if (response.pressingRooms && Array.isArray(response.pressingRooms)) {
+          setPressingRooms(response.pressingRooms);
+        } else {
+          console.warn('Invalid pressing rooms format in combined response, setting empty array');
+          setPressingRooms([]);
+        }
 
-  // Load queue data from API
-  const loadQueue = async () => {
-    try {
-      console.log('Loading queue from API...');
-      const response = await api.get<QueueItem[]>('/pressing-queue');
-      console.log('Queue response:', response);
-      
-      if (response && Array.isArray(response)) {
-        setQueueItems(response);
+        // Update queue items
+        if (response.queueItems && Array.isArray(response.queueItems)) {
+          setQueueItems(response.queueItems);
+        } else {
+          console.warn('Invalid queue items format in combined response, setting empty array');
+          setQueueItems([]);
+        }
       } else {
-        console.warn('Invalid queue response format, setting empty array');
+        console.warn('Invalid combined response format, setting empty arrays');
+        setPressingRooms([]);
         setQueueItems([]);
       }
     } catch (error) {
-      console.error('Error loading queue:', error);
-      // Set empty array on error
+      console.error('Error loading combined display data:', error);
+      // Set empty arrays on error
+      setPressingRooms([]);
       setQueueItems([]);
     }
   };
@@ -142,19 +143,17 @@ export function PressingDisplayPage() {
 
   // Auto refresh data and time
   useEffect(() => {
-    loadPressingRooms();
-    loadQueue();
+    loadCombinedData();
     
     // Update time every second
     const timeInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
-    // Refresh data every 30 seconds
+    // Refresh data every 10 seconds - now using single API call
     const dataInterval = setInterval(() => {
-      loadPressingRooms();
-      loadQueue();
-    }, 30000);
+      loadCombinedData();
+    }, 10000);
 
     return () => {
       clearInterval(timeInterval);
@@ -413,7 +412,7 @@ export function PressingDisplayPage() {
 
       {/* Footer */}
       <div className="mt-8 text-center text-white/60 text-sm">
-        التحديث التلقائي كل 30 ثانية • آخر تحديث: {currentTime.toLocaleTimeString('en-US', { hour12: false })}
+        التحديث التلقائي كل 10 ثوانٍ (طلب واحد محسّن) • آخر تحديث: {currentTime.toLocaleTimeString('en-US', { hour12: false })}
       </div>
     </div>
   );
