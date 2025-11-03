@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DailyWorkHeader } from '@/components/daily-work/DailyWorkHeader';
 import { AddTicketModal } from '@/components/daily-work/AddTicketModal';
 import { QRScanModal, CameraScanModal } from '@/components/daily-work/QRScanModal';
@@ -9,16 +9,52 @@ import { PrintTicketModal } from '@/components/daily-work/PrintTicketModal';
 import { QRDisplayModal } from '@/components/daily-work/QRDisplayModal';
 import { TicketDetailsModal } from '@/components/daily-work/TicketDetailsModal';
 import { OperationButtons } from '@/components/daily-work/OperationButtons';
+import { PaymentModal } from '@/components/payments/PaymentModal';
+import { PaymentHistoryModal } from '@/components/payments/PaymentHistoryModal';
+import { PaymentSummary } from '@/components/payments/PaymentSummary';
 import { useDailyWork } from '@/hooks/daily-work/useDailyWork';
+import { usePaymentOperations } from '@/hooks/usePaymentOperations';
 
 export function DailyWorkPage() {
   const dailyWork = useDailyWork();
+  const payment = usePaymentOperations();
+  const [paymentStats, setPaymentStats] = useState({
+    totalPaid: 0,
+    totalTransactions: 0,
+    methodStats: {},
+    averagePayment: 0
+  });
+
+  // Load payment statistics on mount
+  useEffect(() => {
+    loadPaymentStats();
+  }, []);
+
+  const loadPaymentStats = async () => {
+    const stats = await payment.getPaymentStats();
+    setPaymentStats(stats);
+  };
+
+  // Handle payment completion
+  const handlePaymentComplete = () => {
+    loadPaymentStats();
+    dailyWork.loadRecentTickets(dailyWork.currentPage);
+  };
 
   return (
     <>
       <div className="space-y-8">
         {/* Page Header */}
         <DailyWorkHeader dailyTicketCount={dailyWork.dailyTicketCount} />
+
+        {/* Payment Summary */}
+        <PaymentSummary
+          totalPaid={paymentStats.totalPaid}
+          totalTransactions={paymentStats.totalTransactions}
+          methodStats={paymentStats.methodStats}
+          averagePayment={paymentStats.averagePayment}
+          onViewHistory={() => payment.openPaymentHistory()}
+        />
 
         {/* Operation Buttons - Truck In/Out */}
         <OperationButtons
@@ -41,6 +77,8 @@ export function DailyWorkPage() {
           onShowQrCode={dailyWork.handleShowQrCode}
           onPageChange={dailyWork.loadRecentTickets}
           onDeleteTicket={dailyWork.handleDeleteTicket}
+          onPayTicket={payment.openPaymentModal}
+          onViewPaymentHistory={(clientId, clientName) => payment.openPaymentHistory(clientId, clientName)}
         />
       </div>
 
@@ -153,6 +191,22 @@ export function DailyWorkPage() {
           dailyWork.setIsQrScanOpen(false);
           dailyWork.setIsCameraScanOpen(true);
         }}
+      />
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={payment.isPaymentModalOpen}
+        onClose={payment.closePaymentModal}
+        ticket={payment.selectedTicket}
+        onPaymentComplete={handlePaymentComplete}
+      />
+
+      {/* Payment History Modal */}
+      <PaymentHistoryModal
+        isOpen={payment.isPaymentHistoryOpen}
+        onClose={payment.closePaymentHistory}
+        clientId={payment.selectedClientId}
+        clientName={payment.selectedClientName}
       />
     </>
   );

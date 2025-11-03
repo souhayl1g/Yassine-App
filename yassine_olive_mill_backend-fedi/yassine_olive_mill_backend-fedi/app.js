@@ -75,7 +75,8 @@ app.get('/', (req, res) => {
       payments: '/api/payments',
       employees: '/api/employees',
       prices: '/api/prices',
-      dashboard: '/api/dashboard'
+      dashboard: '/api/dashboard',
+      users: '/api/users'
     }
   });
 });

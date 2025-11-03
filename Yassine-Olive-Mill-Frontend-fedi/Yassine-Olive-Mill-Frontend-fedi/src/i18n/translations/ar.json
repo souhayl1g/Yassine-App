@@ -30,6 +30,7 @@
     "dashboard": "لوحة التحكم",
     "clients": "العملاء",
     "tickets": "التذاكر",
+    "payments": "الدفعات",
     "containers": "خزانات الزيت",
     "sessions": "جلسات العمل",
     "qr": "مسح QR",
@@ -42,6 +43,7 @@
     "rooms": "غرف العصر",
     "history": "سجل النظام",
     "settings": "الإعدادات",
+    "userManagement": "إدارة المستخدمين",
     "logout": "تسجيل الخروج"
   },
   "dashboard": {

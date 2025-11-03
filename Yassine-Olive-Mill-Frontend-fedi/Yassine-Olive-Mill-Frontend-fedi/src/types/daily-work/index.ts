@@ -17,6 +17,10 @@ export interface Ticket {
   numberOfBoxes: number;
   unitPrice?: number;
   totalAmount?: number;
+  isPaid?: boolean;
+  paymentMethod?: string;
+  paymentReference?: string;
+  datePaid?: string;
   dateReceived: string;
   status: 'received' | 'in_process' | 'completed';
   operationType?: 'milling' | 'sale';

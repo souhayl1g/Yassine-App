@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { OliveCard, OliveCardHeader, OliveCardContent, OliveCardTitle } from '@/components/ui/olive-card';
 import { OliveButton } from '@/components/ui/olive-button';
-import { FileText, RefreshCw, QrCode, Printer, Edit, Trash2 } from 'lucide-react';
+import { FileText, RefreshCw, QrCode, Printer, Edit, Trash2, DollarSign, History } from 'lucide-react';
 import { Ticket } from '@/types/daily-work';
 
 interface RecentTicketsSectionProps {
@@ -16,6 +16,8 @@ interface RecentTicketsSectionProps {
   onShowQrCode: (ticket: Ticket) => void;
   onDeleteTicket: (ticketId: string) => void;
   onPageChange?: (page: number) => void;
+  onPayTicket?: (ticket: Ticket) => void;
+  onViewPaymentHistory?: (clientId: string, clientName: string) => void;
 }
 
 export function RecentTicketsSection({
@@ -29,6 +31,8 @@ export function RecentTicketsSection({
   onShowQrCode,
   onDeleteTicket,
   onPageChange,
+  onPayTicket,
+  onViewPaymentHistory,
 }: RecentTicketsSectionProps) {
   const { t } = useTranslation();
 
@@ -119,11 +123,50 @@ export function RecentTicketsSection({
                       {ticket.totalAmount && (
                         <div className="text-sm font-medium text-primary">
                           المبلغ الإجمالي: {ticket.totalAmount} د.ت
+                          {/* Payment Status Indicator */}
+                          <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
+                            !ticket.isPaid && ticket.totalAmount && ticket.totalAmount > 0 
+                              ? 'bg-red-100 text-red-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {!ticket.isPaid && ticket.totalAmount && ticket.totalAmount > 0 ? 'مستحق الدفع' : 'مدفوع'}
+                          </span>
                         </div>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {/* Payment Button - Show if ticket has amount and is not paid */}
+                    {!ticket.isPaid && ticket.totalAmount && ticket.totalAmount > 0 && onPayTicket && (
+                      <OliveButton
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPayTicket(ticket);
+                        }}
+                        title="تسجيل دفع"
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                      >
+                        <DollarSign className="h-4 w-4" />
+                      </OliveButton>
+                    )}
+                    
+                    {/* Payment History Button */}
+                    {onViewPaymentHistory && (
+                      <OliveButton
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewPaymentHistory(ticket.clientId, ticket.clientName);
+                        }}
+                        title="تاريخ الدفعات"
+                      >
+                        <History className="h-4 w-4" />
+                      </OliveButton>
+                    )}
+                    
                     <OliveButton
                       variant="outline"
                       size="sm"

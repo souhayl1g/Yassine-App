@@ -27,6 +27,8 @@ import "./i18n";
 import { OperatorScannerPage } from "@/pages/OperatorScannerPage";
 import { EmployeeScannerPage } from "@/pages/EmployeeScannerPage";
 import { BatchLoadingTestPage } from "@/pages/BatchLoadingTestPage";
+import { PaymentsPage } from "@/pages/PaymentsPage";
+import { UserManagementPage } from "@/pages/admin/UserManagementPage";
 
 const queryClient = new QueryClient();
 
@@ -70,8 +72,10 @@ const App = () => {
                 <Route path="/batch-management" element={<ProtectedRoute roles={['admin', 'operator', 'presser']}><BatchManagementPage /></ProtectedRoute>} />
                 <Route path="/pressing-display" element={<PressingDisplayPage />} />
                 <Route path="/rooms" element={<ProtectedRoute roles={['admin', 'operator']}><RoomsPage /></ProtectedRoute>} />
+                <Route path="/payments" element={<ProtectedRoute roles={['admin', 'operator']}><PaymentsPage /></ProtectedRoute>} />
                 <Route path="/history" element={<ProtectedRoute roles={['admin', 'operator']}><HistoryPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute roles={['admin']}><SettingsPage /></ProtectedRoute>} />
+                <Route path="/admin/users" element={<ProtectedRoute roles={['admin']}><UserManagementPage /></ProtectedRoute>} />
                 <Route path="/batch-loading-test" element={<ProtectedRoute roles={['admin']}><BatchLoadingTestPage /></ProtectedRoute>} />
               </Route>
             </Routes>

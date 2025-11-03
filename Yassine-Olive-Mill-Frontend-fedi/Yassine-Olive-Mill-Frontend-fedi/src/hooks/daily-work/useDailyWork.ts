@@ -182,26 +182,38 @@ export const useDailyWork = () => {
   // Handle ticket click to edit
   const handleTicketClick = async (ticket: Ticket) => {
     try {
-      ticketManagement.setScannedTicket(ticket);
+      // Always fetch the latest ticket data from server to ensure we have up-to-date weightOut values
+      console.log('🔄 TICKET DEBUG: Fetching latest ticket data for ID:', ticket.id);
+      const latestTicket = await ticketManagement.fetchTicketByCode(ticket.id);
+      
+      console.log('📋 TICKET DEBUG: Latest ticket data:', {
+        id: latestTicket.id,
+        ticketNumber: latestTicket.ticketNumber,
+        weightOut: latestTicket.weightOut,
+        numberOfBoxes: latestTicket.numberOfBoxes,
+        notes: latestTicket.notes
+      });
+      
+      ticketManagement.setScannedTicket(latestTicket);
 
       ticketManagement.setEditForm({
-        weightOut: ticket.weightOut !== undefined ? String(ticket.weightOut) : '',
-        numberOfBoxes: ticket.numberOfBoxes ? String(ticket.numberOfBoxes) : '',
-        notes: ticket.notes || '',
+        weightOut: latestTicket.weightOut !== undefined ? String(latestTicket.weightOut) : '',
+        numberOfBoxes: latestTicket.numberOfBoxes ? String(latestTicket.numberOfBoxes) : '',
+        notes: latestTicket.notes || '',
         taux: '', // Reset taux for each ticket
       });
 
       // If this is a sale operation, load oil batch weights
-      if (ticket.operationType === 'sale') {
+      if (latestTicket.operationType === 'sale') {
         console.log('🎫 TICKET DEBUG: Sale operation detected, pre-loading oil batches');
         console.log('📋 TICKET DEBUG: Ticket details:', {
-          id: ticket.id,
-          ticketNumber: ticket.ticketNumber,
-          clientName: ticket.clientName,
-          operationType: ticket.operationType,
-          weightIn: ticket.weightIn
+          id: latestTicket.id,
+          ticketNumber: latestTicket.ticketNumber,
+          clientName: latestTicket.clientName,
+          operationType: latestTicket.operationType,
+          weightIn: latestTicket.weightIn
         });
-        await loadOilBatchWeights(ticket.id);
+        await loadOilBatchWeights(latestTicket.id);
       } else {
         console.log('🎫 TICKET DEBUG: Non-sale operation, skipping oil batch loading');
       }
@@ -252,17 +264,35 @@ export const useDailyWork = () => {
   };
 
   // Maximize a ticket
-  const maximizeTicket = (ticketId: string) => {
+  const maximizeTicket = async (ticketId: string) => {
     setMinimizedTickets(prev => 
       prev.map(t => 
         t.id === ticketId ? { ...t, isMaximized: true } : t
       )
     );
     
-    // Find and open the ticket
-    const ticket = ticketManagement.recentTickets.find(t => t.id === ticketId) || minimizedTickets.find(t => t.id === ticketId);
+    // Find ticket data - try recent tickets first, then minimized tickets as fallback
+    let ticket = ticketManagement.recentTickets.find(t => t.id === ticketId);
+    if (!ticket) {
+      const minimized = minimizedTickets.find(t => t.id === ticketId);
+      if (minimized) {
+        // Create a basic ticket object from minimized data
+        ticket = {
+          id: minimized.id,
+          ticketNumber: minimized.ticketNumber,
+          clientId: '', // Will be filled by fetchTicketByCode
+          clientName: minimized.clientName,
+          weightIn: minimized.weightIn,
+          numberOfBoxes: 0,
+          dateReceived: new Date().toISOString(),
+          status: 'received' as const,
+          operationType: 'milling' as const
+        } as Ticket;
+      }
+    }
+    
     if (ticket) {
-      handleTicketClick(ticket as Ticket);
+      await handleTicketClick(ticket);
     }
   };
 
@@ -519,10 +549,9 @@ export const useDailyWork = () => {
 
   // Calculate edit net weight
   const calculateEditNetWeight = () => {
-    if (!ticketManagement.scannedTicket || !ticketManagement.editForm.weightOut) return 0;
-    const weightOut = parseFloat(ticketManagement.editForm.weightOut) || 0;
-    const numberOfBoxes = parseInt(ticketManagement.editForm.numberOfBoxes) || 0;
-    return Math.max(0, ticketManagement.scannedTicket.weightIn - weightOut - numberOfBoxes);
+    if (!ticketManagement.scannedTicket) return 0;
+    const weightOut = ticketManagement.editForm.weightOut ? parseFloat(ticketManagement.editForm.weightOut) : 0;
+    return Math.max(0, ticketManagement.scannedTicket.weightIn - weightOut);
   };
 
   // Load oil batch weights for a specific batch ID
@@ -599,6 +628,11 @@ export const useDailyWork = () => {
     }
   };
 
+  // Calculate minimum price based on 200 kg * unit price
+  const calculateMinimumPrice = (unitPrice: number) => {
+    return 200 * unitPrice;
+  };
+
   // Calculate edit total amount with details
   const calculateEditTotalAmountWithDetails = async (operationType?: string) => {
     if (!ticketManagement.currentPrices || !ticketManagement.scannedTicket) {
@@ -622,9 +656,10 @@ export const useDailyWork = () => {
         const oilAmount = (netWeight * tauxValue) / 100;
         unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
         const totalAmount = oilAmount * unitPrice;
+        const minimumPrice = calculateMinimumPrice(unitPrice);
         calculationMethod = 'taux';
         return { 
-          amount: Math.max(totalAmount, 40), 
+          amount: Math.max(totalAmount, minimumPrice), 
           calculationMethod,
           containerWeight: oilAmount 
         };
@@ -648,6 +683,7 @@ export const useDailyWork = () => {
           // Use oil selling price per kg for the total oil weight
           unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
           const totalAmount = cachedWeight * unitPrice;
+          const minimumPrice = calculateMinimumPrice(unitPrice);
           calculationMethod = 'container';
           containerWeight = cachedWeight;
           
@@ -655,10 +691,11 @@ export const useDailyWork = () => {
           console.log('  - Container weight:', cachedWeight, 'kg');
           console.log('  - Oil selling price:', unitPrice, 'dinars/kg');
           console.log('  - Calculated amount (before minimum):', totalAmount, 'dinars');
-          console.log('  - Final amount (with 40 minimum):', Math.max(totalAmount, 40), 'dinars');
+          console.log('  - Minimum price (200kg * price):', minimumPrice, 'dinars');
+          console.log('  - Final amount (with minimum):', Math.max(totalAmount, minimumPrice), 'dinars');
           
           return { 
-            amount: Math.max(totalAmount, 40), 
+            amount: Math.max(totalAmount, minimumPrice), 
             calculationMethod,
             containerWeight 
           };
@@ -675,8 +712,9 @@ export const useDailyWork = () => {
     }
     
     const totalAmount = netWeight * unitPrice;
+    const minimumPrice = calculateMinimumPrice(unitPrice);
     return { 
-      amount: Math.max(totalAmount, 40), 
+      amount: Math.max(totalAmount, minimumPrice), 
       calculationMethod 
     };
   };
@@ -689,8 +727,50 @@ export const useDailyWork = () => {
 
   // Check if minimum price is applied
   const isMinimumPriceApplied = async (operationType?: string) => {
-    const details = await calculateEditTotalAmountWithDetails(operationType);
-    return details.amount === 40; // If amount equals minimum, then minimum was applied
+    if (!ticketManagement.currentPrices || !ticketManagement.scannedTicket) {
+      return false;
+    }
+    
+    const netWeight = calculateEditNetWeight();
+    if (netWeight <= 0) {
+      return false;
+    }
+
+    let unitPrice = 0;
+    let baseAmount = 0;
+    
+    if (operationType === 'sale') {
+      // For sale operations, use oil selling price
+      const tauxValue = parseFloat(ticketManagement.editForm.taux) || 0;
+      if (tauxValue > 0) {
+        // If taux is provided, calculate oil amount and use oil selling price
+        const oilAmount = (netWeight * tauxValue) / 100;
+        unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
+        baseAmount = oilAmount * unitPrice;
+      } else {
+        // Check cached oil batch weights
+        let cachedWeight = oilBatchWeights[ticketManagement.scannedTicket.id];
+        if (cachedWeight === undefined) {
+          cachedWeight = await loadOilBatchWeights(ticketManagement.scannedTicket.id);
+        }
+        
+        if (cachedWeight > 0) {
+          unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
+          baseAmount = cachedWeight * unitPrice;
+        } else {
+          // Fallback to milling price
+          unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
+          baseAmount = netWeight * unitPrice;
+        }
+      }
+    } else {
+      // For milling operations, use milling price
+      unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
+      baseAmount = netWeight * unitPrice;
+    }
+    
+    const minimumPrice = calculateMinimumPrice(unitPrice);
+    return baseAmount < minimumPrice;
   };
 
   // Print ticket function

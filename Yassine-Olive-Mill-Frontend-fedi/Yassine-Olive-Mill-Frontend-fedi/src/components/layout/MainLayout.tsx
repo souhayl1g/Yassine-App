@@ -20,7 +20,8 @@ import {
   Clock,
   Coffee,
   ClipboardList,
-  Monitor
+  Monitor,
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -29,6 +30,7 @@ const navigationItems = [
   { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard', roles: ['admin'] },
   { key: 'clients', icon: Users, href: '/clients', roles: ['admin'] },
   { key: 'tickets', icon: FileText, href: '/tickets', roles: ['admin'] },
+  { key: 'payments', icon: DollarSign, href: '/payments', roles: ['admin', 'operator'] },
   { key: 'containers', icon: Container, href: '/containers', roles: ['admin', 'operator'] },
   { key: 'sessions', icon: Clock, href: '/sessions', roles: ['admin', 'operator'] },
   { key: 'scanner', icon: QrCode, href: '/scanner', roles: [ 'scanner'] },
@@ -38,6 +40,7 @@ const navigationItems = [
   // { key: 'batchManagement', icon: ClipboardList, href: '/batch-management', roles: ['admin', 'operator', 'presser'] },
   { key: 'pressingDisplay', icon: Monitor, href: '/pressing-display', roles: ['admin'] },
   { key: 'rooms', icon: Building2, href: '/rooms', roles: ['admin', 'operator'] },
+  { key: 'userManagement', icon: Users, href: '/admin/users', roles: ['admin'] },
   { key: 'history', icon: History, href: '/history', roles: ['admin'] },
   { key: 'settings', icon: Settings, href: '/settings', roles: ['admin'] },
 ];

@@ -62,7 +62,7 @@ export function EditTicketModal({
 
   // Update calculations when form changes
   useEffect(() => {
-    if (editForm.weightOut && ticket?.operationType) {
+    if (ticket?.operationType) {
       setCalculationLoading(true);
       Promise.all([
         calculateEditTotalAmount(ticket.operationType),
@@ -76,6 +76,23 @@ export function EditTicketModal({
       });
     }
   }, [editForm.weightOut, editForm.numberOfBoxes, editForm.taux, ticket?.operationType, calculateEditTotalAmount, isMinimumPriceApplied]);
+
+  // Initialize calculations when modal opens
+  useEffect(() => {
+    if (isOpen && ticket?.operationType) {
+      setCalculationLoading(true);
+      Promise.all([
+        calculateEditTotalAmount(ticket.operationType),
+        isMinimumPriceApplied(ticket.operationType)
+      ]).then(([amount, isMinimum]) => {
+        setTotalAmount(amount);
+        setIsMinimumApplied(isMinimum);
+        setCalculationLoading(false);
+      }).catch(() => {
+        setCalculationLoading(false);
+      });
+    }
+  }, [isOpen, ticket?.id, calculateEditTotalAmount, isMinimumPriceApplied]);
 
   if (!isOpen || !ticket) return null;
 
@@ -219,33 +236,31 @@ export function EditTicketModal({
         </div>
 
         {/* Calculated values */}
-        {editForm.weightOut && (
-          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div className="p-3 rounded bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-              <div className="text-blue-800 dark:text-blue-200 font-medium">الوزن الصافي</div>
-              <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                {calculateEditNetWeight().toFixed(2)} كيلو
-              </div>
-            </div>
-            <div className="p-3 rounded bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
-              <div className="text-green-800 dark:text-green-200 font-medium">المبلغ الإجمالي</div>
-              <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                {calculationLoading ? (
-                  <RefreshCw className="h-4 w-4 animate-spin inline" />
-                ) : (
-                  <>
-                    {totalAmount.toFixed(2)} دينار
-                    {isMinimumApplied && (
-                      <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                        تم تطبيق الحد الأدنى للسعر (40 دينار)
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+          <div className="p-3 rounded bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+            <div className="text-blue-800 dark:text-blue-200 font-medium">الوزن الصافي</div>
+            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+              {calculateEditNetWeight().toFixed(2)} كيلو
             </div>
           </div>
-        )}
+          <div className="p-3 rounded bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+            <div className="text-green-800 dark:text-green-200 font-medium">المبلغ الإجمالي</div>
+            <div className="text-lg font-bold text-green-600 dark:text-green-400">
+              {calculationLoading ? (
+                <RefreshCw className="h-4 w-4 animate-spin inline" />
+              ) : (
+                <>
+                  {totalAmount.toFixed(2)} دينار
+                  {isMinimumApplied && (
+                    <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      تم تطبيق الحد الأدنى للسعر (200 كيلو × سعر الوحدة)
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
 
         <div className="mb-6">
           <label className="text-sm">
