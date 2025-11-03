@@ -9,9 +9,16 @@ export default {
         
         switch(dialect) {
             case 'postgres':
-                await queryInterface.sequelize.query(`
-                    ALTER TYPE "enum_batches_status" ADD VALUE 'in_queue';
-                `);
+                try {
+                    await queryInterface.sequelize.query(`
+                        ALTER TYPE "enum_batches_status" ADD VALUE 'in_queue';
+                    `);
+                } catch (error) {
+                    if (!error.message.includes('already exists')) {
+                        throw error;
+                    }
+                    console.log('Enum value "in_queue" already exists, skipping...');
+                }
                 break;
                 
             case 'mysql':
