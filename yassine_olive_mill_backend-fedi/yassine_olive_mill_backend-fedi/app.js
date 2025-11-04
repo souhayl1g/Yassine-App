@@ -19,18 +19,46 @@ const { sequelize } = db;
 
 const app = express();
 
-// CORS configuration - SINGLE CONFIGURATION
+// CORS configuration - Support for ngrok and Vercel
+const allowedOrigins = [
+  'http://localhost:3000', 
+  'http://localhost:5173',
+  'https://localhost:5173',
+  'http://192.168.1.22:5173',
+  'http://127.0.0.1:5173',
+  'https://yassine-olive-mill-app.vercel.app',  // Vercel production
+  'https://yassine-olive-mill-app-*.vercel.app'  // Vercel preview deployments
+];
+
+// Dynamic CORS for ngrok (allows any ngrok URL)
 app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'http://localhost:5173',
-    'http://192.168.1.22:5173',  // Add your actual frontend IP
-    'http://127.0.0.1:5173'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is an ngrok URL
+    if (origin.includes('.ngrok-free.app') || origin.includes('.ngrok.io')) {
+      return callback(null, true);
+    }
+    
+    // Check if origin matches Vercel pattern
+    if (origin.includes('vercel.app')) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'ngrok-skip-browser-warning'],
+  exposedHeaders: ['Content-Length', 'X-Request-Id'],
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 }));
 
 // Security middleware
@@ -41,6 +69,15 @@ app.use(helmet({
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Ngrok header middleware - Add ngrok-skip-browser-warning header
+app.use((req, res, next) => {
+  // Allow ngrok to skip browser warning
+  if (req.headers['ngrok-skip-browser-warning']) {
+    res.setHeader('ngrok-skip-browser-warning', '1');
+  }
+  next();
+});
 
 // Logging middleware
 app.use(logger);
