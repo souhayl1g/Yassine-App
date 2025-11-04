@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, RefreshCw, Minimize2, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { OliveButton } from '@/components/ui/olive-button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { Ticket, EditTicketForm, Price } from '@/types/daily-work';
 
 interface EditTicketModalProps {
@@ -50,6 +51,7 @@ export function EditTicketModal({
   const [totalAmount, setTotalAmount] = useState<number>(0);
   const [isMinimumApplied, setIsMinimumApplied] = useState<boolean>(false);
   const [calculationLoading, setCalculationLoading] = useState<boolean>(false);
+  const lastAutoUpdatedAmount = useRef<number>(0);
 
   // Check if the form is valid for saving
   const isFormValid = () => {
@@ -77,9 +79,21 @@ export function EditTicketModal({
     }
   }, [editForm.weightOut, editForm.numberOfBoxes, editForm.taux, ticket?.operationType, calculateEditTotalAmount, isMinimumPriceApplied]);
 
+  // Auto-update payment amount when isPaid changes or total amount changes
+  useEffect(() => {
+    if (editForm.isPaid && 
+        (!editForm.paymentAmount || parseFloat(editForm.paymentAmount) === 0) && 
+        totalAmount > 0 && 
+        lastAutoUpdatedAmount.current !== totalAmount) {
+      setEditForm(prev => ({ ...prev, paymentAmount: totalAmount.toFixed(2) }));
+      lastAutoUpdatedAmount.current = totalAmount;
+    }
+  }, [editForm.isPaid, totalAmount]);
+
   // Initialize calculations when modal opens
   useEffect(() => {
     if (isOpen && ticket?.operationType) {
+      lastAutoUpdatedAmount.current = 0; // Reset the ref when modal opens
       setCalculationLoading(true);
       Promise.all([
         calculateEditTotalAmount(ticket.operationType),
@@ -97,8 +111,14 @@ export function EditTicketModal({
   if (!isOpen || !ticket) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 text-foreground rounded-lg p-6 w-full max-w-lg shadow-lg relative">
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white dark:bg-gray-900 text-foreground rounded-lg p-6 w-full max-w-lg shadow-lg relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button 
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 z-10" 
           onClick={onClose}
@@ -262,16 +282,57 @@ export function EditTicketModal({
           </div>
         </div>
 
-        <div className="mb-6">
-          <label className="text-sm">
-            <span className="block mb-1">ملاحظات (اختياري)</span>
-            <Textarea
-              value={editForm.notes}
-              onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
-              placeholder="أدخل أي ملاحظات إضافية"
-              className="w-full"
-            />
-          </label>
+        {/* Payment Section */}
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <h3 className="text-sm font-semibold mb-4 text-gray-800 dark:text-gray-200">معلومات الدفع</h3>
+          
+          {/* Payment Status Checkbox */}
+          <div className="mb-4">
+            <div className="flex items-center space-x-2 rtl:space-x-reverse">
+              <Checkbox
+                id="isPaid"
+                checked={editForm.isPaid}
+                onCheckedChange={(checked) => {
+                  setEditForm((p) => ({ 
+                    ...p, 
+                    isPaid: checked as boolean,
+                    // Auto-fill payment amount with calculated total if marking as paid
+                    paymentAmount: checked && !p.paymentAmount ? totalAmount.toFixed(2) : p.paymentAmount
+                  }));
+                }}
+              />
+              <Label htmlFor="isPaid" className="text-sm font-medium">
+                تم الدفع
+              </Label>
+            </div>
+          </div>
+
+          {/* Payment Details - Only show if paid */}
+          {editForm.isPaid && (
+            <div className="space-y-4">
+              {/* Payment Amount */}
+              <div>
+                <Label htmlFor="paymentAmount" className="text-sm font-medium">
+                  المبلغ المدفوع (دينار)
+                </Label>
+                <Input
+                  id="paymentAmount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editForm.paymentAmount}
+                  onChange={(e) => setEditForm((p) => ({ ...p, paymentAmount: e.target.value }))}
+                  placeholder="أدخل المبلغ المدفوع"
+                  className="w-full mt-1"
+                />
+              </div>
+
+              {/* Payment Method is always cash - no need for selection */}
+              <div className="text-sm text-muted-foreground">
+                طريقة الدفع: نقدي
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Validation message for finishing operations */}

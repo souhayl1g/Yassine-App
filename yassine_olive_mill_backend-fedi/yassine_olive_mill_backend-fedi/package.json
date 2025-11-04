@@ -6,7 +6,7 @@
     "scripts": {
         "start": "node app.js",
         "dev": "nodemon app.js",
-	"migrate":"sequelize-cli db:migrate"
+        "migrate": "sequelize-cli db:migrate"
     },
     "dependencies": {
         "axios": "^1.12.2",
@@ -17,6 +17,7 @@
         "dotenv": "^17.2.2",
         "express": "^4.21.2",
         "express-validator": "^7.2.1",
+        "fuse.js": "^7.1.0",
         "helmet": "^8.1.0",
         "http-errors": "~1.6.3",
         "jsonwebtoken": "^9.0.2",

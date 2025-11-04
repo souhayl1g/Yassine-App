@@ -30,7 +30,7 @@ interface PressingRoomData {
 }
 
 interface QueueItem {
-  id: string;
+  id: number;
   batchId: number;
   ticketNumber: string;
   clientName: string;
@@ -43,7 +43,6 @@ interface QueueItem {
   weightIn: number;
   operationType: string;
   status: string;
-  type?: 'queuer_session' | 'pressing_queue';
 }
 
 interface CombinedDisplayData {
@@ -353,28 +352,16 @@ export function PressingDisplayPage() {
             {queueItems.map((queueItem, index) => (
               <div
                 key={queueItem.id}
-                className={`rounded-lg p-4 shadow-xl border relative ${
-                  queueItem.type === 'queuer_session' 
-                    ? 'bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400/30' 
-                    : 'bg-gradient-to-br from-orange-500 to-orange-600 border-orange-400/30'
-                }`}
+                className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-4 shadow-xl border border-orange-400/30 relative"
               >
                 {/* Queue Position Badge */}
-                <div className={`absolute -top-2 -right-2 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold ${
-                  queueItem.type === 'queuer_session' 
-                    ? 'bg-white text-blue-600' 
-                    : 'bg-white text-orange-600'
-                }`}>
+                <div className="absolute -top-2 -right-2 bg-white text-orange-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
                   {index + 1}
                 </div>
 
-                {/* Status Badge */}
-                <div className={`absolute -top-1 -left-1 text-white rounded-full px-2 py-1 text-xs font-bold ${
-                  queueItem.type === 'queuer_session' 
-                    ? 'bg-green-500' 
-                    : 'bg-gray-500'
-                }`}>
-                  {queueItem.type === 'queuer_session' ? `${queueItem.progress}%` : 'انتظار'}
+                {/* Progress Badge */}
+                <div className="absolute -top-1 -left-1 bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-bold">
+                  {queueItem.progress}%
                 </div>
 
                 {/* Client Info */}
@@ -388,28 +375,17 @@ export function PressingDisplayPage() {
                 </div>
 
                 {/* Progress Bar */}
-                {queueItem.type === 'queuer_session' ? (
-                  <div className="mb-3">
-                    <div className="bg-black/20 rounded-full h-2">
-                      <div 
-                        className="bg-white h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${queueItem.progress}%` }}
-                      ></div>
-                    </div>
-                    <div className="text-xs text-center mt-1 opacity-75">
-                      {queueItem.boxesQueued}/{queueItem.totalBoxes} صناديق
-                    </div>
+                <div className="mb-3">
+                  <div className="bg-black/20 rounded-full h-2">
+                    <div 
+                      className="bg-white h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${queueItem.progress}%` }}
+                    ></div>
                   </div>
-                ) : (
-                  <div className="mb-3">
-                    <div className="bg-black/20 rounded-full h-2">
-                      <div className="bg-gray-400 h-2 rounded-full w-full opacity-50"></div>
-                    </div>
-                    <div className="text-xs text-center mt-1 opacity-75">
-                      {queueItem.totalBoxes} صناديق (في الانتظار)
-                    </div>
+                  <div className="text-xs text-center mt-1 opacity-75">
+                    {queueItem.boxesQueued}/{queueItem.totalBoxes} صناديق
                   </div>
-                )}
+                </div>
 
                 {/* Compact Details */}
                 <div className="grid grid-cols-2 gap-2 text-xs text-center">
@@ -418,19 +394,15 @@ export function PressingDisplayPage() {
                     <div className="opacity-75">كجم</div>
                   </div>
                   <div className="bg-black/20 rounded px-2 py-1">
-                    <div className="font-bold">
-                      {queueItem.type === 'queuer_session' ? queueItem.boxesRemaining : queueItem.totalBoxes}
-                    </div>
-                    <div className="opacity-75">
-                      {queueItem.type === 'queuer_session' ? 'متبقي' : 'صناديق'}
-                    </div>
+                    <div className="font-bold">{queueItem.boxesRemaining}</div>
+                    <div className="opacity-75">متبقي</div>
                   </div>
                 </div>
 
-                {/* Operator/Queuer Info */}
+                {/* Queuer Info */}
                 <div className="text-center mt-2">
                   <div className="text-xs opacity-75 truncate">
-                    {queueItem.type === 'queuer_session' ? 'المشرف' : 'المشغل'}: {queueItem.queuerName}
+                    المشرف: {queueItem.queuerName}
                   </div>
                   <div className="text-xs opacity-75">
                     {new Date(queueItem.startedAt).toLocaleTimeString('en-US', { 
@@ -439,11 +411,6 @@ export function PressingDisplayPage() {
                       hour12: false 
                     })}
                   </div>
-                  {queueItem.type === 'queuer_session' && (
-                    <div className="text-xs text-green-200 font-semibold mt-1">
-                      جلسة نشطة
-                    </div>
-                  )}
                 </div>
               </div>
             ))}

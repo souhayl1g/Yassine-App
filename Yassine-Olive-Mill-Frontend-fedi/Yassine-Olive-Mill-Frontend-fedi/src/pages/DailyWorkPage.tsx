@@ -11,33 +11,15 @@ import { TicketDetailsModal } from '@/components/daily-work/TicketDetailsModal';
 import { OperationButtons } from '@/components/daily-work/OperationButtons';
 import { PaymentModal } from '@/components/payments/PaymentModal';
 import { PaymentHistoryModal } from '@/components/payments/PaymentHistoryModal';
-import { PaymentSummary } from '@/components/payments/PaymentSummary';
 import { useDailyWork } from '@/hooks/daily-work/useDailyWork';
 import { usePaymentOperations } from '@/hooks/usePaymentOperations';
 
 export function DailyWorkPage() {
   const dailyWork = useDailyWork();
   const payment = usePaymentOperations();
-  const [paymentStats, setPaymentStats] = useState({
-    totalPaid: 0,
-    totalTransactions: 0,
-    methodStats: {},
-    averagePayment: 0
-  });
-
-  // Load payment statistics on mount
-  useEffect(() => {
-    loadPaymentStats();
-  }, []);
-
-  const loadPaymentStats = async () => {
-    const stats = await payment.getPaymentStats();
-    setPaymentStats(stats);
-  };
 
   // Handle payment completion
   const handlePaymentComplete = () => {
-    loadPaymentStats();
     dailyWork.loadRecentTickets(dailyWork.currentPage);
   };
 
@@ -46,15 +28,6 @@ export function DailyWorkPage() {
       <div className="space-y-8">
         {/* Page Header */}
         <DailyWorkHeader dailyTicketCount={dailyWork.dailyTicketCount} />
-
-        {/* Payment Summary */}
-        <PaymentSummary
-          totalPaid={paymentStats.totalPaid}
-          totalTransactions={paymentStats.totalTransactions}
-          methodStats={paymentStats.methodStats}
-          averagePayment={paymentStats.averagePayment}
-          onViewHistory={() => payment.openPaymentHistory()}
-        />
 
         {/* Operation Buttons - Truck In/Out */}
         <OperationButtons

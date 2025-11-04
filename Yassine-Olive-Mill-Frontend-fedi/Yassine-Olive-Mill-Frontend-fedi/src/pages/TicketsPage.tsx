@@ -4,11 +4,14 @@ import { QRCodeSVG } from 'qrcode.react';
 import { OliveCard, OliveCardHeader, OliveCardContent, OliveCardTitle } from '@/components/ui/olive-card';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Input } from '@/components/ui/input';
+import { FuzzySearchInput, FuzzySearchHighlighter, SearchStats, useFuzzySearch } from '@/components/ui/fuzzy-search';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { api } from '@/integrations/api/client';
 import {
   Plus,
   Search,
@@ -24,9 +27,10 @@ import {
   UserPlus,
   Edit2,
   Printer,
+  DollarSign,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { api } from '@/integrations/api/client';
 import { BatchLoadingHistory } from '@/components/BatchLoadingHistory';
 
 interface Client {
@@ -90,8 +94,13 @@ export function TicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>(mockTickets);
   const [clients, setClients] = useState<Client[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [loadingTickets, setLoadingTickets] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [ticketsPerPage] = useState(20);
+  const [totalTickets, setTotalTickets] = useState(0);
+  const [useLocalFuzzySearch] = useState(true); // Always use smart fuzzy search
 
   const [isAddTicketOpen, setIsAddTicketOpen] = useState(false);
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
@@ -148,13 +157,27 @@ export function TicketsPage() {
     }
   };
 
-  // IMPORTANT: use /batches instead of /tickets
-  const loadTickets = async () => {
+  // IMPORTANT: use /batches instead of /tickets with server-side pagination
+  const loadTickets = async (page: number = currentPage, search: string = searchQuery, status: string = statusFilter) => {
+    setLoadingTickets(true);
     try {
-  const res = await api.get<any>('/batches?limit=30');
-      const payload = getPayload<any>(res);
-      const rawList = payload?.batches || payload?.tickets || payload?.items || payload || [];
+      // Build query parameters for server-side pagination and filtering
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: ticketsPerPage.toString(),
+        ...(search && { search, fuzzy: 'true' }), // Enable fuzzy search on server
+        ...(status !== 'all' && { status: status === 'draft' ? 'received' : status === 'confirmed' ? 'in_process' : 'completed' })
+      });
 
+      const res = await api.get<any>(`/batches?${params.toString()}`);
+      const payload = getPayload<any>(res);
+      
+      // Extract data and pagination info
+      const rawList = payload?.batches || payload?.data || payload?.items || payload || [];
+      const total = payload?.total || payload?.totalCount || payload?.count || payload?.pagination?.total || rawList.length;
+      
+      console.log('Server response:', { payload, rawList: rawList.length, total });
+      
       const list: Ticket[] = rawList.map((b: any) => {
         const cid = b.client_id ?? b.clientId;
         const clientName =
@@ -185,14 +208,45 @@ export function TicketsPage() {
       });
 
       setTickets(list);
+      setTotalTickets(total);
     } catch (e: any) {
+      console.error('Error loading tickets:', e);
       toast({ variant: 'destructive', title: t('common.error'), description: e?.message || 'Failed to load tickets' });
+    } finally {
+      setLoadingTickets(false);
     }
   };
 
+  // Load initial data
   useEffect(() => {
     loadClients();
-    loadTickets();
+    loadTickets(1, '', 'all');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load tickets when page changes
+  useEffect(() => {
+    loadTickets(currentPage, searchQuery, statusFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
+
+  // Debounced search and filter effect - always use local fuzzy search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setCurrentPage(1);
+      // We use local fuzzy search only, no server-side search needed
+    }, 500); // 500ms debounce for search
+
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, statusFilter]);
+
+  // Load all tickets for local fuzzy search
+  useEffect(() => {
+    if (tickets.length === 0) {
+      // Load all tickets for local smart search
+      loadTickets(1, '', statusFilter);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -387,7 +441,7 @@ export function TicketsPage() {
       setNewTicket({ clientId: '', weightIn: '', weightOut: '', numberOfBoxes: '', unitPrice: '', notes: '' });
       setSelectedClientId('');
       setIsAddTicketOpen(false);
-      await loadTickets();
+      await loadTickets(currentPage, searchQuery, statusFilter);
 
       toast({ title: t('common.success'), description: 'تم إنشاء التذكرة بنجاح' });
     } catch (e: any) {
@@ -411,7 +465,7 @@ export function TicketsPage() {
     setPaymentData({
       method: 'cash',
       reference: '',
-      amount: ticket.totalAmount?.toString() || '0',
+      amount: ticket.totalAmount ? Number(ticket.totalAmount).toString() : '0',
     });
   };
 
@@ -421,7 +475,7 @@ export function TicketsPage() {
     try {
       await api.delete(`/batches/${ticket.id}`);
       toast({ title: t('common.success'), description: 'تم حذف التذكرة' });
-      await loadTickets();
+      await loadTickets(currentPage, searchQuery, statusFilter);
     } catch (error: any) {
       console.error('Error deleting ticket:', error);
       toast({ variant: 'destructive', title: t('common.error'), description: error?.message || 'فشل في حذف التذكرة' });
@@ -464,7 +518,7 @@ export function TicketsPage() {
       await api.put(`/batches/${editModalTicket.id}`, payload);
       toast({ title: t('common.success'), description: 'تم تحديث التذكرة' });
       setEditModalTicket(null);
-      await loadTickets();
+      await loadTickets(currentPage, searchQuery, statusFilter);
     } catch (error: any) {
       console.error('Error updating ticket:', error);
       toast({ variant: 'destructive', title: t('common.error'), description: error?.message || 'فشل في تحديث التذكرة' });
@@ -484,7 +538,7 @@ export function TicketsPage() {
         date_paid: new Date().toISOString(),
       });
 
-      await loadTickets();
+      await loadTickets(currentPage, searchQuery, statusFilter);
       setPaymentModalTicket(null);
       setPaymentData({ method: 'cash', reference: '', amount: '' });
 
@@ -564,13 +618,61 @@ export function TicketsPage() {
       status: ticket.status,
     });
 
-  const filteredTickets = tickets.filter((ticket) => {
-    const matchesSearch =
-      ticket.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.clientName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
-    return matchesSearch && matchesStatus;
+  // Smart fuzzy search functionality - always enabled
+  const fuzzySearchResults = useFuzzySearch(
+    tickets,
+    searchQuery,
+    ['clientName', 'id', 'notes'],
+    { threshold: 0.4, minSearchLength: 2 }
+  );
+
+  // Always use fuzzy search results for smart name matching
+  const displayTickets = fuzzySearchResults.results.map(result => result.item);
+
+  // Calculate pagination based on smart search results
+  const effectiveTotalTickets = displayTickets.length;
+  const totalPages = Math.ceil(effectiveTotalTickets / ticketsPerPage);
+  const startIndex = (currentPage - 1) * ticketsPerPage;
+  const endIndex = Math.min(startIndex + ticketsPerPage, effectiveTotalTickets);
+  
+  console.log('Smart search pagination:', { 
+    totalTickets, 
+    effectiveTotalTickets, 
+    ticketsPerPage, 
+    totalPages, 
+    currentPage,
+    searchQuery 
   });
+
+  // Group tickets by date (tickets are already filtered on server)
+  const groupTicketsByDate = (tickets: Ticket[]) => {
+    const groups: { [key: string]: Ticket[] } = {};
+    
+    tickets.forEach((ticket) => {
+      const date = new Date(ticket.dateReceived);
+      const dateKey = date.toLocaleDateString('ar-TN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(ticket);
+    });
+
+    // Sort groups by date (newest first)
+    const sortedGroups = Object.entries(groups).sort(([a], [b]) => {
+      const dateA = new Date(groups[a][0].dateReceived);
+      const dateB = new Date(groups[b][0].dateReceived);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    return sortedGroups;
+  };
+
+  const groupedTickets = groupTicketsByDate(displayTickets);
 
   const getClientDisplayName = (client: Client): string => {
     const fullName = `${client.firstname} ${client.lastname}`.trim();
@@ -859,16 +961,27 @@ export function TicketsPage() {
       <OliveCard>
         <OliveCardContent className="p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="flex-1 relative">
-              <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="البحث برقم التذكرة أو اسم العميل..."
+            <div className="flex-1">
+              <FuzzySearchInput
+                placeholder="البحث الذكي برقم التذكرة أو اسم العميل... (يدعم البحث التقريبي وتبديل الأسماء)"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="olive-input pr-10"
+                onChange={setSearchQuery}
+                className="w-full"
+                showClearButton={true}
               />
+              <SearchStats
+                totalResults={displayTickets.length}
+                searchQuery={searchQuery}
+                hasSearch={!!searchQuery && searchQuery.length >= 2}
+                className="mt-2"
+              />
+              {searchQuery && searchQuery.length >= 2 && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  💡 البحث الذكي يدعم: أسماء العملاء، أرقام التذاكر، والملاحظات. يتعامل مع الأخطاء الإملائية والبحث التقريبي وتبديل الأسماء.
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="جميع الحالات" />
@@ -909,7 +1022,7 @@ export function TicketsPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">المبلغ المطلوب:</span>
                   <span className="text-lg font-bold text-primary">
-                    {paymentModalTicket.totalAmount?.toFixed(2)} دينار
+                    {paymentModalTicket.totalAmount ? Number(paymentModalTicket.totalAmount).toFixed(2) : '0.00'} دينار
                   </span>
                 </div>
               </div>
@@ -1000,8 +1113,15 @@ export function TicketsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Tickets Grid */}
-      {filteredTickets.length === 0 ? (
+      {/* Tickets List */}
+      {loadingTickets ? (
+        <OliveCard>
+          <OliveCardContent className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mb-4"></div>
+            <p className="text-muted-foreground">جاري تحميل التذاكر...</p>
+          </OliveCardContent>
+        </OliveCard>
+      ) : totalTickets === 0 ? (
         <OliveCard>
           <OliveCardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="h-16 w-16 text-muted-foreground mb-4" />
@@ -1014,152 +1134,309 @@ export function TicketsPage() {
           </OliveCardContent>
         </OliveCard>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredTickets.map((ticket) => (
-            <OliveCard key={ticket.id} className="hover:shadow-lg transition-shadow">
-              <OliveCardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <OliveCardTitle className="text-lg font-bold">#{ticket.id}</OliveCardTitle>
-                    <Badge className={getStatusColor(ticket.status)}>{t(`tickets.${ticket.status}`)}</Badge>
-                  </div>
-                  <div className="flex gap-1">
-                    <OliveButton variant="ghost" size="sm" onClick={() => handleViewQR(ticket)}>
-                      <QrCode className="h-4 w-4" />
-                    </OliveButton>
-                    <OliveButton variant="ghost" size="sm" onClick={() => handlePrint(ticket.id)}>
-                      <Printer className="h-4 w-4" />
-                    </OliveButton>
-                    {ticket.batchLoadings && ticket.batchLoadings.length > 0 && (
-                      <OliveButton 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleViewLoadingHistory(ticket)}
-                        title="عرض تاريخ تحميل الصناديق"
-                      >
-                        <Package className="h-4 w-4" />
-                      </OliveButton>
-                    )}
-                    {!ticket.isPaid && ticket.totalAmount && ticket.totalAmount > 0 && (
-                      <OliveButton
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleMarkAsPaid(ticket)}
-                        className="text-green-600 hover:text-green-700"
-                        title="تسجيل الدفع"
-                      >
-                        💰
-                      </OliveButton>
-                    )}
-                    <OliveButton variant="ghost" size="sm" onClick={() => handleEditTicket(ticket)} title="تعديل">
-                      <Edit2 className="h-4 w-4" />
-                    </OliveButton>
-                    <OliveButton variant="ghost" size="sm" onClick={() => handleDeleteTicket(ticket)} title="حذف">
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
-                    </OliveButton>
-                  </div>
-                </div>
-              </OliveCardHeader>
-
-              <OliveCardContent className="space-y-4">
-                {/* Client */}
+        <div className="space-y-6">
+          {/* Tickets Header */}
+          <OliveCard>
+            <OliveCardHeader>
+              <OliveCardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">{ticket.clientName}</span>
-                </div>
-
-                {/* QR preview */}
-                <div className="flex justify-center p-2">
-                  <div className="p-2 bg-white rounded border">
-                    <QRCodeSVG value={generateQRData(ticket)} size={80} level="M" />
-                  </div>
-                </div>
-
-                {/* Weights */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Scale className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">الأوزان</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm bg-muted/50 rounded-lg p-3">
-                    <div>
-                      <span className="text-muted-foreground block">داخل</span>
-                      <span className="font-semibold">{ticket.weightIn} كيلو</span>
-                    </div>
-                    {typeof ticket.weightOut === 'number' && (
-                      <div>
-                        <span className="text-muted-foreground block">خارج</span>
-                        <span className="font-semibold">{ticket.weightOut} كيلو</span>
-                      </div>
-                    )}
-                    {typeof ticket.netWeight === 'number' && (
-                      <div>
-                        <span className="text-muted-foreground block">صافي</span>
-                        <span className="font-semibold text-primary">{ticket.netWeight} كيلو</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Boxes */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">عدد الصناديق</span>
-                  </div>
-                  <span className="font-semibold">{ticket.numberOfBoxes}</span>
-                </div>
-
-                {/* Amount / payment */}
-                {ticket.totalAmount && ticket.totalAmount > 0 && (
-                  <div className="space-y-2 pt-2 border-t">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">سعر الكيلو</span>
-                      <span className="font-semibold">{ticket.unitPrice?.toFixed(2)} دينار</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">المبلغ الإجمالي</span>
-                      <span className="text-lg font-bold text-primary">{ticket.totalAmount.toFixed(2)} دينار</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">حالة الدفع</span>
-                      <Badge className={ticket.isPaid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                        {ticket.isPaid ? 'مدفوع' : 'غير مدفوع'}
-                      </Badge>
-                    </div>
-                    {ticket.isPaid && ticket.paymentMethod && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">طريقة الدفع</span>
-                        <span className="text-xs">
-                          {ticket.paymentMethod === 'cash'
-                            ? 'نقدي'
-                            : ticket.paymentMethod === 'card'
-                            ? 'بطاقة'
-                            : ticket.paymentMethod === 'bank_transfer'
-                            ? 'حوالة'
-                            : ticket.paymentMethod === 'check'
-                            ? 'شيك'
-                            : ticket.paymentMethod}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Date */}
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  <span>
-                    {new Date(ticket.dateReceived).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'numeric',
-                      day: 'numeric',
-                    })}
+                  <FileText className="h-5 w-5" />
+                  جميع التذاكر
+                  <span className="text-sm font-normal text-muted-foreground">
+                    ({totalTickets} تذكرة)
                   </span>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  الصفحة {currentPage} من {totalPages} - عرض {startIndex + 1}-{endIndex} من {effectiveTotalTickets}
+                  <span className="text-xs text-muted-foreground ml-2">(بحث ذكي)</span>
+                </div>
+              </OliveCardTitle>
+            </OliveCardHeader>
+          </OliveCard>
+
+          {/* Grouped Tickets */}
+          {groupedTickets.length === 0 ? (
+            <OliveCard>
+              <OliveCardContent className="text-center py-8">
+                <p className="text-muted-foreground">لا توجد تذاكر في هذه الصفحة</p>
+              </OliveCardContent>
+            </OliveCard>
+          ) : (
+            groupedTickets.map(([dateKey, ticketsInGroup]) => (
+              <OliveCard key={dateKey}>
+                <OliveCardHeader>
+                  <OliveCardTitle className="flex items-center gap-2 text-lg">
+                    <Calendar className="h-5 w-5" />
+                    {dateKey}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      ({ticketsInGroup.length} تذكرة)
+                    </span>
+                  </OliveCardTitle>
+                </OliveCardHeader>
+                <OliveCardContent>
+                  <div className="space-y-4">
+                    {ticketsInGroup.map((ticket) => (
+                      <div
+                        key={ticket.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="flex-shrink-0">
+                            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="text-sm font-semibold text-primary">
+                                <FuzzySearchHighlighter
+                                  text={`#${ticket.id}`}
+                                  searchWords={fuzzySearchResults.searchWords}
+                                  highlightClassName="bg-yellow-300 text-yellow-900 px-1 rounded"
+                                />
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-medium text-foreground">
+                                <FuzzySearchHighlighter
+                                  text={ticket.clientName}
+                                  searchWords={fuzzySearchResults.searchWords}
+                                  highlightClassName="bg-yellow-200 text-yellow-900 px-1 rounded font-semibold"
+                                />
+                              </h3>
+                              <span
+                                className={`text-xs px-2 py-1 rounded-full ${getStatusColor(ticket.status)}`}
+                              >
+                                {t(`tickets.${ticket.status}`)}
+                              </span>
+                              {ticket.isPaid ? (
+                                <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                                  مدفوع
+                                </span>
+                              ) : ticket.totalAmount && Number(ticket.totalAmount) > 0 ? (
+                                <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
+                                  مستحق الدفع
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              الوزن الداخل: {ticket.weightIn} كيلو • 
+                              {typeof ticket.netWeight === 'number' && ` الوزن الصافي: ${ticket.netWeight} كيلو • `}
+                              عدد الصناديق: {ticket.numberOfBoxes} • 
+                              {new Date(ticket.dateReceived).toLocaleTimeString('ar-TN', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}
+                            </div>
+                            {ticket.totalAmount && Number(ticket.totalAmount) > 0 && (
+                              <div className="text-sm font-medium text-primary">
+                                المبلغ الإجمالي: {Number(ticket.totalAmount).toFixed(2)} د.ت
+                                {ticket.isPaid && ticket.paymentMethod && (
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    • {ticket.paymentMethod === 'cash'
+                                      ? 'نقدي'
+                                      : ticket.paymentMethod === 'card'
+                                      ? 'بطاقة'
+                                      : ticket.paymentMethod === 'bank_transfer'
+                                      ? 'حوالة'
+                                      : ticket.paymentMethod === 'check'
+                                      ? 'شيك'
+                                      : ticket.paymentMethod}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {/* Payment Button - Show if ticket has amount and is not paid */}
+                          {!ticket.isPaid && ticket.totalAmount && Number(ticket.totalAmount) > 0 && (
+                            <OliveButton
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkAsPaid(ticket);
+                              }}
+                              title="تسجيل الدفع"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                            >
+                              <DollarSign className="h-4 w-4" />
+                            </OliveButton>
+                          )}
+                          
+                          {/* Loading History Button */}
+                          {ticket.batchLoadings && ticket.batchLoadings.length > 0 && (
+                            <OliveButton
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewLoadingHistory(ticket);
+                              }}
+                              title="عرض تاريخ تحميل الصناديق"
+                            >
+                              <Package className="h-4 w-4" />
+                            </OliveButton>
+                          )}
+                          
+                          <OliveButton
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewQR(ticket);
+                            }}
+                            title="عرض رمز QR"
+                          >
+                            <QrCode className="h-4 w-4" />
+                          </OliveButton>
+                          <OliveButton
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrint(ticket.id);
+                            }}
+                            title="طباعة التذكرة"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </OliveButton>
+                          <OliveButton
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditTicket(ticket);
+                            }}
+                            title="تعديل التذكرة"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </OliveButton>
+                          <OliveButton
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTicket(ticket);
+                            }}
+                            title="حذف التذكرة"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                          </OliveButton>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </OliveCardContent>
+              </OliveCard>
+            ))
+          )}
+
+          {/* Enhanced Pagination */}
+          {totalTickets > 0 && (
+            <OliveCard>
+              <OliveCardHeader>
+                <OliveCardTitle className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <span>عرض {startIndex + 1}-{endIndex} من أصل {effectiveTotalTickets} تذكرة</span>
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">بحث ذكي</span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    الصفحة {currentPage} من {totalPages}
+                  </div>
+                </OliveCardTitle>
+              </OliveCardHeader>
+              <OliveCardContent className="flex items-center justify-between py-4">
+                {/* First Page and Previous */}
+                <div className="flex items-center gap-2">
+                  <OliveButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="gap-1"
+                  >
+                    الأولى
+                  </OliveButton>
+                  <OliveButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="gap-1"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                    السابق
+                  </OliveButton>
+                </div>
+                
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 7) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 4) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 3) {
+                      pageNum = totalPages - 6 + i;
+                    } else {
+                      pageNum = currentPage - 3 + i;
+                    }
+                    
+                    return (
+                      <OliveButton
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "primary" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`min-w-[40px] ${currentPage === pageNum ? 'font-bold' : ''}`}
+                      >
+                        {pageNum}
+                      </OliveButton>
+                    );
+                  })}
+                  
+                  {/* Show ellipsis if there are more pages */}
+                  {totalPages > 7 && currentPage < totalPages - 3 && (
+                    <>
+                      <span className="px-2 text-muted-foreground">...</span>
+                      <OliveButton
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        className="min-w-[40px]"
+                      >
+                        {totalPages}
+                      </OliveButton>
+                    </>
+                  )}
+                </div>
+                
+                {/* Next and Last Page */}
+                <div className="flex items-center gap-2">
+                  <OliveButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="gap-1"
+                  >
+                    التالي
+                    <ChevronLeft className="h-4 w-4" />
+                  </OliveButton>
+                  <OliveButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="gap-1"
+                  >
+                    الأخيرة
+                  </OliveButton>
                 </div>
               </OliveCardContent>
             </OliveCard>
-          ))}
+          )}
         </div>
       )}
 

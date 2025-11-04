@@ -90,7 +90,7 @@ export const UserManagementPage: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/users');
-      const userData = response?.data || response;
+      const userData = (response as any)?.data || response;
       
       if (Array.isArray(userData)) {
         setUsers(userData);
@@ -471,9 +471,9 @@ export const UserManagementPage: React.FC = () => {
                     </OliveButton>
                     <OliveButton
                       size="sm"
-                      variant="destructive"
+                      variant="outline"
                       onClick={() => handleDeleteUser(user.id)}
-                      className="gap-2"
+                      className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
                       <Trash2 className="h-4 w-4" />
                       حذف

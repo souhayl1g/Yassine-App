@@ -101,7 +101,6 @@ export const useDailyWork = () => {
         weight_in: weightIn,
         net_weight: weightIn,
         operation_type: newTicket.operationType,
-        notes: newTicket.notes || undefined,
         status: 'received',
       };
 
@@ -129,7 +128,6 @@ export const useDailyWork = () => {
         dateReceived: new Date().toISOString(),
         status: 'received',
         operationType: newTicket.operationType as 'milling' | 'sale',
-        notes: newTicket.notes,
         qrCode: qrCode
       };
 
@@ -152,7 +150,6 @@ export const useDailyWork = () => {
         lastname: '', 
         weightIn: '', 
         operationType: 'milling',
-        notes: '' 
       });
       ticketManagement.setSelectedClient(null);
       setIsAddTicketOpen(false);
@@ -174,7 +171,6 @@ export const useDailyWork = () => {
       lastname: '',
       weightIn: '',
       operationType: 'milling',
-      notes: '',
     });
     ticketManagement.setSelectedClient(null);
   };
@@ -191,7 +187,6 @@ export const useDailyWork = () => {
         ticketNumber: latestTicket.ticketNumber,
         weightOut: latestTicket.weightOut,
         numberOfBoxes: latestTicket.numberOfBoxes,
-        notes: latestTicket.notes
       });
       
       ticketManagement.setScannedTicket(latestTicket);
@@ -199,8 +194,10 @@ export const useDailyWork = () => {
       ticketManagement.setEditForm({
         weightOut: latestTicket.weightOut !== undefined ? String(latestTicket.weightOut) : '',
         numberOfBoxes: latestTicket.numberOfBoxes ? String(latestTicket.numberOfBoxes) : '',
-        notes: latestTicket.notes || '',
         taux: '', // Reset taux for each ticket
+        // Payment fields
+        isPaid: latestTicket.isPaid || false,
+        paymentAmount: latestTicket.totalAmount ? String(latestTicket.totalAmount) : '',
       });
 
       // If this is a sale operation, load oil batch weights
@@ -311,13 +308,30 @@ export const useDailyWork = () => {
       const payload = {
         weightOut: parseFloat(ticketManagement.editForm.weightOut),
         numberOfBoxes: parseInt(ticketManagement.editForm.numberOfBoxes) || 0,
-        notes: ticketManagement.editForm.notes,
         ...(ticketManagement.scannedTicket.operationType === 'sale' && ticketManagement.editForm.taux && {
           taux: parseFloat(ticketManagement.editForm.taux)
+        }),
+        // Payment fields
+        isPaid: ticketManagement.editForm.isPaid,
+        ...(ticketManagement.editForm.isPaid && {
+          paymentAmount: parseFloat(ticketManagement.editForm.paymentAmount) || 0,
+          paymentMethod: 'cash', // Always cash
+          datePaid: new Date().toISOString()
         })
       };
 
+      console.log('💾 PAYMENT DEBUG: Full payload being sent:', JSON.stringify(payload, null, 2));
+      console.log('💰 PAYMENT DEBUG: Payment fields specifically:', {
+        isPaid: payload.isPaid,
+        paymentAmount: payload.paymentAmount,
+        paymentMethod: payload.paymentMethod,
+        datePaid: payload.datePaid
+      });
+
       const response = await ticketManagement.updateBatch(ticketManagement.scannedTicket.id, payload);
+      
+      console.log('📡 PAYMENT DEBUG: Server response:', response);
+      console.log('📦 PAYMENT DEBUG: Response data:', response?.data);
       
       if (response.success) {
         setIsEditModalOpen(false);
@@ -550,7 +564,9 @@ export const useDailyWork = () => {
   // Calculate edit net weight
   const calculateEditNetWeight = () => {
     if (!ticketManagement.scannedTicket) return 0;
-    const weightOut = ticketManagement.editForm.weightOut ? parseFloat(ticketManagement.editForm.weightOut) : 0;
+    // Don't calculate if weightOut is empty
+    if (!ticketManagement.editForm.weightOut || ticketManagement.editForm.weightOut.trim() === '') return 0;
+    const weightOut = parseFloat(ticketManagement.editForm.weightOut);
     return Math.max(0, ticketManagement.scannedTicket.weightIn - weightOut);
   };
 

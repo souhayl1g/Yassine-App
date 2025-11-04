@@ -1,5 +1,6 @@
 import db from "../models/index.js"
 import { Op } from 'sequelize';
+import Fuse from 'fuse.js';
 
 
 const { Batch, Client, Price, OilBatch, QualityTest, PressingSession, PressingRoom, BatchLoading } = db;
@@ -9,12 +10,124 @@ const batchController = {
   // GET /api/batches
   getAllBatches: async (req, res) => {
     try {
-      const { page = 1, limit = 10, status, clientId, date } = req.query;
+      const { page = 1, limit = 10, status, clientId, date, search } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
       
       const whereClause = {};
+      const includeClause = [
+        { model: Client, as: 'client', attributes: ['id', 'firstname', 'lastname'] },
+        { model: Price, as: 'price' },
+        { 
+          model: db.PressingRoom, 
+          as: 'pressingRoom', 
+          attributes: ['id', 'name'],
+          required: false
+        },
+        { model: OilBatch, as: 'oilBatches' },
+        { 
+          model: db.BatchLoading, 
+          as: 'batchLoadings',
+          include: [
+            { model: PressingRoom, as: 'pressingRoom', attributes: ['id', 'name'] },
+            { model: db.User, as: 'operator', attributes: ['id', 'firstname', 'lastname', 'email'] }
+          ],
+          required: false
+        }
+      ];
+
       if (status) whereClause.status = status;
       if (clientId) whereClause.clientId = parseInt(clientId);
+
+      // Enhanced search functionality with fuzzy matching
+      let useFuzzySearch = false;
+      let allBatches = [];
+      
+      if (search && search.trim()) {
+        const searchTerm = search.trim();
+        
+        // Try fuzzy search first for better results
+        if (req.query.fuzzy === 'true' || searchTerm.length < 3) {
+          useFuzzySearch = true;
+          
+          // Get all batches for fuzzy search (with reasonable limit)
+          allBatches = await Batch.findAll({
+            where: status ? { status } : {},
+            include: includeClause,
+            order: [['date_received', 'DESC']],
+            limit: 1000 // Reasonable limit for fuzzy search
+          });
+
+          // Prepare data for fuzzy search
+          const searchData = allBatches.map(batch => ({
+            ...batch.toJSON(),
+            fullName: batch.client ? `${batch.client.firstname} ${batch.client.lastname}`.trim() : '',
+            searchableText: [
+              batch.id?.toString(),
+              batch.ticket_number,
+              batch.client ? `${batch.client.firstname} ${batch.client.lastname}`.trim() : '',
+              batch.notes
+            ].filter(Boolean).join(' ')
+          }));
+
+          // Configure fuzzy search
+          const fuseOptions = {
+            keys: [
+              { name: 'id', weight: 0.3 },
+              { name: 'ticket_number', weight: 0.3 },
+              { name: 'fullName', weight: 0.3 },
+              { name: 'notes', weight: 0.1 }
+            ],
+            threshold: 0.4, // More permissive for typos
+            includeScore: true,
+            includeMatches: true,
+            minMatchCharLength: 2
+          };
+
+          const fuse = new Fuse(searchData, fuseOptions);
+          const fuzzyResults = fuse.search(searchTerm);
+          
+          // Extract the original batch objects
+          allBatches = fuzzyResults.map(result => result.item);
+        } else {
+          // Use traditional database search for longer queries
+          const searchConditions = [
+            // Search by batch ID
+            ...(isNaN(parseInt(searchTerm)) ? [] : [{ id: parseInt(searchTerm) }]),
+            
+            // Search by ticket number
+            { ticket_number: { [Op.iLike]: `%${searchTerm}%` } },
+            
+            // Search by notes
+            { notes: { [Op.iLike]: `%${searchTerm}%` } }
+          ];
+
+          // Add client search to include clause
+          includeClause[0] = {
+            model: Client,
+            as: 'client',
+            attributes: ['id', 'firstname', 'lastname'],
+            where: {
+              [Op.or]: [
+                { firstname: { [Op.iLike]: `%${searchTerm}%` } },
+                { lastname: { [Op.iLike]: `%${searchTerm}%` } },
+                // Concatenated full name search
+                db.sequelize.where(
+                  db.sequelize.fn('CONCAT', 
+                    db.sequelize.col('client.firstname'), 
+                    ' ', 
+                    db.sequelize.col('client.lastname')
+                  ),
+                  { [Op.iLike]: `%${searchTerm}%` }
+                )
+              ]
+            },
+            required: false
+          };
+
+          // Combine all search conditions
+          whereClause[Op.or] = searchConditions;
+        }
+      }
       
       // Filter by date if provided (for daily ticket counting)
       if (date) {
@@ -29,40 +142,54 @@ const batchController = {
         };
       }
 
-      // Get the total count separately to avoid JOIN inflation
-      const totalCount = await Batch.count({
-        where: whereClause
-      });
+      let totalCount;
+      let batchRows;
 
-      // Get the batch data with includes
-      const batchRows = await Batch.findAll({
-        where: whereClause,
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        include: [
-          { model: Client, as: 'client', attributes: ['id', 'firstname', 'lastname'] },
-          { model: Price, as: 'price' },
+      if (useFuzzySearch) {
+        // Use fuzzy search results
+        totalCount = allBatches.length;
+        
+        // Apply pagination to fuzzy search results
+        batchRows = allBatches.slice(offset, offset + parseInt(limit));
+        
+        // Convert back to Sequelize instances if needed
+        batchRows = await Promise.all(batchRows.map(async (batch) => {
+          if (batch.toJSON) return batch;
+          // If it's already JSON, find the original batch
+          const originalBatch = await Batch.findByPk(batch.id, {
+            include: includeClause
+          });
+          return originalBatch;
+        }));
+        
+        // Filter out any null results
+        batchRows = batchRows.filter(Boolean);
+      } else {
+        // Use traditional database search
+        if (search && search.trim()) {
+          // Count with the same conditions as the main query
+          totalCount = await Batch.count({
+            where: whereClause,
+            include: includeClause,
+            distinct: true
+          });
+        } else {
+          // Simple count for non-search queries
+          totalCount = await Batch.count({
+            where: whereClause
+          });
+        }
 
-          { 
-            model: db.PressingRoom, 
-            as: 'pressingRoom', 
-            attributes: ['id', 'name'],
-            required: false // LEFT JOIN to include batches without pressing rooms
-          },
-
-          { model: OilBatch, as: 'oilBatches' },
-          { 
-            model: db.BatchLoading, 
-            as: 'batchLoadings',
-            include: [
-              { model: PressingRoom, as: 'pressingRoom', attributes: ['id', 'name'] },
-              { model: db.User, as: 'operator', attributes: ['id', 'firstname', 'lastname', 'email'] }
-            ],
-            required: false // LEFT JOIN to include batches without loading history
-          }
-        ],
-        order: [['date_received', 'DESC']]
-      });
+        // Get the batch data with includes
+        batchRows = await Batch.findAll({
+          where: whereClause,
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          include: includeClause,
+          order: [['date_received', 'DESC']],
+          distinct: true
+        });
+      }
 
       res.json({
         batches: batchRows,

@@ -50,8 +50,10 @@ export const useTicketManagement = () => {
   const [editForm, setEditForm] = useState<EditTicketForm>({
     weightOut: '',
     numberOfBoxes: '',
-    notes: '',
     taux: '',
+    // Payment fields
+    isPaid: false,
+    paymentAmount: '',
   });
 
   const [newTicket, setNewTicket] = useState<NewTicketForm>({
@@ -59,7 +61,6 @@ export const useTicketManagement = () => {
     lastname: '',
     weightIn: '',
     operationType: 'milling',
-    notes: '',
   });
 
   // Load clients from API
@@ -109,7 +110,7 @@ export const useTicketManagement = () => {
         tickets.map(async (ticket: any) => {
           const qrCode = await generateQRCode({
             id: ticket.id,
-            ticketNumber: ticket.ticket_number || generateDailyTicketNumber(dailyTicketCount),
+            ticketNumber: ticket.ticket_number || await generateDailyTicketNumber(),
             clientName: ticket.client ? `${ticket.client.firstname} ${ticket.client.lastname}` : `عميل #${ticket.clientId}`,
             weightIn: ticket.weight_in,
             dateReceived: ticket.date_received
@@ -117,7 +118,7 @@ export const useTicketManagement = () => {
           
           return {
             id: String(ticket.id),
-            ticketNumber: ticket.ticket_number || generateDailyTicketNumber(dailyTicketCount),
+            ticketNumber: ticket.ticket_number || await generateDailyTicketNumber(),
             clientId: String(ticket.clientId),
             clientName: ticket.client ? `${ticket.client.firstname} ${ticket.client.lastname}` : `عميل #${ticket.clientId}`,
             weightIn: ticket.weight_in ?? 0,
@@ -197,7 +198,7 @@ export const useTicketManagement = () => {
 
       const qrCode = await generateQRCode({
         id: data.id,
-        ticketNumber: data.ticket_number || generateDailyTicketNumber(dailyTicketCount),
+        ticketNumber: data.ticket_number || await generateDailyTicketNumber(),
         clientName: data.client ? `${data.client.firstname} ${data.client.lastname}` : `عميل #${data.clientId}`,
         weightIn: data.weight_in,
         dateReceived: data.date_received
@@ -205,7 +206,7 @@ export const useTicketManagement = () => {
 
       const ticket: ScannedTicket = {
         id: String(data.id),
-        ticketNumber: data.ticket_number || generateDailyTicketNumber(dailyTicketCount),
+        ticketNumber: data.ticket_number || await generateDailyTicketNumber(),
         clientId: String(data.clientId),
         clientName: data.client
           ? `${data.client.firstname || ''} ${data.client.lastname || ''}`.trim() || `#${data.clientId}`
@@ -281,7 +282,7 @@ export const useTicketManagement = () => {
   const initializeData = async () => {
     await Promise.all([
       loadClients(),
-      loadRecentTickets(),
+      loadRecentTickets(1),
       loadCurrentPrices(),
       loadDailyTicketCount().then(setDailyTicketCount)
     ]);

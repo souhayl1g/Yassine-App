@@ -19,10 +19,8 @@ import { QueuerScannerPage } from "./pages/QueuerScannerPage";
 import { BatchManagementPage } from "./pages/BatchManagementPage";
 import { PressingDisplayPage } from "./pages/PressingDisplayPage";
 import { RoomsPage } from "@/pages/RoomsPage";
-import { HistoryPage } from "@/pages/HistoryPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import ContainersPage from "@/pages/ContainersPage";
-import SessionsPage from "@/pages/SessionsPage";
 import "./i18n";
 import { OperatorScannerPage } from "@/pages/OperatorScannerPage";
 import { EmployeeScannerPage } from "@/pages/EmployeeScannerPage";
@@ -63,7 +61,6 @@ const App = () => {
                 <Route path="/clients" element={<ProtectedRoute roles={['admin', 'operator']}><ClientsPage /></ProtectedRoute>} />
                 <Route path="/tickets" element={<ProtectedRoute roles={['admin', 'operator']}><TicketsPage /></ProtectedRoute>} />
                 <Route path="/containers" element={<ProtectedRoute roles={['admin', 'operator']}><ContainersPage /></ProtectedRoute>} />
-                <Route path="/sessions" element={<ProtectedRoute roles={['admin', 'operator']}><SessionsPage /></ProtectedRoute>} />
                 {/* <Route path="/qr" element={<QRScannerPage />} /> */}
                 <Route path="/scanner" element={<ScannerPage />} />
                 <Route path="/queuer-scanner" element={<ProtectedRoute roles={['queuer']}><QueuerScannerPage /></ProtectedRoute>} />
@@ -73,7 +70,6 @@ const App = () => {
                 <Route path="/pressing-display" element={<PressingDisplayPage />} />
                 <Route path="/rooms" element={<ProtectedRoute roles={['admin', 'operator']}><RoomsPage /></ProtectedRoute>} />
                 <Route path="/payments" element={<ProtectedRoute roles={['admin', 'operator']}><PaymentsPage /></ProtectedRoute>} />
-                <Route path="/history" element={<ProtectedRoute roles={['admin', 'operator']}><HistoryPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute roles={['admin']}><SettingsPage /></ProtectedRoute>} />
                 <Route path="/admin/users" element={<ProtectedRoute roles={['admin']}><UserManagementPage /></ProtectedRoute>} />
                 <Route path="/batch-loading-test" element={<ProtectedRoute roles={['admin']}><BatchLoadingTestPage /></ProtectedRoute>} />

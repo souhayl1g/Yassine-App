@@ -32,7 +32,6 @@ const navigationItems = [
   { key: 'tickets', icon: FileText, href: '/tickets', roles: ['admin'] },
   { key: 'payments', icon: DollarSign, href: '/payments', roles: ['admin', 'operator'] },
   { key: 'containers', icon: Container, href: '/containers', roles: ['admin', 'operator'] },
-  { key: 'sessions', icon: Clock, href: '/sessions', roles: ['admin', 'operator'] },
   { key: 'scanner', icon: QrCode, href: '/scanner', roles: [ 'scanner'] },
   { key: 'queuerScanner', icon: Users, href: '/queuer-scanner', roles: ['queuer'] },
   { key: 'operatorScanner', icon: QrCode, href: '/operator-scanner', roles: ['operator'] },
@@ -41,7 +40,6 @@ const navigationItems = [
   { key: 'pressingDisplay', icon: Monitor, href: '/pressing-display', roles: ['admin'] },
   { key: 'rooms', icon: Building2, href: '/rooms', roles: ['admin', 'operator'] },
   { key: 'userManagement', icon: Users, href: '/admin/users', roles: ['admin'] },
-  { key: 'history', icon: History, href: '/history', roles: ['admin'] },
   { key: 'settings', icon: Settings, href: '/settings', roles: ['admin'] },
 ];
 

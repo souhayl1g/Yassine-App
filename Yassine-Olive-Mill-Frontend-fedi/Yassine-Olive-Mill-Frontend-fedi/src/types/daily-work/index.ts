@@ -43,14 +43,15 @@ export interface NewTicketForm {
   lastname: string;
   weightIn: string;
   operationType: 'milling' | 'sale';
-  notes: string;
 }
 
 export interface EditTicketForm {
   weightOut: string;
   numberOfBoxes: string;
-  notes: string;
   taux: string; // Oil extraction percentage for sale operations
+  // Payment fields
+  isPaid: boolean;
+  paymentAmount: string;
 }
 
 export interface Price {

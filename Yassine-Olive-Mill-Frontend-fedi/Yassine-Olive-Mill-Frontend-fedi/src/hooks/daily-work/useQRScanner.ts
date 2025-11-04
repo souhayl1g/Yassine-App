@@ -109,6 +109,9 @@ export const useQRScanner = (
         numberOfBoxes: ticket.numberOfBoxes ? String(ticket.numberOfBoxes) : '',
         notes: ticket.notes || '',
         taux: '', // Reset taux for each ticket
+        // Payment fields
+        isPaid: ticket.isPaid || false,
+        paymentAmount: ticket.totalAmount ? String(ticket.totalAmount) : '',
       });
 
       setIsFinishingOperation(true);
