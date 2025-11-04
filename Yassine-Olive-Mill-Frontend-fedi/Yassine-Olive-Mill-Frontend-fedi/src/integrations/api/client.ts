@@ -33,6 +33,7 @@ async function request<T>(method: HttpMethod, path: string, body?: unknown, init
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    'ngrok-skip-browser-warning': '1',  // Skip ngrok browser warning
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(init?.headers || {}),
   };
