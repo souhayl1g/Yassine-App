@@ -30,29 +30,20 @@ interface PressingRoomData {
 }
 
 interface QueueItem {
-  id: number;
-  batch_id: number;
-  number_of_boxes: number;
-  priority: number;
+  id: string;
+  batchId: number;
+  ticketNumber: string;
+  clientName: string;
+  totalBoxes: number;
+  boxesQueued: number;
+  boxesRemaining: number;
+  progress: number;
+  startedAt: string;
+  queuerName: string;
+  weightIn: number;
+  operationType: string;
   status: string;
-  notes?: string;
-  created_at: string;
-  batch: {
-    id: number;
-    ticket_number: string;
-    weight_in: number;
-    number_of_boxes: number;
-    client: {
-      id: number;
-      firstname: string;
-      lastname: string;
-    };
-  };
-  operator: {
-    id: number;
-    firstname: string;
-    lastname: string;
-  };
+  type?: 'queuer_session' | 'pressing_queue';
 }
 
 interface CombinedDisplayData {
@@ -347,62 +338,112 @@ export function PressingDisplayPage() {
             {queueItems.length}
           </div>
           <div className="text-lg text-white/80">في الطابور</div>
-        </div>
-      </div>
-
-      {/* Queue Section - Compact Version */}
-      {queueItems.length > 0 && (
-        <div className="mt-6 mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <List className="h-6 w-6 text-orange-400" />
-            <h2 className="text-2xl font-bold text-orange-400">طابور الانتظار</h2>
           </div>
-          
+        </div>
+
+        {/* Queue Section - Compact Version */}
+        {queueItems.length > 0 && (
+          <div className="mt-6 mb-8">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <List className="h-6 w-6 text-orange-400" />
+              <h2 className="text-2xl font-bold text-orange-400">طابور الانتظار</h2>
+            </div>
+            
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
             {queueItems.map((queueItem, index) => (
               <div
                 key={queueItem.id}
-                className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-3 shadow-xl border border-orange-400/30 relative"
+                className={`rounded-lg p-4 shadow-xl border relative ${
+                  queueItem.type === 'queuer_session' 
+                    ? 'bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400/30' 
+                    : 'bg-gradient-to-br from-orange-500 to-orange-600 border-orange-400/30'
+                }`}
               >
                 {/* Queue Position Badge */}
-                <div className="absolute -top-2 -right-2 bg-white text-orange-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                <div className={`absolute -top-2 -right-2 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold ${
+                  queueItem.type === 'queuer_session' 
+                    ? 'bg-white text-blue-600' 
+                    : 'bg-white text-orange-600'
+                }`}>
                   {index + 1}
                 </div>
 
-                {/* Priority Badge */}
-                {queueItem.priority > 0 && (
-                  <div className="absolute -top-1 -left-1 bg-red-500 rounded-full w-3 h-3"></div>
-                )}
+                {/* Status Badge */}
+                <div className={`absolute -top-1 -left-1 text-white rounded-full px-2 py-1 text-xs font-bold ${
+                  queueItem.type === 'queuer_session' 
+                    ? 'bg-green-500' 
+                    : 'bg-gray-500'
+                }`}>
+                  {queueItem.type === 'queuer_session' ? `${queueItem.progress}%` : 'انتظار'}
+                </div>
 
                 {/* Client Info */}
-                <div className="text-center mb-2">
+                <div className="text-center mb-3">
                   <div className="font-bold text-base text-white mb-1 truncate">
-                    {queueItem.batch.client.firstname} {queueItem.batch.client.lastname}
+                    {queueItem.clientName}
                   </div>
                   <div className="text-xs opacity-75">
-                    #{queueItem.batch.ticket_number}
+                    #{queueItem.ticketNumber}
                   </div>
                 </div>
+
+                {/* Progress Bar */}
+                {queueItem.type === 'queuer_session' ? (
+                  <div className="mb-3">
+                    <div className="bg-black/20 rounded-full h-2">
+                      <div 
+                        className="bg-white h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${queueItem.progress}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-center mt-1 opacity-75">
+                      {queueItem.boxesQueued}/{queueItem.totalBoxes} صناديق
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-3">
+                    <div className="bg-black/20 rounded-full h-2">
+                      <div className="bg-gray-400 h-2 rounded-full w-full opacity-50"></div>
+                    </div>
+                    <div className="text-xs text-center mt-1 opacity-75">
+                      {queueItem.totalBoxes} صناديق (في الانتظار)
+                    </div>
+                  </div>
+                )}
 
                 {/* Compact Details */}
-                <div className="grid grid-cols-2 gap-1 text-xs text-center">
-                  <div className="bg-black/20 rounded px-1 py-1">
-                    <div className="font-bold">{queueItem.batch.weight_in}</div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-center">
+                  <div className="bg-black/20 rounded px-2 py-1">
+                    <div className="font-bold">{queueItem.weightIn}</div>
                     <div className="opacity-75">كجم</div>
                   </div>
-                  <div className="bg-black/20 rounded px-1 py-1">
-                    <div className="font-bold">{queueItem.number_of_boxes}</div>
-                    <div className="opacity-75">صندوق</div>
+                  <div className="bg-black/20 rounded px-2 py-1">
+                    <div className="font-bold">
+                      {queueItem.type === 'queuer_session' ? queueItem.boxesRemaining : queueItem.totalBoxes}
+                    </div>
+                    <div className="opacity-75">
+                      {queueItem.type === 'queuer_session' ? 'متبقي' : 'صناديق'}
+                    </div>
                   </div>
                 </div>
 
-                {/* Time */}
-                <div className="text-center mt-2 text-xs opacity-75">
-                  {new Date(queueItem.created_at).toLocaleTimeString('en-US', { 
-                    hour: '2-digit', 
-                    minute: '2-digit',
-                    hour12: false 
-                  })}
+                {/* Operator/Queuer Info */}
+                <div className="text-center mt-2">
+                  <div className="text-xs opacity-75 truncate">
+                    {queueItem.type === 'queuer_session' ? 'المشرف' : 'المشغل'}: {queueItem.queuerName}
+                  </div>
+                  <div className="text-xs opacity-75">
+                    {new Date(queueItem.startedAt).toLocaleTimeString('en-US', { 
+                      hour: '2-digit', 
+                      minute: '2-digit',
+                      hour12: false 
+                    })}
+                  </div>
+                  {queueItem.type === 'queuer_session' && (
+                    <div className="text-xs text-green-200 font-semibold mt-1">
+                      جلسة نشطة
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
