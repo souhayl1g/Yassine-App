@@ -56,10 +56,7 @@ export function EditTicketModal({
 
   // Check if the form is valid for saving
   const isFormValid = () => {
-    if (isFinishingOperation) {
-      const numberOfBoxes = parseInt(editForm.numberOfBoxes) || 0;
-      return numberOfBoxes > 0;
-    }
+    // Allow saving even without numberOfBoxes specified
     return true;
   };
 
@@ -352,15 +349,6 @@ export function EditTicketModal({
             </div>
           )}
         </div>
-
-        {/* Validation message for finishing operations */}
-        {isFinishingOperation && !isFormValid() && (
-          <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded">
-            <div className="text-orange-800 dark:text-orange-200 text-sm">
-              <strong>تنبيه:</strong> لا يمكن إكمال العملية بدون تحديد عدد الصناديق. يرجى انتظار المسؤول لمسح وإدخال عدد الصناديق المطلوب.
-            </div>
-          </div>
-        )}
 
         <div className="space-y-3">
           {/* Primary Action */}
