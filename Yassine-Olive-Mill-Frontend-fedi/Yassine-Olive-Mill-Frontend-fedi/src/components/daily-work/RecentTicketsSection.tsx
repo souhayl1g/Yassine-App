@@ -213,15 +213,16 @@ export function RecentTicketsSection({
                                   }`}>
                                     {isSettled ? 'مدفوع' : 'مستحق الدفع'}
                                   </span>
+                                  {/* Always show amount, but in red for sale operations */}
+                                  <span className={`${
+                                    ticket.operationType === 'sale' ? 'text-red-500 ' : 'text-primary'
+                                  }`}>
+                                    المبلغ: {displayAmount.toFixed(2)} د.ت
+                                  </span>
                                   {isSettled && (
-                                    <>
-                                      <span className="text-primary">
-                                        المبلغ: {displayAmount.toFixed(2)} د.ت
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">
-                                        {`${totalPaid.toFixed(2)} / ${displayAmount.toFixed(2)} د.ت`}
-                                      </span>
-                                    </>
+                                    <span className="text-xs text-muted-foreground">
+                                      {`${totalPaid.toFixed(2)} / ${displayAmount.toFixed(2)} د.ت`}
+                                    </span>
                                   )}
                                 </div>
                               );
