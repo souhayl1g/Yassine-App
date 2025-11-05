@@ -165,6 +165,12 @@ export function DailyWorkPage() {
           dailyWork.setIsQrScanOpen(false);
           dailyWork.setIsCameraScanOpen(true);
         }}
+        onDeviceScan={(qrData) => {
+          // Handle device scan - create a fake file to reuse existing handleQRScan logic
+          const fakeFile = new File([qrData], 'qr-scan.txt', { type: 'text/plain' });
+          // For device scan, we need to directly process the QR data
+          dailyWork.handleQRResult(qrData);
+        }}
       />
 
       {/* Payment Modal */}
