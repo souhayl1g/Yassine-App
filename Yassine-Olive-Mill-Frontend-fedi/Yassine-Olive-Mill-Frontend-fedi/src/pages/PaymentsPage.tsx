@@ -6,7 +6,7 @@ import {
   X, Plus, Edit3, Search, Filter, Calendar, 
   DollarSign, Users, Receipt, ArrowUpDown, 
   Save, XCircle, CheckCircle, TrendingUp, 
-  TrendingDown, Wallet, FileText, Download
+  TrendingDown, Wallet, FileText, Download, Package, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +69,25 @@ type Expense = {
   createdAt?: string;
 };
 
+type ExportPayment = {
+  id: number;
+  containerId: number;
+  amount: number;
+  payment_date: string;
+  payment_method: string;
+  payment_type: 'incoming';
+  buyer_name?: string;
+  buyer_contact?: string;
+  reference?: string;
+  notes?: string;
+  container?: {
+    id: number;
+    label: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 type SortConfig = {
   key: string;
   direction: 'asc' | 'desc';
@@ -79,7 +98,7 @@ export function PaymentsPage() {
   const { toast } = useToast();
   const isAdmin = user?.role === 'admin';
 
-  const [tab, setTab] = useState<'owner' | 'workers' | 'expenses'>('owner');
+  const [tab, setTab] = useState<'owner' | 'workers' | 'expenses' | 'sales'>('owner');
   const [loading, setLoading] = useState(false);
 
   // Containers
@@ -123,6 +142,20 @@ export function PaymentsPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [expenseSort, setExpenseSort] = useState<SortConfig>({ key: 'date', direction: 'desc' });
 
+  // Export payments (Oil Sales) state
+  const [exportPayments, setExportPayments] = useState<ExportPayment[]>([]);
+  const [showExportPaymentModal, setShowExportPaymentModal] = useState(false);
+  const [exportPaymentDraft, setExportPaymentDraft] = useState<Partial<ExportPayment>>({ 
+    payment_date: new Date().toISOString().slice(0,10), 
+    payment_method: 'cash',
+    payment_type: 'incoming'
+  });
+  const [exportPaymentSearch, setExportPaymentSearch] = useState<string>('');
+  const [exportPaymentDateFilter, setExportPaymentDateFilter] = useState<string>('');
+  const [exportPaymentBuyerFilter, setExportPaymentBuyerFilter] = useState<string>('');
+  const [editingExportPayment, setEditingExportPayment] = useState<ExportPayment | null>(null);
+  const [exportPaymentSort, setExportPaymentSort] = useState<SortConfig>({ key: 'payment_date', direction: 'desc' });
+
   // Load containers
   useEffect(() => {
     const loadContainers = async () => {
@@ -135,6 +168,35 @@ export function PaymentsPage() {
     };
     loadContainers();
   }, []);
+
+  // Load export payments (Oil Sales)
+  useEffect(() => {
+    const loadExportPayments = async () => {
+      if (!isAdmin) return;
+      try {
+        setLoading(true);
+        const response = await api.get<any>('/export-payments');
+        // Handle both response formats: { success: true, data: { payments: [...] } } or direct array
+        if (response?.success && response?.data?.payments) {
+          setExportPayments(response.data.payments);
+        } else if (response?.success && response?.data && Array.isArray(response.data)) {
+          setExportPayments(response.data);
+        } else if (Array.isArray(response)) {
+          setExportPayments(response);
+        }
+      } catch (error: any) {
+        console.error('Error loading export payments:', error);
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: error?.message || 'فشل تحميل مبيعات الزيت' 
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadExportPayments();
+  }, [isAdmin, toast]);
 
   // Check if today's session exists when switching to owner tab
   useEffect(() => {
@@ -194,17 +256,40 @@ export function PaymentsPage() {
   const ownerTotals = useMemo(() => {
     const today = new Date().toISOString().slice(0,10);
     const todaySession = ownerFunds.find(f => f.date === today);
+    
+    // Calculate today's sales from export payments
+    const todaySales = exportPayments
+      .filter(ep => ep.payment_date === today)
+      .reduce((sum, ep) => sum + Number(ep.amount || 0), 0);
+    
+    // Calculate today's expenses
+    const todayExpenses = expenses
+      .filter(e => e.date === today)
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
+    
     if (todaySession) {
+      const totalSales = todaySales;
+      const totalSpent = todayExpenses + (todaySession.amountSpent || 0);
+      const balance = (todaySession.startingFunds || 0) + totalSales - totalSpent;
+      
       return {
         startingFunds: todaySession.startingFunds,
-        totalSpent: todaySession.amountSpent,
-        balance: todaySession.balance,
+        totalSpent,
+        totalSales,
+        balance,
         containers: todaySession.allocatedContainers.length,
         sales: todaySession.relatedSales.length
       };
     }
-    return { startingFunds: 0, totalSpent: 0, balance: 0, containers: 0, sales: 0 };
-  }, [ownerFunds]);
+    return { 
+      startingFunds: 0, 
+      totalSpent: todayExpenses, 
+      totalSales: todaySales,
+      balance: todaySales - todayExpenses, 
+      containers: 0, 
+      sales: exportPayments.filter(ep => ep.payment_date === today).length 
+    };
+  }, [ownerFunds, exportPayments, expenses]);
 
   const workersSummary = useMemo(() => {
     const totalPaid = workerPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
@@ -230,6 +315,48 @@ export function PaymentsPage() {
   const expensesTotal = useMemo(() => {
     return expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
   }, [expenses]);
+
+  // Export payments summary
+  const exportPaymentsTotal = useMemo(() => {
+    return exportPayments.reduce((sum, ep) => sum + Number(ep.amount || 0), 0);
+  }, [exportPayments]);
+
+  // Filtered export payments
+  const filteredExportPayments = useMemo(() => {
+    let filtered = [...exportPayments];
+    
+    if (exportPaymentDateFilter) {
+      filtered = filtered.filter(ep => ep.payment_date === exportPaymentDateFilter);
+    }
+    
+    if (exportPaymentBuyerFilter) {
+      const search = exportPaymentBuyerFilter.toLowerCase();
+      filtered = filtered.filter(ep => 
+        ep.buyer_name?.toLowerCase().includes(search) ||
+        ep.buyer_contact?.toLowerCase().includes(search)
+      );
+    }
+    
+    if (exportPaymentSearch) {
+      const search = exportPaymentSearch.toLowerCase();
+      filtered = filtered.filter(ep => 
+        ep.container?.label?.toLowerCase().includes(search) ||
+        ep.reference?.toLowerCase().includes(search) ||
+        ep.notes?.toLowerCase().includes(search)
+      );
+    }
+
+    filtered.sort((a, b) => {
+      const aVal = a[exportPaymentSort.key as keyof ExportPayment];
+      const bVal = b[exportPaymentSort.key as keyof ExportPayment];
+      if (exportPaymentSort.direction === 'asc') {
+        return aVal > bVal ? 1 : -1;
+      }
+      return aVal < bVal ? 1 : -1;
+    });
+
+    return filtered;
+  }, [exportPayments, exportPaymentDateFilter, exportPaymentBuyerFilter, exportPaymentSearch, exportPaymentSort]);
 
   // Filtered and sorted data
   const filteredOwnerFunds = useMemo(() => {
@@ -377,6 +504,91 @@ export function PaymentsPage() {
     toast({ title: 'تم بنجاح', description: editingExpense ? 'تم تحديث المصروف' : 'تم إضافة المصروف' });
   };
 
+  // Export Payment handlers
+  const handleSaveExportPayment = async (payment: ExportPayment) => {
+    try {
+      setLoading(true);
+      if (editingExportPayment) {
+        // Update existing payment
+        const response = await api.put<{ success: boolean; data: ExportPayment }>(`/export-payments/${payment.id}`, {
+          amount: payment.amount,
+          payment_date: payment.payment_date,
+          payment_method: payment.payment_method,
+          buyer_name: payment.buyer_name,
+          buyer_contact: payment.buyer_contact,
+          reference: payment.reference,
+          notes: payment.notes
+        });
+        if (response.success) {
+          setExportPayments(prev => prev.map(ep => ep.id === payment.id ? response.data : ep));
+          setEditingExportPayment(null);
+          toast({ title: 'تم بنجاح', description: 'تم تحديث عملية البيع' });
+        }
+      } else {
+        // Create new payment
+        const response = await api.post<{ success: boolean; data: ExportPayment }>('/export-payments', {
+          containerId: payment.containerId,
+          amount: payment.amount,
+          payment_date: payment.payment_date,
+          payment_method: payment.payment_method,
+          buyer_name: payment.buyer_name,
+          buyer_contact: payment.buyer_contact,
+          reference: payment.reference,
+          notes: payment.notes
+        });
+        if (response.success) {
+          setExportPayments(prev => [response.data, ...prev]);
+          setShowExportPaymentModal(false);
+          
+          // Link to today's owner fund session
+          const today = new Date().toISOString().slice(0,10);
+          const todaySession = ownerFunds.find(f => f.date === today);
+          if (todaySession) {
+            setOwnerFunds(prev => prev.map(f => 
+              f.date === today 
+                ? { ...f, relatedSales: [...f.relatedSales, response.data.id] }
+                : f
+            ));
+          }
+          
+          toast({ title: 'تم بنجاح', description: 'تم تسجيل عملية البيع' });
+        }
+      }
+    } catch (error: any) {
+      console.error('Error saving export payment:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error?.message || 'فشل حفظ عملية البيع' 
+      });
+    } finally {
+      setLoading(false);
+      setExportPaymentDraft({ payment_date: new Date().toISOString().slice(0,10), payment_method: 'cash', payment_type: 'incoming' });
+    }
+  };
+
+  const handleDeleteExportPayment = async (id: number) => {
+    if (!confirm('هل أنت متأكد من حذف هذه العملية؟')) return;
+    
+    try {
+      setLoading(true);
+      const response = await api.delete<{ success: boolean }>(`/export-payments/${id}`);
+      if (response.success) {
+        setExportPayments(prev => prev.filter(ep => ep.id !== id));
+        toast({ title: 'تم بنجاح', description: 'تم حذف عملية البيع' });
+      }
+    } catch (error: any) {
+      console.error('Error deleting export payment:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error?.message || 'فشل حذف عملية البيع' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSort = (key: string, currentSort: SortConfig, setSort: (s: SortConfig) => void) => {
     setSort({
       key,
@@ -409,10 +621,14 @@ export function PaymentsPage() {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="owner" className="flex items-center gap-2">
             <Wallet className="h-4 w-4" />
             أموال المالك
+          </TabsTrigger>
+          <TabsTrigger value="sales" className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            مبيعات الزيت
           </TabsTrigger>
           <TabsTrigger value="workers" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -432,13 +648,14 @@ export function PaymentsPage() {
                 <div>
                   <CardTitle>أموال المالك - ملخص اليوم</CardTitle>
                   <CardDescription className="mt-2">
-                    {ownerTotals.startingFunds > 0 ? (
+                    {ownerTotals.startingFunds > 0 || ownerTotals.totalSales > 0 ? (
                       <div className="flex items-center gap-4 mt-2">
                         <span className="text-sm">بدء: <strong className="text-foreground">{ownerTotals.startingFunds.toLocaleString()}</strong> د.ت</span>
+                        <span className="text-sm">مبيعات: <strong className="text-success">{ownerTotals.totalSales.toLocaleString()}</strong> د.ت</span>
                         <span className="text-sm">مصروف: <strong className="text-destructive">{ownerTotals.totalSpent.toLocaleString()}</strong> د.ت</span>
                         <span className="text-sm">المتبقي: <strong className="text-primary">{ownerTotals.balance.toLocaleString()}</strong> د.ت</span>
                         <span className="text-sm">الحاويات: <strong>{ownerTotals.containers}</strong></span>
-                        <span className="text-sm">المبيعات: <strong>{ownerTotals.sales}</strong></span>
+                        <span className="text-sm">عمليات البيع: <strong>{ownerTotals.sales}</strong></span>
                       </div>
                     ) : (
                       'لا توجد جلسة اليوم'
@@ -556,6 +773,173 @@ export function PaymentsPage() {
                             >
                               <Edit3 className="h-4 w-4" />
                             </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Oil Sales (Export Payments) Tab */}
+        <TabsContent value="sales" className="space-y-4">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>مبيعات الزيت</CardTitle>
+                  <CardDescription className="mt-2">
+                    إجمالي المبيعات: <strong className="text-foreground">{exportPaymentsTotal.toLocaleString()}</strong> د.ت
+                    {' • '}
+                    عدد العمليات: <strong>{exportPayments.length}</strong>
+                  </CardDescription>
+                </div>
+                <Button onClick={() => {
+                  setExportPaymentDraft({ 
+                    payment_date: new Date().toISOString().slice(0,10), 
+                    payment_method: 'cash',
+                    payment_type: 'incoming'
+                  });
+                  setEditingExportPayment(null);
+                  setShowExportPaymentModal(true);
+                }}>
+                    <Plus className="h-4 w-4 mr-2" />
+                  عملية بيع جديدة
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filters */}
+              <div className="flex flex-wrap gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="بحث في الحاوية أو المرجع..."
+                      value={exportPaymentSearch}
+                      onChange={(e) => setExportPaymentSearch(e.target.value)}
+                      className="pr-9"
+                    />
+                  </div>
+                </div>
+                <Input
+                  type="date"
+                  value={exportPaymentDateFilter}
+                  onChange={(e) => setExportPaymentDateFilter(e.target.value)}
+                  className="w-[180px]"
+                />
+                <Input
+                  placeholder="بحث بالمشتري..."
+                  value={exportPaymentBuyerFilter}
+                  onChange={(e) => setExportPaymentBuyerFilter(e.target.value)}
+                  className="w-[200px]"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setExportPaymentSearch('');
+                    setExportPaymentDateFilter('');
+                    setExportPaymentBuyerFilter('');
+                  }}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  إعادة تعيين
+                </Button>
+              </div>
+
+              {/* Table */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="cursor-pointer" onClick={() => handleSort('payment_date', exportPaymentSort, setExportPaymentSort)}>
+                        <div className="flex items-center gap-2">
+                          التاريخ
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer" onClick={() => handleSort('container', exportPaymentSort, setExportPaymentSort)}>
+                        <div className="flex items-center gap-2">
+                          الحاوية
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer" onClick={() => handleSort('amount', exportPaymentSort, setExportPaymentSort)}>
+                        <div className="flex items-center gap-2">
+                          المبلغ
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead>المشتري</TableHead>
+                      <TableHead>التواصل</TableHead>
+                      <TableHead>طريقة الدفع</TableHead>
+                      <TableHead>المرجع</TableHead>
+                      <TableHead>ملاحظات</TableHead>
+                      <TableHead>إجراءات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          جاري التحميل...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredExportPayments.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          لا توجد عمليات بيع
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredExportPayments.map(payment => (
+                        <TableRow key={payment.id}>
+                          <TableCell>{payment.payment_date}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {payment.container?.label || `حاوية #${payment.containerId}`}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <strong className="text-success">
+                              {Number(payment.amount).toLocaleString()} د.ت
+                            </strong>
+                          </TableCell>
+                          <TableCell>{payment.buyer_name || '—'}</TableCell>
+                          <TableCell>{payment.buyer_contact || '—'}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {payment.payment_method === 'cash' ? 'نقداً' : 
+                               payment.payment_method === 'transfer' ? 'تحويل' : 
+                               payment.payment_method === 'check' ? 'شيك' : payment.payment_method}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{payment.reference || '—'}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{payment.notes || '—'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setExportPaymentDraft(payment);
+                                  setEditingExportPayment(payment);
+                                  setShowExportPaymentModal(true);
+                                }}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteExportPayment(payment.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -1234,6 +1618,129 @@ export function PaymentsPage() {
               <Button onClick={() => handleSavePayment(paymentDraft as WorkerPayment)}>
                 <Save className="h-4 w-4 mr-2" />
                 {editingPayment ? 'تحديث' : 'تسجيل'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Payment Modal */}
+      <Dialog open={showExportPaymentModal} onOpenChange={setShowExportPaymentModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{editingExportPayment ? 'تعديل عملية بيع' : 'عملية بيع جديدة'}</DialogTitle>
+            <DialogDescription>
+              تسجيل عملية بيع زيت من حاوية
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="exportDate">تاريخ البيع</Label>
+                <Input
+                  id="exportDate"
+                  type="date"
+                  value={exportPaymentDraft.payment_date?.slice(0,10) || new Date().toISOString().slice(0,10)}
+                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, payment_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exportContainer">الحاوية *</Label>
+                <Select
+                  value={exportPaymentDraft.containerId?.toString() || ''}
+                  onValueChange={(value) => setExportPaymentDraft({ ...exportPaymentDraft, containerId: Number(value) })}
+                >
+                  <SelectTrigger id="exportContainer">
+                    <SelectValue placeholder="اختر الحاوية" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {containers.map(c => (
+                      <SelectItem key={c.id} value={c.id.toString()}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exportAmount">المبلغ (د.ت) *</Label>
+                <Input
+                  id="exportAmount"
+                  type="number"
+                  value={exportPaymentDraft.amount || ''}
+                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, amount: Number(e.target.value) })}
+                  placeholder="0"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exportMethod">طريقة الدفع</Label>
+                <Select
+                  value={exportPaymentDraft.payment_method || 'cash'}
+                  onValueChange={(value) => setExportPaymentDraft({ ...exportPaymentDraft, payment_method: value })}
+                >
+                  <SelectTrigger id="exportMethod">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">نقداً</SelectItem>
+                    <SelectItem value="transfer">تحويل</SelectItem>
+                    <SelectItem value="check">شيك</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exportBuyer">اسم المشتري</Label>
+                <Input
+                  id="exportBuyer"
+                  value={exportPaymentDraft.buyer_name || ''}
+                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, buyer_name: e.target.value })}
+                  placeholder="اسم المشتري"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exportContact">معلومات التواصل</Label>
+                <Input
+                  id="exportContact"
+                  value={exportPaymentDraft.buyer_contact || ''}
+                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, buyer_contact: e.target.value })}
+                  placeholder="هاتف أو بريد إلكتروني"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exportReference">رقم المرجع</Label>
+                <Input
+                  id="exportReference"
+                  value={exportPaymentDraft.reference || ''}
+                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, reference: e.target.value })}
+                  placeholder="رقم المرجع أو الفاتورة"
+                />
+              </div>
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="exportNotes">ملاحظات</Label>
+                <Input
+                  id="exportNotes"
+                  value={exportPaymentDraft.notes || ''}
+                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, notes: e.target.value })}
+                  placeholder="ملاحظات إضافية"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => {
+                setShowExportPaymentModal(false);
+                setEditingExportPayment(null);
+                setExportPaymentDraft({ payment_date: new Date().toISOString().slice(0,10), payment_method: 'cash', payment_type: 'incoming' });
+              }}>
+                إلغاء
+              </Button>
+              <Button 
+                onClick={() => handleSaveExportPayment(exportPaymentDraft as ExportPayment)}
+                disabled={!exportPaymentDraft.containerId || !exportPaymentDraft.amount || loading}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {loading ? 'جاري الحفظ...' : editingExportPayment ? 'تحديث' : 'حفظ'}
               </Button>
             </div>
           </div>

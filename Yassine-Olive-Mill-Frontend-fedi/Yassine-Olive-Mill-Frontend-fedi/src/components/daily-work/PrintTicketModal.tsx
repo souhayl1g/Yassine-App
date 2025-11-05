@@ -130,7 +130,7 @@ export function PrintTicketModal({
 
             {/* TYPE 1: Arrival Receipt Preview */}
             {ticketType === 'arrival-receipt' && (
-              <div className="bg-white border-2 border-black rounded-lg p-6 max-w-md mx-auto" dir="rtl">
+              <div className="bg-white border-2 border-black rounded-lg p-6 max-w-md mx-auto text-gray-900" dir="rtl">
                 <div className="text-center border-b-2 border-emerald-600 pb-3 mb-4">
                   <h2 className="text-2xl font-bold text-emerald-700">معصرة ياسين وأبوه</h2>
                   <p className="text-sm text-gray-600">إيصال الوصول</p>
@@ -142,6 +142,10 @@ export function PrintTicketModal({
                   <div className="flex justify-between border-b pb-2">
                     <span className="font-bold">رقم التذكرة:</span>
                     <span>{ticketIdText}</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-2">
+                    <span className="font-bold">نوع العملية:</span>
+                    <span>{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
                   </div>
                   <div className="flex justify-between border-b pb-2">
                     <span className="font-bold">اسم العميل:</span>
@@ -317,6 +321,14 @@ export function PrintTicketModal({
                       </td>
                       <td style={{ padding: '4mm', borderBottom: '1px solid #d1d5db', textAlign: 'left' }}>
                         {ticketIdText}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '4mm', borderBottom: '1px solid #d1d5db', fontWeight: 'bold' }}>
+                        نوع العملية:
+                      </td>
+                      <td style={{ padding: '4mm', borderBottom: '1px solid #d1d5db', textAlign: 'left' }}>
+                        {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}
                       </td>
                     </tr>
                     <tr>
