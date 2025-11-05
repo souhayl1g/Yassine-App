@@ -96,7 +96,7 @@ const employeeController = {
         include: [
           {
             model: PressingSession,
-            as: 'sessions',
+            as: 'pressingSessions',
             where: { status: 'active' },
             required: false,
             include: [
@@ -118,7 +118,7 @@ const employeeController = {
 
       // Transform data to match expected format
       const transformedRooms = rooms.map(room => {
-        const activeSession = room.sessions && room.sessions.length > 0 ? room.sessions[0] : null;
+        const activeSession = room.pressingSessions && room.pressingSessions.length > 0 ? room.pressingSessions[0] : null;
         
         return {
           id: room.id,
