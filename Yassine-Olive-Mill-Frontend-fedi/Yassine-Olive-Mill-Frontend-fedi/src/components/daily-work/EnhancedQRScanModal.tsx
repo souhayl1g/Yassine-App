@@ -49,18 +49,20 @@ export function EnhancedQRScanModal({
   useEffect(() => {
     if (isOpen && !hasAutoStarted.current) {
       hasAutoStarted.current = true;
-      // Start with device scanner tab
-      setActiveTab('device');
-      // Activate device scanner immediately
-      startDeviceScanner();
-      // After a short delay, also start camera in background
-      const cameraTimeout = setTimeout(() => {
+      // Start with camera tab and activate immediately
+      setActiveTab('camera');
+      // Small delay to ensure DOM is ready
+      const initTimeout = setTimeout(() => {
         startCamera();
-      }, 1000);
+        startDeviceScanner(); // Also start device scanner in background
+      }, 100);
       
-      return () => clearTimeout(cameraTimeout);
+      return () => clearTimeout(initTimeout);
     } else if (!isOpen) {
       hasAutoStarted.current = false;
+      // Clean up when modal closes
+      stopCamera();
+      stopDeviceScanner();
     }
   }, [isOpen]);
 
@@ -78,13 +80,6 @@ export function EnhancedQRScanModal({
       deviceInputRef.current.focus();
     }
   }, [isDeviceScannerActive]);
-
-  // Auto-start camera when switching to camera tab
-  useEffect(() => {
-    if (isOpen && activeTab === 'camera' && !isCameraActive) {
-      startCamera();
-    }
-  }, [activeTab, isOpen]);
 
   // Start device scanner listening
   const startDeviceScanner = () => {
@@ -111,10 +106,24 @@ export function EnhancedQRScanModal({
 
   // Start phone camera
   const startCamera = async () => {
+    // Prevent multiple starts
+    if (isCameraActive) {
+      return;
+    }
+
     try {
-      if (!html5QrCodeRef.current) {
-        html5QrCodeRef.current = new Html5Qrcode('qr-reader');
+      // Stop any existing scanner first
+      if (html5QrCodeRef.current) {
+        try {
+          await html5QrCodeRef.current.stop();
+          html5QrCodeRef.current.clear();
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
       }
+
+      // Create new scanner instance
+      html5QrCodeRef.current = new Html5Qrcode('qr-reader');
 
       await html5QrCodeRef.current.start(
         { facingMode: 'environment' },
@@ -151,6 +160,7 @@ export function EnhancedQRScanModal({
       });
     } catch (error) {
       console.error('Error accessing camera:', error);
+      setIsCameraActive(false);
       toast({
         variant: 'destructive',
         title: 'خطأ في الكاميرا',
@@ -161,8 +171,13 @@ export function EnhancedQRScanModal({
 
   const stopCamera = async () => {
     try {
-      if (html5QrCodeRef.current && isCameraActive) {
-        await html5QrCodeRef.current.stop();
+      if (html5QrCodeRef.current) {
+        const state = await html5QrCodeRef.current.getState();
+        if (state === 2) { // Scanning state
+          await html5QrCodeRef.current.stop();
+        }
+        html5QrCodeRef.current.clear();
+        html5QrCodeRef.current = null;
       }
     } catch (error) {
       console.error('Error stopping camera:', error);
@@ -339,23 +354,12 @@ export function EnhancedQRScanModal({
                 )}
               </div>
 
-              <p className="text-center text-sm text-muted-foreground mb-4">
-                وجه الكاميرا نحو رمز QR للمسح الضوئي
-              </p>
-
-              <div className="flex gap-2">
-                {!isCameraActive ? (
-                  <OliveButton onClick={startCamera} className="flex-1">
-                    <Camera className="h-4 w-4 mr-2" />
-                    تشغيل الكاميرا
-                  </OliveButton>
-                ) : (
-                  <OliveButton onClick={stopCamera} variant="outline" className="flex-1">
-                    <X className="h-4 w-4 mr-2" />
-                    إيقاف الكاميرا
-                  </OliveButton>
-                )}
-              </div>
+              {isCameraActive && (
+                <p className="text-center text-sm text-primary font-medium mb-4 flex items-center justify-center gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  وجه الكاميرا نحو رمز QR للمسح الضوئي
+                </p>
+              )}
             </div>
           </TabsContent>
 
