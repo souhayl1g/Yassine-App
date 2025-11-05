@@ -37,4 +37,7 @@ router.put('/pressing-session/:id/complete', operatorController.completePressing
 // PUT /api/operator/batch/:id - Update batch (operator-specific logic)
 router.put('/batch/:id', operatorController.updateBatch);
 
+// POST /api/operator/batch/:id/force-dequeue-check - Force check and dequeue if fully loaded
+router.post('/batch/:id/force-dequeue-check', operatorController.forceDequeueCheck);
+
 export default router;

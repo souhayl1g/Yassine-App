@@ -23,4 +23,7 @@ router.put('/batch/:id', employeeController.updateBatch);
 // DELETE routes
 router.delete('/queue/:id', employeeController.removeFromQueue);
 
+// ADMIN routes for debugging/manual operations
+router.post('/batch/:id/force-dequeue-check', employeeController.forceDequeueCheck);
+
 export default router;

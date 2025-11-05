@@ -1,6 +1,6 @@
 import db from '../models/index.js';
 import { Op } from 'sequelize';
-const { Batch, Client, PressingRoom, PressingSession, Container, OilBatch, QueuerSession } = db;
+const { Batch, Client, PressingRoom, PressingSession, Container, OilBatch, QueuerSession, BatchLoading } = db;
 
 const employeeController = {
   // Get batch details for employee scanner
@@ -175,6 +175,14 @@ const employeeController = {
         status: status || 'active'
       });
 
+      // DEQUEUE CHECK: After creating pressing session, check if batch should be dequeued
+      try {
+        await employeeController.ensureDequeueIfFullyLoaded(batch_id);
+      } catch (dequeueError) {
+        // Log error but don't fail the main operation
+        console.error(`🔄 EMPLOYEE-DEQUEUE ERROR: Failed to check/dequeue batch ${batch_id}:`, dequeueError);
+      }
+
       res.json(session);
     } catch (error) {
       console.error('Error creating pressing session for employee:', error);
@@ -203,6 +211,16 @@ const employeeController = {
         oil_bidons_produced: oil_bidons_produced || 0
       });
 
+      // DEQUEUE CHECK: After completing pressing session, ensure batch is dequeued if needed
+      if (session.batch_id) {
+        try {
+          await employeeController.ensureDequeueIfFullyLoaded(session.batch_id);
+        } catch (dequeueError) {
+          // Log error but don't fail the main operation
+          console.error(`🔄 EMPLOYEE-DEQUEUE ERROR: Failed to check/dequeue batch ${session.batch_id}:`, dequeueError);
+        }
+      }
+
       res.json(session);
     } catch (error) {
       console.error('Error completing pressing session for employee:', error);
@@ -222,6 +240,15 @@ const employeeController = {
       }
 
       await batch.update(updateData);
+      
+      // DEQUEUE CHECK: After any batch update, check if we should dequeue
+      try {
+        await employeeController.ensureDequeueIfFullyLoaded(id);
+      } catch (dequeueError) {
+        // Log error but don't fail the main operation
+        console.error(`🔄 EMPLOYEE-DEQUEUE ERROR: Failed to check/dequeue batch ${id}:`, dequeueError);
+      }
+      
       res.json(batch);
     } catch (error) {
       console.error('Error updating batch for employee:', error);
@@ -282,10 +309,92 @@ const employeeController = {
       const newWeight = (container.currentWeight || 0) + parseInt(weight);
       await container.update({ currentWeight: newWeight });
 
+      // DEQUEUE CHECK: After creating oil batch, check if associated batch should be dequeued
+      try {
+        await employeeController.ensureDequeueIfFullyLoaded(batchId);
+      } catch (dequeueError) {
+        // Log error but don't fail the main operation
+        console.error(`🔄 EMPLOYEE-DEQUEUE ERROR: Failed to check/dequeue batch ${batchId}:`, dequeueError);
+      }
+
       res.json(oilBatch);
     } catch (error) {
       console.error('Error creating oil batch with container for employee:', error);
       res.status(500).json({ error: 'Failed to create oil batch with container' });
+    }
+  },
+
+  // UTILITY: Ensure dequeuing happens when batch is fully loaded
+  // This is a failsafe that can be called from any employee operation
+  ensureDequeueIfFullyLoaded: async (batchId) => {
+    try {
+      const batch = await Batch.findByPk(batchId);
+      if (!batch) {
+        console.log(`📝 EMPLOYEE-DEQUEUE: Batch ${batchId} not found, skipping dequeue check`);
+        return false;
+      }
+
+      // Calculate total loaded boxes from BatchLoading table (most accurate source)
+      const loadings = await BatchLoading.findAll({
+        where: { batchId: parseInt(batchId) }
+      });
+
+      const totalLoadedBoxes = loadings.reduce((sum, loading) => {
+        return sum + (loading.boxesLoaded || 0);
+      }, 0);
+
+      const totalBatchBoxes = batch.number_of_boxes || 0;
+
+      // If all boxes are loaded, force dequeue
+      if (totalLoadedBoxes >= totalBatchBoxes && totalBatchBoxes > 0) {
+        try {
+          const deletedRows = await QueuerSession.destroy({
+            where: { currentBatchId: parseInt(batchId) }
+          });
+          
+          if (deletedRows > 0) {
+            console.log(`🔄 EMPLOYEE-FORCE-DEQUEUE: Removed batch ${batchId} from queue - ${totalLoadedBoxes}/${totalBatchBoxes} boxes loaded`);
+            
+            // Update batch status to reflect full loading
+            await batch.update({ 
+              status: 'fully_loaded',
+              boxes_loaded_to_pressing: totalLoadedBoxes 
+            });
+            
+            return true;
+          } else {
+            console.log(`ℹ️ EMPLOYEE-DEQUEUE-SKIP: Batch ${batchId} not in queue or already removed`);
+            return false;
+          }
+        } catch (dequeueError) {
+          console.error(`❌ EMPLOYEE-FORCE-DEQUEUE ERROR for batch ${batchId}:`, dequeueError);
+          return false;
+        }
+      } else {
+        console.log(`📊 EMPLOYEE-DEQUEUE-CHECK: Batch ${batchId} not fully loaded yet (${totalLoadedBoxes}/${totalBatchBoxes})`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ EMPLOYEE-ENSURE-DEQUEUE ERROR for batch ${batchId}:`, error);
+      return false;
+    }
+  },
+
+  // ADMIN ENDPOINT: Manual dequeue check for a specific batch (employee version)
+  forceDequeueCheck: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await employeeController.ensureDequeueIfFullyLoaded(id);
+      
+      res.json({
+        batchId: id,
+        dequeued: result,
+        message: result ? 'Batch successfully dequeued by employee controller' : 'Batch not eligible for dequeuing or already dequeued',
+        controller: 'employee'
+      });
+    } catch (error) {
+      console.error('Employee force dequeue check error:', error);
+      res.status(500).json({ error: error.message });
     }
   }
 };

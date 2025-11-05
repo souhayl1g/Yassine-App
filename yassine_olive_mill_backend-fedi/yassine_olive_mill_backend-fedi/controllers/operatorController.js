@@ -587,6 +587,9 @@ const operatorController = {
         boxes_loaded_to_pressing: newTotalLoaded
       });
 
+      // DEQUEUE CHECK: After creating pressing session, check if batch should be dequeued
+      await operatorController.ensureDequeueIfFullyLoaded(batch_id);
+
       res.status(201).json({
         session: {
           ...session.toJSON(),
@@ -623,7 +626,7 @@ const operatorController = {
 
       // Calculate total boxes already loaded across all batch loadings
       const existingLoadings = await BatchLoading.findAll({
-        where: { batchId: id }
+        where: { batchId: parseInt(id) }
       });
 
       const totalBoxesAlreadyLoaded = existingLoadings.reduce((sum, loading) => {
@@ -658,12 +661,12 @@ const operatorController = {
       // Create batch loading entry if pressingSessionId and pressingRoomId are provided
       if (pressingSessionId && pressingRoomId) {
         await BatchLoading.create({
-          batchId: id,
-          pressingRoomId: pressingRoomId,
+          batchId: parseInt(id),
+          pressingRoomId: parseInt(pressingRoomId),
           boxesLoaded: requestedBoxes,
-          operatorId: operatorId,
+          operatorId: parseInt(operatorId || 1),
           loadedAt: new Date(),
-          pressingSessionId: pressingSessionId,
+          pressingSessionId: parseInt(pressingSessionId),
           notes: notes || 'Loaded by operator'
         });
       }
@@ -676,6 +679,25 @@ const operatorController = {
         pressing_room_id: pressingRoomId,
         status: 'in_process'
       });
+
+      // CRITICAL: Check if all boxes are now loaded and remove from queue if so
+      // This ensures the queue is automatically cleaned up when batches are fully processed
+      if (newTotalLoaded >= totalBatchBoxes && totalBatchBoxes > 0) {
+        try {
+          // All boxes are loaded, remove from queuer_sessions table
+          const deletedRows = await QueuerSession.destroy({
+            where: { currentBatchId: parseInt(id) }
+          });
+          console.log(`✅ AUTO-DEQUEUE: Removed batch ${id} from queue - all boxes loaded (${newTotalLoaded}/${totalBatchBoxes}) - Deleted ${deletedRows} queue entries`);
+          
+          // Also update batch status to reflect completion of loading phase
+          await batch.update({ status: 'fully_loaded' });
+        } catch (dequeueError) {
+          // Log error but don't fail the main operation
+          console.error(`⚠️ DEQUEUE ERROR: Failed to remove batch ${id} from queue:`, dequeueError);
+          console.log(`📝 DEQUEUE FALLBACK: Will attempt manual cleanup. Batch ${id} has ${newTotalLoaded}/${totalBatchBoxes} boxes loaded`);
+        }
+      }
 
       res.json(batch);
     } catch (error) {
@@ -701,6 +723,11 @@ const operatorController = {
         oil_bidons_produced: oil_bidons_produced || 0
       });
 
+      // DEQUEUE CHECK: After completing pressing session, ensure batch is dequeued if needed
+      if (session.batch_id) {
+        await operatorController.ensureDequeueIfFullyLoaded(session.batch_id);
+      }
+
       res.json(session);
     } catch (error) {
       console.error('Complete pressing session error:', error);
@@ -720,9 +747,84 @@ const operatorController = {
       }
 
       await batch.update(updateData);
+      
+      // FORCE CHECK: After any batch update, check if we should dequeue
+      await operatorController.ensureDequeueIfFullyLoaded(id);
+      
       res.json(batch);
     } catch (error) {
       console.error('Update batch error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // UTILITY: Ensure dequeuing happens when batch is fully loaded
+  // This is a failsafe that can be called from any operation
+  ensureDequeueIfFullyLoaded: async (batchId) => {
+    try {
+      const batch = await Batch.findByPk(batchId);
+      if (!batch) {
+        return false;
+      }
+
+      // Calculate total loaded boxes from BatchLoading table (most accurate source)
+      const loadings = await BatchLoading.findAll({
+        where: { batchId: parseInt(batchId) }
+      });
+
+      const totalLoadedBoxes = loadings.reduce((sum, loading) => {
+        return sum + (loading.boxesLoaded || 0);
+      }, 0);
+
+      const totalBatchBoxes = batch.number_of_boxes || 0;
+
+      // If all boxes are loaded, force dequeue
+      if (totalLoadedBoxes >= totalBatchBoxes && totalBatchBoxes > 0) {
+        try {
+          const deletedRows = await QueuerSession.destroy({
+            where: { currentBatchId: parseInt(batchId) }
+          });
+          
+          if (deletedRows > 0) {
+            console.log(`🔄 FORCE-DEQUEUE: Removed batch ${batchId} from queue - ${totalLoadedBoxes}/${totalBatchBoxes} boxes loaded`);
+            
+            // Update batch status to reflect full loading
+            await batch.update({ 
+              status: 'fully_loaded',
+              boxes_loaded_to_pressing: totalLoadedBoxes 
+            });
+            
+            return true;
+          } else {
+            console.log(`ℹ️ DEQUEUE-SKIP: Batch ${batchId} not in queue or already removed`);
+            return false;
+          }
+        } catch (dequeueError) {
+          console.error(`❌ FORCE-DEQUEUE ERROR for batch ${batchId}:`, dequeueError);
+          return false;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error(`❌ ENSURE-DEQUEUE ERROR for batch ${batchId}:`, error);
+      return false;
+    }
+  },
+
+  // ADMIN ENDPOINT: Manual dequeue check for a specific batch
+  forceDequeueCheck: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await operatorController.ensureDequeueIfFullyLoaded(id);
+      
+      res.json({
+        batchId: id,
+        dequeued: result,
+        message: result ? 'Batch successfully dequeued' : 'Batch not eligible for dequeuing or already dequeued'
+      });
+    } catch (error) {
+      console.error('Force dequeue check error:', error);
       res.status(500).json({ error: error.message });
     }
   }
