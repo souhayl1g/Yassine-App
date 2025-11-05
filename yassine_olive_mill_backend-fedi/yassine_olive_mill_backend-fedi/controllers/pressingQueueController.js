@@ -267,8 +267,12 @@ const pressingQueueController = {
         sql: error.sql
       });
       
-      // Handle Sequelize validation errors
-      if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeForeignKeyConstraintError') {
+      // Handle Sequelize validation-like errors as 400s
+      if (
+        error.name === 'SequelizeValidationError' ||
+        error.name === 'SequelizeForeignKeyConstraintError' ||
+        error.name === 'SequelizeUniqueConstraintError'
+      ) {
         const validationErrors = error.errors ? error.errors.map(e => e.message).join(', ') : error.message;
         return res.status(400).json({ 
           error: 'Validation error',
