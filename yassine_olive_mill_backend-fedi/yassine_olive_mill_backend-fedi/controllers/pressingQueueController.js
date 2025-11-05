@@ -224,16 +224,12 @@ const pressingQueueController = {
         if (activeSession) {
           const newBoxesQueued = activeSession.boxesQueued + number_of_boxes;
           
-          // Check if session is complete
-          if (newBoxesQueued >= activeSession.totalBoxes) {
-            // Remove the queuer session when all boxes are queued
-            await activeSession.destroy();
-            console.log(`Removed queuer session ${activeSession.id} - all boxes queued (${newBoxesQueued}/${activeSession.totalBoxes})`);
-          } else {
-            await activeSession.update({
-              boxesQueued: newBoxesQueued
-            });
-          }
+          // Update the session with new boxes queued count
+          await activeSession.update({
+            boxesQueued: newBoxesQueued
+          });
+          
+          console.log(`Updated queuer session ${activeSession.id} - boxes queued: ${newBoxesQueued}/${activeSession.totalBoxes}`);
         }
       }
 
