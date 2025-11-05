@@ -30,7 +30,7 @@ const navigationItems = [
   { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard', roles: ['admin'] },
   { key: 'clients', icon: Users, href: '/clients', roles: ['admin'] },
   { key: 'tickets', icon: FileText, href: '/tickets', roles: ['admin'] },
-  { key: 'payments', icon: DollarSign, href: '/payments', roles: ['admin', 'operator'] },
+  { key: 'payments', icon: DollarSign, href: '/payments', roles: ['admin'] },
   { key: 'containers', icon: Container, href: '/containers', roles: ['admin', 'operator'] },
   { key: 'scanner', icon: QrCode, href: '/scanner', roles: [ 'scanner'] },
   { key: 'queuerScanner', icon: Users, href: '/queuer-scanner', roles: ['queuer'] },
