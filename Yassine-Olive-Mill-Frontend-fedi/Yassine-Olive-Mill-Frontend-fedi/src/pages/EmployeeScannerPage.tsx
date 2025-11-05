@@ -85,7 +85,7 @@ export function EmployeeScannerPage() {
   const fetchContainers = async () => {
     setIsLoadingContainers(true);
     try {
-      const response = await api.get('/containers');
+      const response = await api.get('/employee/containers');
       const containersData = getPayload<any[]>(response);
       setContainers(containersData);
     } catch (error: any) {
@@ -106,7 +106,7 @@ export function EmployeeScannerPage() {
   const processNextQueueItem = async (roomId: number) => {
     try {
       // Get the queue items
-      const queueResponse = await api.get('/pressing-queue');
+      const queueResponse = await api.get('/employee/pressing-queue');
       const queueItems = getPayload<any[]>(queueResponse);
       
       if (!queueItems || queueItems.length === 0) {
@@ -138,18 +138,18 @@ export function EmployeeScannerPage() {
       };
 
       console.log('Creating new pressing session:', sessionPayload);
-      const sessionResponse = await api.post('/pressing-sessions', sessionPayload);
+      const sessionResponse = await api.post('/employee/pressing-session', sessionPayload);
       const newSession = getPayload<any>(sessionResponse);
 
       // Update the batch status to in_process and assign to room
-      await api.put(`/batches/${nextQueueItem.batch_id}`, {
+      await api.put(`/employee/batch/${nextQueueItem.batch_id}`, {
         status: 'in_process',
         pressing_room_id: roomId,
         session_start_time: new Date().toISOString()
       });
 
       // Remove the item from the queue
-      await api.delete(`/pressing-queue/${nextQueueItem.id}`);
+      await api.delete(`/employee/queue/${nextQueueItem.id}`);
 
       console.log('Successfully processed next queue item:', newSession);
       return newSession;
@@ -291,7 +291,7 @@ export function EmployeeScannerPage() {
     }
 
     try {
-      const res = await api.get<any>(`/batches/${idOrCode}`);
+      const res = await api.get<any>(`/employee/batch/${idOrCode}/details`);
       const data = getPayload<any>(res);
 
       if (!data || !data.id) {
@@ -322,7 +322,7 @@ export function EmployeeScannerPage() {
   // Find room where this batch is currently being processed
   const findRoomByBatch = async (batch: any): Promise<ScannedRoomData> => {
     try {
-      const res = await api.get<any>(`/pressing-rooms/display-data`);
+      const res = await api.get<any>(`/employee/rooms/display-data`);
       const rooms = getPayload<any[]>(res);
       
       // Find the room that has this batch currently active
@@ -468,10 +468,10 @@ export function EmployeeScannerPage() {
         oil_bidons_produced: bidonsCount
       };
 
-      await api.put(`/pressing-sessions/${scannedRoom.currentSession.id}`, sessionPayload);
+      await api.put(`/employee/pressing-session/${scannedRoom.currentSession.id}/complete`, sessionPayload);
 
       // Update batch status to completed
-      await api.put(`/batches/${scannedRoom.currentSession.batch.id}`, {
+      await api.put(`/employee/batch/${scannedRoom.currentSession.batch.id}`, {
         status: 'completed',
         number_of_bidons: bidonsCount
       });
@@ -487,7 +487,7 @@ export function EmployeeScannerPage() {
           };
 
           console.log('Creating oil batch with container:', oilBatchPayload);
-          const oilBatchResponse = await api.post('/oil-batches/with-container', oilBatchPayload);
+          const oilBatchResponse = await api.post('/employee/oil-batch/with-container', oilBatchPayload);
           console.log('Oil batch created and assigned to container successfully:', getPayload(oilBatchResponse));
         } catch (oilBatchError) {
           console.error('Failed to create oil batch with container:', oilBatchError);

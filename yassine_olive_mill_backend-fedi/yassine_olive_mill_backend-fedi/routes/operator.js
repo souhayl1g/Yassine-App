@@ -28,4 +28,13 @@ router.post('/queue', operatorController.addToQueue);
 // POST /api/operator/pressing-session - Start pressing session (operator-specific logic)
 router.post('/pressing-session', operatorController.startPressingSession);
 
+// PUT /api/operator/batch/:id/load-boxes - Load boxes to pressing room (operator-specific logic)
+router.put('/batch/:id/load-boxes', operatorController.loadBoxesToPressing);
+
+// PUT /api/operator/pressing-session/:id/complete - Complete pressing session (operator-specific logic)
+router.put('/pressing-session/:id/complete', operatorController.completePressingSession);
+
+// PUT /api/operator/batch/:id - Update batch (operator-specific logic)
+router.put('/batch/:id', operatorController.updateBatch);
+
 export default router;

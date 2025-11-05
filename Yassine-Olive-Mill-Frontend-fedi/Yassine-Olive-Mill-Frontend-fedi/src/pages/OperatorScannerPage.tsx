@@ -371,25 +371,59 @@ export function OperatorScannerPage() {
       // Stop scanning after successful scan
       stopCamera();
       
-      // Check if ticket is active in multiple pressing rooms
-      if (ticket.pressingRooms && ticket.pressingRooms.length > 1) {
-        // Multiple active rooms - show room selection
-        setActiveRoomsForTicket(ticket.pressingRooms);
-        setCurrentStep('active-room-selection');
-        toast({ 
-          title: 'Success', 
-          description: `QR code scanned successfully. This ticket is active in ${ticket.pressingRooms.length} rooms.` 
-        });
-      } else if (ticket.pressingRooms && ticket.pressingRooms.length === 1) {
-        // Single active room - proceed normally but set the selected room
-        setSelectedActiveRoom(ticket.pressingRooms[0]);
-        setCurrentStep('ticket-info');
-        toast({ title: 'Success', description: 'QR code scanned successfully' });
+      // Check if all boxes are already loaded to pressing rooms
+      const totalBoxes = ticket.numberOfBoxes || 0;
+      const loadedBoxes = ticket.boxesLoadedToPressing || 0;
+      const isFullyLoaded = totalBoxes > 0 && loadedBoxes >= totalBoxes;
+
+      if (isFullyLoaded) {
+        // All boxes are already loaded - show appropriate message
+        if (ticket.pressingRooms && ticket.pressingRooms.length > 0) {
+          // Active in rooms - show completion options
+          if (ticket.pressingRooms.length > 1) {
+            setActiveRoomsForTicket(ticket.pressingRooms);
+            setCurrentStep('active-room-selection');
+            toast({ 
+              title: 'تم التحميل كاملاً', 
+              description: `جميع الصناديق محملة في ${ticket.pressingRooms.length} غرف. يمكنك إنهاء الجلسات.` 
+            });
+          } else {
+            setSelectedActiveRoom(ticket.pressingRooms[0]);
+            setCurrentStep('ticket-info');
+            toast({ 
+              title: 'تم التحميل كاملاً', 
+              description: 'جميع الصناديق محملة. يمكنك إنهاء الجلسة في الغرفة النشطة.' 
+            });
+          }
+        } else {
+          // Fully loaded but no active rooms - probably completed
+          setCurrentStep('ticket-info');
+          toast({ 
+            title: 'مكتملة', 
+            description: 'جميع صناديق هذه التذكرة تم تحميلها ومعالجتها بالكامل.' 
+          });
+        }
       } else {
-        // No active rooms - proceed normally
-        setSelectedActiveRoom(null);
-        setCurrentStep('ticket-info');
-        toast({ title: 'Success', description: 'QR code scanned successfully' });
+        // Not fully loaded - proceed with normal flow
+        if (ticket.pressingRooms && ticket.pressingRooms.length > 1) {
+          // Multiple active rooms - show room selection
+          setActiveRoomsForTicket(ticket.pressingRooms);
+          setCurrentStep('active-room-selection');
+          toast({ 
+            title: 'Success', 
+            description: `QR code scanned successfully. This ticket is active in ${ticket.pressingRooms.length} rooms.` 
+          });
+        } else if (ticket.pressingRooms && ticket.pressingRooms.length === 1) {
+          // Single active room - proceed normally but set the selected room
+          setSelectedActiveRoom(ticket.pressingRooms[0]);
+          setCurrentStep('ticket-info');
+          toast({ title: 'Success', description: 'QR code scanned successfully' });
+        } else {
+          // No active rooms - proceed normally
+          setSelectedActiveRoom(null);
+          setCurrentStep('ticket-info');
+          toast({ title: 'Success', description: 'QR code scanned successfully' });
+        }
       }
     } catch (error: any) {
       console.error('QR scan error:', error);
@@ -444,15 +478,17 @@ export function OperatorScannerPage() {
 
       return {
         id: String(data.id),
-        ticketNumber: data.ticket_number || `#${data.id}`,
-        clientName: data.client
+        ticketNumber: data.ticketNumber || data.ticket_number || `#${data.id}`,
+        clientName: data.clientName || (data.client
           ? `${data.client.firstname || ''} ${data.client.lastname || ''}`.trim()
-          : `Client #${data.clientId}`,
-        weightIn: data.weight_in ?? 0,
+          : data.clientId 
+          ? `Client #${data.clientId}`
+          : `Batch #${data.id}`),
+        weightIn: data.weightIn ?? data.weight_in ?? 0,
         status: data.status || 'received',
-        numberOfBoxes: data.number_of_boxes || undefined,
-        numberOfBidons: data.number_of_bidons || undefined,
-        boxesLoadedToPressing: data.boxes_loaded_to_pressing || 0,
+        numberOfBoxes: data.numberOfBoxes ?? data.number_of_boxes ?? 0,
+        numberOfBidons: data.numberOfBidons ?? data.number_of_bidons ?? 0,
+        boxesLoadedToPressing: data.boxesLoadedToPressing ?? data.boxes_loaded_to_pressing ?? 0,
         pressingRooms: pressingRooms
       };
     } catch (e: any) {
@@ -468,7 +504,8 @@ export function OperatorScannerPage() {
   const findActiveRoomsForBatch = async (batchId: number): Promise<Room[]> => {
     try {
       const res = await api.get<any>('/operator/rooms/display-data');
-      const rooms = getPayload<any[]>(res);
+      const payload = getPayload<any>(res);
+      const rooms = Array.isArray(payload?.rooms) ? payload.rooms : [];
       
       // Find rooms that have this batch currently active
       const activeRooms = rooms.filter((room: any) => 
@@ -652,6 +689,7 @@ export function OperatorScannerPage() {
         pressing_roomID: selectedRoom.id,
         number_of_boxes: boxesToProcess,
         batch_id: parseInt(scannedTicket.id),
+        operator_id: user?.id || 1,
         status: 'active'
       };
 
@@ -659,7 +697,7 @@ export function OperatorScannerPage() {
       const sessionId = (sessionResponse as any).id;
 
       // Then load boxes to pressing with history tracking
-      await api.put(`/batches/${scannedTicket.id}/load-boxes`, {
+      await api.put(`/operator/batch/${scannedTicket.id}/load-boxes`, {
         boxesToLoad: boxesToProcess,
         pressingSessionId: sessionId,
         pressingRoomId: selectedRoom.id,
@@ -727,10 +765,10 @@ export function OperatorScannerPage() {
         oil_bidons_produced: bidonsCount
       };
 
-      await api.put(`/pressing-sessions/${selectedActiveRoom.currentSession.id}`, sessionPayload);
+      await api.put(`/operator/pressing-session/${selectedActiveRoom.currentSession.id}/complete`, sessionPayload);
 
       // Update batch status to completed
-      await api.put(`/batches/${scannedTicket.id}`, {
+      await api.put(`/operator/batch/${scannedTicket.id}`, {
         status: 'completed',
         number_of_bidons: bidonsCount
       });
@@ -969,6 +1007,31 @@ export function OperatorScannerPage() {
             </div>
           )}
 
+          {/* Fully Loaded Warning */}
+          {scannedTicket && (scannedTicket.numberOfBoxes || 0) > 0 && (scannedTicket.boxesLoadedToPressing || 0) >= (scannedTicket.numberOfBoxes || 0) && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6">
+              <div className="text-center">
+                <h3 className="text-green-800 dark:text-green-200 font-bold text-lg mb-3">
+                  ✅ تم التحميل كاملاً
+                </h3>
+                <div className="bg-white dark:bg-green-800/30 border border-green-300 dark:border-green-700 rounded-lg p-3 mb-3">
+                  <p className="text-green-900 dark:text-green-100 font-bold text-xl mb-1">
+                    جميع الصناديق محملة
+                  </p>
+                  <p className="text-green-700 dark:text-green-300 text-sm">
+                    {scannedTicket.boxesLoadedToPressing} من أصل {scannedTicket.numberOfBoxes} صندوق
+                  </p>
+                </div>
+                <p className="text-green-600 dark:text-green-400 text-sm">
+                  {scannedTicket.pressingRooms && scannedTicket.pressingRooms.length > 0 
+                    ? 'يمكنك الآن إنهاء الجلسات النشطة' 
+                    : 'جميع العمليات مكتملة لهذه التذكرة'
+                  }
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Ticket Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
             <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-4 text-lg">
@@ -1001,8 +1064,13 @@ export function OperatorScannerPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">المتبقية للتحميل:</span>
-                <span className="font-medium text-green-600 dark:text-green-400">
+                <span className={`font-medium ${
+                  (scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0) === 0
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-orange-600 dark:text-orange-400'
+                }`}>
                   {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0)}
+                  {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0) === 0 ? ' (مكتمل)' : ''}
                 </span>
               </div>
               {scannedTicket.pressingRooms && scannedTicket.pressingRooms.length > 0 && (
@@ -1168,8 +1236,16 @@ export function OperatorScannerPage() {
               </OliveButton>
             ) : (
               <>
-                {/* If not in queue, provide direct CTA to add to queue */}
-                {currentTicketQueueInfo && !currentTicketQueueInfo.inQueue ? (
+                {/* Check if fully loaded */}
+                {scannedTicket && (scannedTicket.numberOfBoxes || 0) > 0 && (scannedTicket.boxesLoadedToPressing || 0) >= (scannedTicket.numberOfBoxes || 0) ? (
+                  <OliveButton
+                    variant="outline"
+                    className="flex-1 text-lg py-3 cursor-not-allowed opacity-60"
+                    disabled={true}
+                  >
+                    <span className="text-green-600">✅ جميع الصناديق محملة</span>
+                  </OliveButton>
+                ) : currentTicketQueueInfo && !currentTicketQueueInfo.inQueue ? (
                   <OliveButton
                     onClick={() => setCurrentStep('queue-confirm')}
                     className="flex-1 text-lg py-3 bg-orange-600 hover:bg-orange-700 text-white"

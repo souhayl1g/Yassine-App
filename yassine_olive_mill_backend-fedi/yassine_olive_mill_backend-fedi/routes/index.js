@@ -19,6 +19,7 @@ import containerRoutes from "./containers.js"
 import batchLoadingRoutes from "./batchLoadings.js"
 import pressingQueueRoutes from "./pressingQueue.js"
 import operatorRoutes from "./operator.js"
+import employeeScannerRoutes from "./employee.js"
 import userRoutes from "./users.js"
 
 // Mount routes
@@ -39,6 +40,7 @@ router.use('/containers', containerRoutes);
 router.use('/batch-loadings', batchLoadingRoutes);
 router.use('/pressing-queue', pressingQueueRoutes);
 router.use('/operator', operatorRoutes);
+router.use('/employee', employeeScannerRoutes);
 router.use('/users', userRoutes);
 
 // Health check endpoint
