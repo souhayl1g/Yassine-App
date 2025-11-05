@@ -1,7 +1,7 @@
 import db from '../models/index.js';
 import { Op, Sequelize } from 'sequelize';
 
-const { ExportPayment, Container, OilBatch, sequelize } = db;
+const { ExportPayment, Container, sequelize } = db;
 
 // Get all export payments
 export const getExportPayments = async (req, res) => {
@@ -30,12 +30,7 @@ export const getExportPayments = async (req, res) => {
         {
           model: Container,
           as: 'container',
-          include: [
-            {
-              model: OilBatch,
-              as: 'oilBatch'
-            }
-          ]
+          required: false
         }
       ],
       order: [['payment_date', 'DESC'], ['createdAt', 'DESC']],
@@ -75,12 +70,7 @@ export const getExportPaymentById = async (req, res) => {
         {
           model: Container,
           as: 'container',
-          include: [
-            {
-              model: OilBatch,
-              as: 'oilBatch'
-            }
-          ]
+          required: false
         }
       ]
     });
@@ -154,12 +144,7 @@ export const createExportPayment = async (req, res) => {
         {
           model: Container,
           as: 'container',
-          include: [
-            {
-              model: OilBatch,
-              as: 'oilBatch'
-            }
-          ]
+          required: false
         }
       ]
     });
@@ -217,12 +202,7 @@ export const updateExportPayment = async (req, res) => {
         {
           model: Container,
           as: 'container',
-          include: [
-            {
-              model: OilBatch,
-              as: 'oilBatch'
-            }
-          ]
+          required: false
         }
       ]
     });
@@ -282,12 +262,7 @@ export const getPaymentsByContainerId = async (req, res) => {
         {
           model: Container,
           as: 'container',
-          include: [
-            {
-              model: OilBatch,
-              as: 'oilBatch'
-            }
-          ]
+          required: false
         }
       ],
       order: [['payment_date', 'DESC'], ['createdAt', 'DESC']]
