@@ -821,3 +821,6 @@ Executing (default): SELECT "id", "email", "password", "role", "firstname", "las
   "email": "operator@gmail.com"
 }
 Executing (default): SELECT "id", "email", "password", "role", "firstname", "lastname", "createdAt", "updatedAt" FROM "users" AS "User" WHERE "User"."email" = 'operator@gmail.com';
+[2025-11-04T11:31:35.534Z] GET / - ::1
+[2025-11-04T11:31:45.752Z] GET /api/health - ::1
+[2025-11-04T11:31:48.239Z] GET /api/health - ::1

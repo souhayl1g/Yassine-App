@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DailyWorkHeader } from '@/components/daily-work/DailyWorkHeader';
 import { AddTicketModal } from '@/components/daily-work/AddTicketModal';
-import { QRScanModal, CameraScanModal } from '@/components/daily-work/QRScanModal';
+import { EnhancedQRScanModal } from '@/components/daily-work/EnhancedQRScanModal';
 import { RecentTicketsSection } from '@/components/daily-work/RecentTicketsSection';
 import { MinimizedTicketsBar } from '@/components/daily-work/MinimizedTicketsBar';
 import { EditTicketModal } from '@/components/daily-work/EditTicketModal';
@@ -89,18 +89,27 @@ export function DailyWorkPage() {
         onRemoveFromMinimized={dailyWork.removeFromMinimized}
       />
 
-      {/* Camera QR Scan Modal */}
-      <CameraScanModal
-        isOpen={dailyWork.isCameraScanOpen}
+      {/* Enhanced QR Scan Modal with Device Scanner, Camera, and Manual Selection */}
+      <EnhancedQRScanModal
+        isOpen={dailyWork.isQrScanOpen || dailyWork.isCameraScanOpen}
         onClose={() => {
+          dailyWork.setIsQrScanOpen(false);
           dailyWork.setIsCameraScanOpen(false);
           dailyWork.stopCamera();
           dailyWork.setIsFinishingOperation(false);
         }}
-        isCameraActive={dailyWork.isCameraActive}
-        videoRef={dailyWork.videoRef}
-        onStartCamera={dailyWork.initializeCamera}
-        onStopCamera={dailyWork.stopCamera}
+        onQRCodeScanned={(qrData) => {
+          dailyWork.handleQRResult(qrData);
+          dailyWork.setIsQrScanOpen(false);
+          dailyWork.setIsCameraScanOpen(false);
+        }}
+        recentTickets={dailyWork.recentTickets.map(t => ({
+          id: String(t.id),
+          clientName: t.clientName,
+          ticketNumber: t.ticketNumber,
+          date: t.dateReceived,
+          status: t.status
+        }))}
       />
 
       {/* Edit Ticket Modal */}
@@ -176,21 +185,6 @@ export function DailyWorkPage() {
         setSelectedClient={dailyWork.setSelectedClient}
         onAddTicket={dailyWork.handleAddTicket}
         onCancel={dailyWork.handleCancelAddTicket}
-      />
-
-      <QRScanModal
-        isOpen={dailyWork.isQrScanOpen}
-        onOpenChange={(open) => {
-          dailyWork.setIsQrScanOpen(open);
-          if (!open) {
-            dailyWork.setIsFinishingOperation(false);
-          }
-        }}
-        onFileUpload={dailyWork.handleQRScan}
-        onOpenCamera={() => {
-          dailyWork.setIsQrScanOpen(false);
-          dailyWork.setIsCameraScanOpen(true);
-        }}
       />
 
       {/* Payment Modal */}
