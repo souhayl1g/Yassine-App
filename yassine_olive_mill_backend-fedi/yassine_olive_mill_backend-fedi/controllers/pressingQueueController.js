@@ -219,7 +219,27 @@ const pressingQueueController = {
       });
     } catch (error) {
       console.error('Add to queue error:', error);
-      res.status(500).json({ error: error.message });
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        errors: error.errors,
+        sql: error.sql
+      });
+      
+      // Handle Sequelize validation errors
+      if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeForeignKeyConstraintError') {
+        const validationErrors = error.errors ? error.errors.map(e => e.message).join(', ') : error.message;
+        return res.status(400).json({ 
+          error: 'Validation error',
+          details: validationErrors,
+          message: validationErrors
+        });
+      }
+      
+      res.status(500).json({ 
+        error: error.message,
+        details: error.errors ? error.errors.map(e => e.message) : undefined
+      });
     }
   },
 
