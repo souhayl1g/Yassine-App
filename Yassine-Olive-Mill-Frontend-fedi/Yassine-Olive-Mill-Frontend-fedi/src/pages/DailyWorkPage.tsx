@@ -89,7 +89,7 @@ export function DailyWorkPage() {
         onRemoveFromMinimized={dailyWork.removeFromMinimized}
       />
 
-      {/* Enhanced QR Scan Modal with Device Scanner, Camera, and Manual Selection */}
+      {/* Enhanced QR Scan Modal with Device Scanner, Camera, and Upload */}
       <EnhancedQRScanModal
         isOpen={dailyWork.isQrScanOpen || dailyWork.isCameraScanOpen}
         onClose={() => {
@@ -103,13 +103,6 @@ export function DailyWorkPage() {
           dailyWork.setIsQrScanOpen(false);
           dailyWork.setIsCameraScanOpen(false);
         }}
-        recentTickets={dailyWork.recentTickets.map(t => ({
-          id: String(t.id),
-          clientName: t.clientName,
-          ticketNumber: t.ticketNumber,
-          date: t.dateReceived,
-          status: t.status
-        }))}
       />
 
       {/* Edit Ticket Modal */}

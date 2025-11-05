@@ -12,7 +12,6 @@ import {
   QrCode, 
   Camera, 
   Upload, 
-  List, 
   Scan,
   X,
   CheckCircle,
@@ -20,7 +19,6 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import QrScanner from 'qr-scanner';
 import { Html5Qrcode } from 'html5-qrcode';
 
@@ -28,20 +26,12 @@ interface EnhancedQRScanModalProps {
   isOpen: boolean;
   onClose: () => void;
   onQRCodeScanned: (data: string) => void;
-  recentTickets?: Array<{
-    id: string;
-    clientName: string;
-    ticketNumber: string;
-    date: string;
-    status: string;
-  }>;
 }
 
 export function EnhancedQRScanModal({
   isOpen,
   onClose,
   onQRCodeScanned,
-  recentTickets = [],
 }: EnhancedQRScanModalProps) {
   const [activeTab, setActiveTab] = useState('device');
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -59,11 +49,16 @@ export function EnhancedQRScanModal({
   useEffect(() => {
     if (isOpen && !hasAutoStarted.current) {
       hasAutoStarted.current = true;
-      // Start camera immediately on open
-      setActiveTab('camera');
-      startCamera();
-      // Also activate device scanner in background
+      // Start with device scanner tab
+      setActiveTab('device');
+      // Activate device scanner immediately
       startDeviceScanner();
+      // After a short delay, also start camera in background
+      const cameraTimeout = setTimeout(() => {
+        startCamera();
+      }, 1000);
+      
+      return () => clearTimeout(cameraTimeout);
     } else if (!isOpen) {
       hasAutoStarted.current = false;
     }
@@ -124,8 +119,18 @@ export function EnhancedQRScanModal({
       await html5QrCodeRef.current.start(
         { facingMode: 'environment' },
         {
-          fps: 10,
-          qrbox: { width: 250, height: 250 }
+          fps: 30, // Increased from 10 to 30 for faster detection
+          qrbox: function(viewfinderWidth, viewfinderHeight) {
+            // Use 70% of the minimum dimension for better coverage
+            const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+            const qrboxSize = Math.floor(minEdgeSize * 0.7);
+            return {
+              width: qrboxSize,
+              height: qrboxSize
+            };
+          },
+          aspectRatio: 1.0, // Square aspect ratio for QR codes
+          disableFlip: false, // Allow flipping for better detection
         },
         (decodedText) => {
           // QR code successfully scanned
@@ -215,11 +220,6 @@ export function EnhancedQRScanModal({
     }, 1500);
   };
 
-  // Handle manual ticket selection
-  const handleTicketSelect = (ticketId: string) => {
-    processScannedData(ticketId);
-  };
-
   // Handle modal close
   const handleClose = () => {
     stopCamera();
@@ -240,7 +240,7 @@ export function EnhancedQRScanModal({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="device" className="flex items-center gap-2">
               <Scan className="h-4 w-4" />
               <span className="hidden sm:inline">جهاز المسح</span>
@@ -252,10 +252,6 @@ export function EnhancedQRScanModal({
             <TabsTrigger value="upload" className="flex items-center gap-2">
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">رفع صورة</span>
-            </TabsTrigger>
-            <TabsTrigger value="manual" className="flex items-center gap-2">
-              <List className="h-4 w-4" />
-              <span className="hidden sm:inline">اختيار يدوي</span>
             </TabsTrigger>
           </TabsList>
 
@@ -396,64 +392,6 @@ export function EnhancedQRScanModal({
               <div className="mt-6 text-xs text-muted-foreground">
                 الصيغ المدعومة: JPG, PNG, WEBP
               </div>
-            </div>
-          </TabsContent>
-
-          {/* Manual Selection Tab */}
-          <TabsContent value="manual" className="space-y-4">
-            <div className="border rounded-lg p-4">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <List className="h-5 w-5" />
-                اختر تذكرة من القائمة
-              </h3>
-              
-              <ScrollArea className="h-[400px]">
-                {recentTickets.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>لا توجد تذاكر متاحة</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {recentTickets.map((ticket) => (
-                      <div
-                        key={ticket.id}
-                        onClick={() => handleTicketSelect(ticket.id)}
-                        className="p-4 border rounded-lg hover:bg-primary/5 hover:border-primary cursor-pointer transition-all"
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h4 className="font-semibold text-lg">{ticket.clientName}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              رقم التذكرة: {ticket.ticketNumber}
-                            </p>
-                          </div>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            ticket.status === 'received' ? 'bg-yellow-100 text-yellow-800' :
-                            ticket.status === 'in_process' ? 'bg-blue-100 text-blue-800' :
-                            ticket.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {ticket.status === 'received' ? 'مستلم' :
-                             ticket.status === 'in_process' ? 'قيد المعالجة' :
-                             ticket.status === 'completed' ? 'مكتمل' :
-                             ticket.status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(ticket.date).toLocaleDateString('ar-MA', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
             </div>
           </TabsContent>
         </Tabs>
