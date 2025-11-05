@@ -105,7 +105,7 @@ export function OperatorScannerPage() {
   // Check for active queuer sessions (batches currently being queued) system-wide
   const checkPartiallyQueuedBatches = async () => {
     try {
-      const res = await api.get<any>('/pressing-queue/partially-queued');
+      const res = await api.get<any>('/operator/queue/partially-queued');
       const data = getPayload<any>(res);
       
       setHasPartiallyQueued(data.hasPartiallyQueued);
@@ -126,7 +126,7 @@ export function OperatorScannerPage() {
                             errorMessage.includes('QueuerSession.updatedAt') ||
                             errorMessage.includes('does not exist') ||
                             errorMessage.includes('column') && errorMessage.includes('QueuerSession') ||
-                            (error?.response?.status === 500 && errorMessage.includes('/pressing-queue/partially-queued'));
+                            (error?.response?.status === 500 && errorMessage.includes('/operator/queue/partially-queued'));
       
       if (isBackendError) {
         console.log('Backend database error detected, assuming no active sessions');
@@ -180,7 +180,7 @@ export function OperatorScannerPage() {
   const checkTicketQueueStatus = async (ticketId: string): Promise<{ canProceed: boolean, queueInfo?: any }> => {
     try {
       // Primary source: queuer sessions via combined-display-data endpoint
-      const res = await api.get<any>('/pressing-rooms/combined-display-data');
+      const res = await api.get<any>('/operator/rooms/display-data');
       const payload = getPayload<any>(res);
       const queueItems = Array.isArray(payload?.queueItems) ? payload.queueItems : [];
 
@@ -193,7 +193,7 @@ export function OperatorScannerPage() {
       if (!item) {
         // Fallback to batch-status endpoint if not found in display-data
         try {
-          const res2 = await api.get<any>(`/pressing-queue/batch-status/${ticketId}`);
+          const res2 = await api.get<any>(`/operator/batch/${ticketId}/queue-status`);
           const data = getPayload<any>(res2);
           // Consider "in queue" if a session exists (i.e., any totalBoxes/boxesQueued info available),
           // regardless of backend boolean flag
@@ -401,7 +401,7 @@ export function OperatorScannerPage() {
   const fetchPressingRooms = async (): Promise<Room[]> => {
     try {
       setIsLoadingRooms(true);
-      const res = await api.get<Room[]>('/pressing-rooms');
+      const res = await api.get<Room[]>('/operator/rooms');
       const rooms = getPayload<Room[]>(res);
       setRooms(rooms);
       return rooms;
@@ -432,7 +432,7 @@ export function OperatorScannerPage() {
     }
 
     try {
-      const res = await api.get<any>(`/batches/${idOrCode}`);
+      const res = await api.get<any>(`/operator/batch/${idOrCode}/details`);
       const data = getPayload<any>(res);
 
       if (!data || !data.id) {
@@ -467,7 +467,7 @@ export function OperatorScannerPage() {
   // Find active pressing rooms for a specific batch
   const findActiveRoomsForBatch = async (batchId: number): Promise<Room[]> => {
     try {
-      const res = await api.get<any>('/pressing-rooms/display-data');
+      const res = await api.get<any>('/operator/rooms/display-data');
       const rooms = getPayload<any[]>(res);
       
       // Find rooms that have this batch currently active
@@ -595,7 +595,7 @@ export function OperatorScannerPage() {
         notes: `Queued ${boxesToProcess} boxes for pressing by ${user?.firstname || 'Unknown'} ${user?.lastname || 'Operator'}`
       };
 
-      const response = await api.post('/pressing-queue', queuePayload);
+      const response = await api.post('/operator/queue', queuePayload);
       const queueData = getPayload<any>(response);
 
       toast({ 
@@ -655,7 +655,7 @@ export function OperatorScannerPage() {
         status: 'active'
       };
 
-      const sessionResponse = await api.post('/pressing-sessions', sessionPayload);
+      const sessionResponse = await api.post('/operator/pressing-session', sessionPayload);
       const sessionId = (sessionResponse as any).id;
 
       // Then load boxes to pressing with history tracking

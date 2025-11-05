@@ -150,21 +150,31 @@ const pressingQueueController = {
         });
 
         if (activeSession) {
-          // Queuer has an active session, must continue with the same batch
+          // Queuer has an active session, must continue with the same batch unless it's fully processed
           if (activeSession.currentBatchId !== batch.id) {
-            const currentBatch = activeSession.batch;
-            const currentBatchName = currentBatch 
-              ? `${currentBatch.ticket_number || `#${currentBatch.id}`} - ${currentBatch.client ? `${currentBatch.client.firstname} ${currentBatch.client.lastname}` : `Client #${currentBatch.clientId}`}`
-              : `Batch #${activeSession.currentBatchId}`;
-            
             const remainingBoxes = activeSession.totalBoxes - activeSession.boxesQueued;
             
-            return res.status(400).json({ 
-              error: 'Cannot switch to a different batch while processing another batch',
-              currentBatch: currentBatchName,
-              remainingBoxes: remainingBoxes,
-              message: `يجب إنهاء معالجة الدفعة الحالية قبل البدء في دفعة جديدة: ${currentBatchName} (متبقي ${remainingBoxes} صندوق)`
-            });
+            // Only block if there are remaining boxes > 0
+            if (remainingBoxes > 0) {
+              const currentBatch = activeSession.batch;
+              const currentBatchName = currentBatch 
+                ? `${currentBatch.ticket_number || `#${currentBatch.id}`} - ${currentBatch.client ? `${currentBatch.client.firstname} ${currentBatch.client.lastname}` : `Client #${currentBatch.clientId}`}`
+                : `Batch #${activeSession.currentBatchId}`;
+              
+              return res.status(400).json({ 
+                error: 'Cannot switch to a different batch while processing another batch',
+                currentBatch: currentBatchName,
+                remainingBoxes: remainingBoxes,
+                message: `يجب إنهاء معالجة الدفعة الحالية قبل البدء في دفعة جديدة: ${currentBatchName} (متبقي ${remainingBoxes} صندوق)`
+              });
+            } else {
+              // Current batch is fully processed, close the session and create a new one
+              await QueuerSession.update(
+                { status: 'completed' },
+                { where: { id: activeSession.id } }
+              );
+              activeSession = null; // Will create new session below
+            }
           }
         } else {
           // No active session, create a new one for this batch
