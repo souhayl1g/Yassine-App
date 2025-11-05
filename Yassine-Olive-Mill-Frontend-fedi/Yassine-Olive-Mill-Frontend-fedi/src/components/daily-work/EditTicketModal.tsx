@@ -209,7 +209,7 @@ export function EditTicketModal({
           
           {ticket?.operationType === 'sale' && (
             <div className="text-xs text-muted-foreground">
-              إذا لم يتم إدخال معدل الاستخراج، سيتم حساب السعر بناءً على دفعات الزيت المسجلة
+              إذا تم إدخال معدل الاستخراج، سيتم حساب كمية الزيت ثم ضربها في سعر شراء الزيتون. وإلا سيتم حساب السعر مباشرة على الوزن الصافي.
             </div>
           )}
         </div>
@@ -226,13 +226,13 @@ export function EditTicketModal({
             ) : currentPrices ? (
               <div>
                 {ticket?.operationType === 'sale' ? (
-                  currentPrices.oil_client_selling_price_per_kg > 0 ? (
-                    <div className="text-base font-bold text-blue-700 dark:text-blue-300">
-                      سعر بيع الزيت: {currentPrices.oil_client_selling_price_per_kg} دينار/كيلو
-                    </div>
+                  currentPrices.olive_buying_price_per_kg > 0 ? (
+                    <p className="text-sm text-olive-600">
+                      سعر شراء الزيتون: {currentPrices.olive_buying_price_per_kg} دينار/كيلو
+                    </p>
                   ) : (
                     <div className="text-red-700 dark:text-red-400 text-sm">
-                      لا يوجد سعر بيع الزيت محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                      لا يوجد سعر شراء الزيتون محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
                     </div>
                   )
                 ) : (

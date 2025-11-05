@@ -11,6 +11,7 @@ import {
   ScannedTicket 
 } from '@/types/daily-work';
 import { generateDailyTicketNumber, generateQRCode, getPayload } from './utils';
+import { ticketPaymentService, TicketPayment } from '@/services/ticketPaymentService';
 
 export const useDailyWork = () => {
   const { t } = useTranslation();
@@ -31,6 +32,10 @@ export const useDailyWork = () => {
 
   // Oil batch weights cache for sale calculations
   const [oilBatchWeights, setOilBatchWeights] = useState<{ [batchId: string]: number }>({});
+
+  // Payment management state
+  const [ticketPayments, setTicketPayments] = useState<{ [ticketId: string]: TicketPayment[] }>({});
+  const [loadingPayments, setLoadingPayments] = useState(false);
 
   // Additional states
   const [ticketToPrint, setTicketToPrint] = useState<Ticket | null>(null);
@@ -215,6 +220,28 @@ export const useDailyWork = () => {
         console.log('🎫 TICKET DEBUG: Non-sale operation, skipping oil batch loading');
       }
 
+      // Load existing payments for this ticket
+      console.log('💳 TICKET DEBUG: Loading existing payments for ticket');
+      const existingPayments = await loadTicketPayments(latestTicket.id);
+      
+      // Update form with payment information
+      if (existingPayments.length > 0) {
+        const payment = existingPayments[0]; // Get the first payment
+        console.log('💰 TICKET DEBUG: Found existing payment:', payment);
+        ticketManagement.setEditForm(prev => ({
+          ...prev,
+          isPaid: true,
+          paymentAmount: payment.amount.toString()
+        }));
+      } else {
+        console.log('💰 TICKET DEBUG: No existing payments found');
+        ticketManagement.setEditForm(prev => ({
+          ...prev,
+          isPaid: false,
+          paymentAmount: ''
+        }));
+      }
+
       setIsFinishingOperation(true);
       setIsEditModalOpen(true);
     } catch (error: any) {
@@ -305,35 +332,68 @@ export const useDailyWork = () => {
     try {
       ticketManagement.setIsSaving(true);
       
-      const payload = {
+      // Separate ticket data from payment data
+      const ticketPayload = {
         weightOut: parseFloat(ticketManagement.editForm.weightOut),
         numberOfBoxes: parseInt(ticketManagement.editForm.numberOfBoxes) || 0,
         ...(ticketManagement.scannedTicket.operationType === 'sale' && ticketManagement.editForm.taux && {
           taux: parseFloat(ticketManagement.editForm.taux)
-        }),
-        // Payment fields
-        isPaid: ticketManagement.editForm.isPaid,
-        ...(ticketManagement.editForm.isPaid && {
-          paymentAmount: parseFloat(ticketManagement.editForm.paymentAmount) || 0,
-          paymentMethod: 'cash', // Always cash
-          datePaid: new Date().toISOString()
         })
       };
 
-      console.log('💾 PAYMENT DEBUG: Full payload being sent:', JSON.stringify(payload, null, 2));
-      console.log('💰 PAYMENT DEBUG: Payment fields specifically:', {
-        isPaid: payload.isPaid,
-        paymentAmount: payload.paymentAmount,
-        paymentMethod: payload.paymentMethod,
-        datePaid: payload.datePaid
-      });
+      console.log('💾 TICKET DEBUG: Ticket payload being sent:', JSON.stringify(ticketPayload, null, 2));
 
-      const response = await ticketManagement.updateBatch(ticketManagement.scannedTicket.id, payload);
+      // Update the ticket first
+      const response = await ticketManagement.updateBatch(ticketManagement.scannedTicket.id, ticketPayload);
       
-      console.log('📡 PAYMENT DEBUG: Server response:', response);
-      console.log('📦 PAYMENT DEBUG: Response data:', response?.data);
+      console.log('📡 TICKET DEBUG: Server response:', response);
       
       if (response.success) {
+        // Handle payment separately if marked as paid
+        if (ticketManagement.editForm.isPaid && ticketManagement.editForm.paymentAmount) {
+          const paymentAmount = parseFloat(ticketManagement.editForm.paymentAmount);
+          if (paymentAmount > 0) {
+            console.log('💰 PAYMENT DEBUG: Saving payment:', {
+              ticketId: ticketManagement.scannedTicket.id,
+              operationType: ticketManagement.scannedTicket.operationType,
+              amount: paymentAmount
+            });
+            
+            try {
+              await saveTicketPayment(
+                ticketManagement.scannedTicket.id,
+                ticketManagement.scannedTicket.operationType as 'sale' | 'pressing',
+                paymentAmount
+              );
+              console.log('✅ PAYMENT DEBUG: Payment saved successfully');
+            } catch (paymentError) {
+              console.error('❌ PAYMENT DEBUG: Error saving payment:', paymentError);
+              // Don't fail the entire operation if payment fails
+              toast({
+                variant: 'destructive',
+                title: 'تحذير',
+                description: 'تم حفظ بيانات التذكرة ولكن حدث خطأ في حفظ معلومات الدفع'
+              });
+            }
+          }
+        } else {
+          // If not paid, make sure to delete any existing payments for this ticket
+          const currentPayments = ticketPayments[ticketManagement.scannedTicket.id] || [];
+          if (currentPayments.length > 0) {
+            console.log('🗑️ PAYMENT DEBUG: Ticket marked as unpaid, deleting existing payments');
+            try {
+              for (const payment of currentPayments) {
+                if (payment.id) {
+                  await deleteTicketPayment(payment.id, ticketManagement.scannedTicket.id);
+                }
+              }
+              console.log('✅ PAYMENT DEBUG: Existing payments deleted');
+            } catch (paymentError) {
+              console.error('❌ PAYMENT DEBUG: Error deleting payments:', paymentError);
+            }
+          }
+        }
+        
         setIsEditModalOpen(false);
         setIsFinishingOperation(false);
         ticketManagement.loadRecentTickets(); // Refresh the tickets list
@@ -346,6 +406,11 @@ export const useDailyWork = () => {
       }
     } catch (error) {
       console.error('Error saving changes:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'حدث خطأ في حفظ التغييرات'
+      });
     } finally {
       ticketManagement.setIsSaving(false);
     }
@@ -644,8 +709,111 @@ export const useDailyWork = () => {
     }
   };
 
-  // Calculate minimum price based on 200 kg * unit price
-  const calculateMinimumPrice = (unitPrice: number) => {
+  // Load payments for a specific ticket
+  const loadTicketPayments = async (ticketId: string) => {
+    console.log('💳 PAYMENT DEBUG: Loading payments for ticket ID:', ticketId);
+    
+    try {
+      setLoadingPayments(true);
+      const response = await ticketPaymentService.getPaymentsByTicketId(parseInt(ticketId));
+      console.log('📨 PAYMENT DEBUG: Raw payment response:', response);
+      
+      const payments = getPayload<TicketPayment[]>(response) || [];
+      console.log('📦 PAYMENT DEBUG: Parsed payments:', payments);
+      
+      setTicketPayments(prev => ({ ...prev, [ticketId]: payments }));
+      console.log('💾 PAYMENT DEBUG: Cached payments for ticket:', ticketId);
+      
+      return payments;
+    } catch (error) {
+      console.error('❌ PAYMENT DEBUG: Error loading payments:', error);
+      return [];
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  // Create or update ticket payment
+  const saveTicketPayment = async (ticketId: string, operationType: 'sale' | 'pressing', amount: number, paymentDate?: string) => {
+    console.log('💳 PAYMENT DEBUG: Saving payment for ticket:', ticketId);
+    console.log('💰 PAYMENT DEBUG: Payment details:', { operationType, amount, paymentDate });
+    
+    try {
+      // Check if payment already exists for this ticket
+      const existingPayments = ticketPayments[ticketId] || [];
+      const existingPayment = existingPayments[0]; // Assuming one payment per ticket for now
+      
+      const paymentData = {
+        ticketId: parseInt(ticketId),
+        amount,
+        payment_date: paymentDate || new Date().toISOString().split('T')[0],
+        payment_method: 'cash',
+        payment_type: operationType === 'sale' ? 'outgoing' as const : 'incoming' as const,
+        operation_type: operationType
+      };
+      
+      let response;
+      if (existingPayment) {
+        console.log('📝 PAYMENT DEBUG: Updating existing payment:', existingPayment.id);
+        response = await ticketPaymentService.updateTicketPayment(existingPayment.id!, {
+          amount,
+          payment_date: paymentData.payment_date
+        });
+      } else {
+        console.log('➕ PAYMENT DEBUG: Creating new payment');
+        response = await ticketPaymentService.createTicketPayment(paymentData);
+      }
+      
+      console.log('✅ PAYMENT DEBUG: Payment saved successfully:', response);
+      
+      // Refresh payments for this ticket
+      await loadTicketPayments(ticketId);
+      
+      return response;
+    } catch (error) {
+      console.error('❌ PAYMENT DEBUG: Error saving payment:', error);
+      throw error;
+    }
+  };
+
+  // Delete ticket payment
+  const deleteTicketPayment = async (paymentId: number, ticketId: string) => {
+    console.log('🗑️ PAYMENT DEBUG: Deleting payment:', paymentId);
+    
+    try {
+      const response = await ticketPaymentService.deleteTicketPayment(paymentId);
+      console.log('✅ PAYMENT DEBUG: Payment deleted successfully');
+      
+      // Refresh payments for this ticket
+      await loadTicketPayments(ticketId);
+      
+      return response;
+    } catch (error) {
+      console.error('❌ PAYMENT DEBUG: Error deleting payment:', error);
+      throw error;
+    }
+  };
+
+  // Get payment status for a ticket
+  const getTicketPaymentStatus = (ticketId: string) => {
+    const payments = ticketPayments[ticketId] || [];
+    const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount.toString()), 0);
+    const isPaid = payments.length > 0;
+    
+    return {
+      isPaid,
+      totalPaid,
+      payments,
+      paymentCount: payments.length
+    };
+  };
+
+  // Calculate minimum price based on 200 kg * unit price (only applies to non-sale operations)
+  const calculateMinimumPrice = (unitPrice: number, operationType?: string) => {
+    // For sale operations, no minimum price is applied
+    if (operationType === 'sale') {
+      return 0;
+    }
     return 200 * unitPrice;
   };
 
@@ -665,70 +833,47 @@ export const useDailyWork = () => {
     let containerWeight: number | undefined = undefined;
     
     if (operationType === 'sale') {
-      // For sale operations, use oil selling price
+      // For sale operations, use olive buying price per kg (no minimum price applied)
+      unitPrice = ticketManagement.currentPrices.olive_buying_price_per_kg;
+      
+      // Check if taux is provided in the edit form
       const tauxValue = parseFloat(ticketManagement.editForm.taux) || 0;
+      let effectiveWeight = netWeight;
+      
       if (tauxValue > 0) {
-        // If taux is provided, calculate oil amount and use oil selling price
-        const oilAmount = (netWeight * tauxValue) / 100;
-        unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
-        const totalAmount = oilAmount * unitPrice;
-        const minimumPrice = calculateMinimumPrice(unitPrice);
+        // If taux is provided, calculate oil amount from net weight
+        effectiveWeight = (netWeight * tauxValue) / 100;
         calculationMethod = 'taux';
-        return { 
-          amount: Math.max(totalAmount, minimumPrice), 
-          calculationMethod,
-          containerWeight: oilAmount 
-        };
+        
+        console.log('💰 SALE DEBUG: Using taux-based calculation:');
+        console.log('  - Net weight:', netWeight, 'kg');
+        console.log('  - Taux rate:', tauxValue, '%');
+        console.log('  - Calculated oil amount:', effectiveWeight, 'kg');
+        console.log('  - Olive buying price:', unitPrice, 'dinars/kg');
+        console.log('  - Total amount:', effectiveWeight * unitPrice, 'dinars');
+        console.log('  - No minimum price applied for sale operations');
       } else {
-        // If taux is 0 or not provided, use cached oil batch weights or load them
-        console.log('🔍 SALE DEBUG: Taux is 0 or empty, checking oil batches');
-        console.log('📋 SALE DEBUG: Current batch ID:', ticketManagement.scannedTicket.id);
-        console.log('💾 SALE DEBUG: Cached oil batch weights:', oilBatchWeights);
-        
-        let cachedWeight = oilBatchWeights[ticketManagement.scannedTicket.id];
-        console.log('⚖️ SALE DEBUG: Cached weight for batch:', cachedWeight);
-        
-        if (cachedWeight === undefined) {
-          console.log('🔄 SALE DEBUG: No cached weight found, loading from API...');
-          // Load oil batch weights if not cached
-          cachedWeight = await loadOilBatchWeights(ticketManagement.scannedTicket.id);
-          console.log('📡 SALE DEBUG: Loaded weight from API:', cachedWeight);
-        }
-        
-        if (cachedWeight > 0) {
-          // Use oil selling price per kg for the total oil weight
-          unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
-          const totalAmount = cachedWeight * unitPrice;
-          const minimumPrice = calculateMinimumPrice(unitPrice);
-          calculationMethod = 'container';
-          containerWeight = cachedWeight;
-          
-          console.log('💰 SALE DEBUG: Using container method calculation:');
-          console.log('  - Container weight:', cachedWeight, 'kg');
-          console.log('  - Oil selling price:', unitPrice, 'dinars/kg');
-          console.log('  - Calculated amount (before minimum):', totalAmount, 'dinars');
-          console.log('  - Minimum price (200kg * price):', minimumPrice, 'dinars');
-          console.log('  - Final amount (with minimum):', Math.max(totalAmount, minimumPrice), 'dinars');
-          
-          return { 
-            amount: Math.max(totalAmount, minimumPrice), 
-            calculationMethod,
-            containerWeight 
-          };
-        } else {
-          console.log('⚠️ SALE DEBUG: No oil batches found, falling back to milling price');
-          // No oil batches found, use milling price as fallback
-          unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
-          console.log('🏭 SALE DEBUG: Fallback milling price:', unitPrice, 'dinars/kg');
-        }
+        console.log('💰 SALE DEBUG: Using direct net weight calculation:');
+        console.log('  - Net weight:', netWeight, 'kg');
+        console.log('  - Olive buying price:', unitPrice, 'dinars/kg');
+        console.log('  - Total amount:', effectiveWeight * unitPrice, 'dinars');
+        console.log('  - No minimum price applied for sale operations');
       }
+      
+      const totalAmount = effectiveWeight * unitPrice;
+      const minimumPrice = calculateMinimumPrice(unitPrice, operationType);
+      return { 
+        amount: Math.max(totalAmount, minimumPrice), 
+        calculationMethod,
+        containerWeight: tauxValue > 0 ? effectiveWeight : undefined
+      };
     } else {
       // For milling operations, use milling price
       unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
     }
     
     const totalAmount = netWeight * unitPrice;
-    const minimumPrice = calculateMinimumPrice(unitPrice);
+    const minimumPrice = calculateMinimumPrice(unitPrice, operationType);
     return { 
       amount: Math.max(totalAmount, minimumPrice), 
       calculationMethod 
@@ -756,36 +901,26 @@ export const useDailyWork = () => {
     let baseAmount = 0;
     
     if (operationType === 'sale') {
-      // For sale operations, use oil selling price
+      // For sale operations, use olive buying price per kg (no minimum price applied)
+      unitPrice = ticketManagement.currentPrices.olive_buying_price_per_kg;
+      
+      // Check if taux is provided in the edit form
       const tauxValue = parseFloat(ticketManagement.editForm.taux) || 0;
+      let effectiveWeight = netWeight;
+      
       if (tauxValue > 0) {
-        // If taux is provided, calculate oil amount and use oil selling price
-        const oilAmount = (netWeight * tauxValue) / 100;
-        unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
-        baseAmount = oilAmount * unitPrice;
-      } else {
-        // Check cached oil batch weights
-        let cachedWeight = oilBatchWeights[ticketManagement.scannedTicket.id];
-        if (cachedWeight === undefined) {
-          cachedWeight = await loadOilBatchWeights(ticketManagement.scannedTicket.id);
-        }
-        
-        if (cachedWeight > 0) {
-          unitPrice = ticketManagement.currentPrices.oil_client_selling_price_per_kg;
-          baseAmount = cachedWeight * unitPrice;
-        } else {
-          // Fallback to milling price
-          unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
-          baseAmount = netWeight * unitPrice;
-        }
+        // If taux is provided, calculate oil amount from net weight
+        effectiveWeight = (netWeight * tauxValue) / 100;
       }
+      
+      baseAmount = effectiveWeight * unitPrice;
     } else {
       // For milling operations, use milling price
       unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
       baseAmount = netWeight * unitPrice;
     }
     
-    const minimumPrice = calculateMinimumPrice(unitPrice);
+    const minimumPrice = calculateMinimumPrice(unitPrice, operationType);
     return baseAmount < minimumPrice;
   };
 
@@ -1020,5 +1155,13 @@ export const useDailyWork = () => {
     isMinimumPriceApplied,
     printTicket,
     handleDeleteTicket,
+
+    // Payment Management
+    ticketPayments,
+    loadingPayments,
+    loadTicketPayments,
+    saveTicketPayment,
+    deleteTicketPayment,
+    getTicketPaymentStatus,
   };
 };

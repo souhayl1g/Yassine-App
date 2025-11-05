@@ -9,6 +9,8 @@ import oilBatchRoutes from "./oilBatches.js"
 import qualityTestRoutes from "./qualityTests.js"
 import invoiceRoutes from "./invoices.js"
 import paymentRoutes from "./payments.js"
+import ticketPaymentRoutes from "./ticketPayments.js"
+import exportPaymentRoutes from "./exportPayments.js"
 import employeeRoutes from "./employees.js"
 import priceRoutes from "./prices.js"
 import dashboardRoutes from "./dashboard.js"
@@ -26,6 +28,8 @@ router.use('/oil-batches', oilBatchRoutes);
 router.use('/quality-tests', qualityTestRoutes);
 router.use('/invoices', invoiceRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/ticket-payments', ticketPaymentRoutes);
+router.use('/export-payments', exportPaymentRoutes);
 router.use('/employees', employeeRoutes);
 router.use('/prices', priceRoutes);
 router.use('/dashboard', dashboardRoutes);

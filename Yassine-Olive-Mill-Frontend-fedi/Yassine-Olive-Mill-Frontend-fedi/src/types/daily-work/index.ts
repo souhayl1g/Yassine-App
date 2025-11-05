@@ -55,11 +55,14 @@ export interface EditTicketForm {
 }
 
 export interface Price {
-  id: string;
+  id: number;
   milling_price_per_kg: number;
-  oil_client_selling_price_per_kg: number;
+  oil_export_selling_price_per_kg: number;
+  olive_buying_price_per_kg: number;
   empty_bidon_price: number;
   date: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DailyWorkState {

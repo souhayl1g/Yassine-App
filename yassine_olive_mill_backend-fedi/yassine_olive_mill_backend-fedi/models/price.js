@@ -15,10 +15,6 @@ export default (sequelize) => {
       type: DataTypes.FLOAT,
       allowNull: true
     },
-    oil_client_selling_price_per_kg: {
-      type: DataTypes.FLOAT,
-      allowNull: true
-    },
     oil_export_selling_price_per_kg: {
       type: DataTypes.FLOAT,
       allowNull: true
