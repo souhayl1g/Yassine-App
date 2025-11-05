@@ -320,14 +320,26 @@ export function QueuerScannerPage() {
 
     setIsSaving(true);
     try {
+      // Validate user ID is available
+      if (!user?.id) {
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: 'معرف المستخدم غير متوفر. يرجى تسجيل الدخول مرة أخرى.' 
+        });
+        setIsSaving(false);
+        return;
+      }
+
       const payload = {
         batch_id: parseInt(scannedTicket.id),
         number_of_boxes: boxes,
-        operator_id: user?.id || 1,
+        operator_id: user.id,
         notes: 'Added to queue by queuer'
       };
 
       console.log('Sending queue payload:', payload);
+      console.log('User info:', user);
       await api.post('/pressing-queue', payload);
 
       // Check if session is now complete
