@@ -333,22 +333,33 @@ export const useDailyWork = () => {
       ticketManagement.setIsSaving(true);
       
       // Separate ticket data from payment data
-      const ticketPayload = {
+      const isPaidNow = !!ticketManagement.editForm.isPaid;
+      const ticketPayload: any = {
         weightOut: parseFloat(ticketManagement.editForm.weightOut),
         numberOfBoxes: parseInt(ticketManagement.editForm.numberOfBoxes) || 0,
         ...(ticketManagement.scannedTicket.operationType === 'sale' && ticketManagement.editForm.taux && {
           taux: parseFloat(ticketManagement.editForm.taux)
-        })
+        }),
+        // Persist paid status to batch
+        is_paid: isPaidNow,
+        ...(isPaidNow
+          ? { payment_method: 'cash' }
+          : { payment_method: null, payment_reference: null, date_paid: null }
+        )
       };
 
       console.log('💾 TICKET DEBUG: Ticket payload being sent:', JSON.stringify(ticketPayload, null, 2));
 
       // Update the ticket first
       const response = await ticketManagement.updateBatch(ticketManagement.scannedTicket.id, ticketPayload);
-      
       console.log('📡 TICKET DEBUG: Server response:', response);
+
+      // Consider HTTP 2xx or presence of payload as success, not only { success: true }
+      const responsePayload = getPayload<any>(response);
+      const httpStatus = (response as any)?.status;
+      const isSuccess = (response as any)?.success === true || !!responsePayload || (httpStatus >= 200 && httpStatus < 300);
       
-      if (response.success) {
+      if (isSuccess) {
         // Handle payment separately if marked as paid
         if (ticketManagement.editForm.isPaid && ticketManagement.editForm.paymentAmount) {
           const paymentAmount = parseFloat(ticketManagement.editForm.paymentAmount);
@@ -360,9 +371,14 @@ export const useDailyWork = () => {
             });
             
             try {
+              // Normalize operation type for backend contract: 'milling' => 'pressing'
+              const normalizedOperationType = (ticketManagement.scannedTicket.operationType === 'milling'
+                ? 'pressing'
+                : ticketManagement.scannedTicket.operationType) as 'sale' | 'pressing';
+
               await saveTicketPayment(
                 ticketManagement.scannedTicket.id,
-                ticketManagement.scannedTicket.operationType as 'sale' | 'pressing',
+                normalizedOperationType,
                 paymentAmount
               );
               console.log('✅ PAYMENT DEBUG: Payment saved successfully');
@@ -739,9 +755,10 @@ export const useDailyWork = () => {
     console.log('💰 PAYMENT DEBUG: Payment details:', { operationType, amount, paymentDate });
     
     try {
-      // Check if payment already exists for this ticket
-      const existingPayments = ticketPayments[ticketId] || [];
-      const existingPayment = existingPayments[0]; // Assuming one payment per ticket for now
+      // Always check server for latest payments to avoid duplicate creates
+      const latestPaymentsResponse = await ticketPaymentService.getPaymentsByTicketId(parseInt(ticketId));
+      const latestPayments = getPayload<TicketPayment[]>(latestPaymentsResponse) || [];
+      const existingPayment = latestPayments[0]; // Assuming one payment per ticket for now
       
       const paymentData = {
         ticketId: parseInt(ticketId),
@@ -755,10 +772,15 @@ export const useDailyWork = () => {
       let response;
       if (existingPayment) {
         console.log('📝 PAYMENT DEBUG: Updating existing payment:', existingPayment.id);
-        response = await ticketPaymentService.updateTicketPayment(existingPayment.id!, {
-          amount,
-          payment_date: paymentData.payment_date
-        });
+        try {
+          response = await ticketPaymentService.updateTicketPayment(existingPayment.id!, {
+            amount,
+            payment_date: paymentData.payment_date
+          });
+        } catch (e) {
+          console.warn('⚠️ PAYMENT DEBUG: Update failed, attempting create as fallback', e);
+          response = await ticketPaymentService.createTicketPayment(paymentData);
+        }
       } else {
         console.log('➕ PAYMENT DEBUG: Creating new payment');
         response = await ticketPaymentService.createTicketPayment(paymentData);
@@ -1077,6 +1099,24 @@ export const useDailyWork = () => {
   useEffect(() => {
     ticketManagement.initializeData();
   }, []);
+
+  // Prefetch payments for visible recent tickets to ensure correct UI totals before opening modal
+  useEffect(() => {
+    if (!Array.isArray(ticketManagement.recentTickets) || ticketManagement.recentTickets.length === 0) return;
+    const ticketsToPrefetch = ticketManagement.recentTickets.slice(0, 50); // cap for performance
+    (async () => {
+      for (const t of ticketsToPrefetch) {
+        const id = String(t.id);
+        if (!ticketPayments[id]) {
+          try {
+            await loadTicketPayments(id);
+          } catch (e) {
+            // ignore prefetch errors silently
+          }
+        }
+      }
+    })();
+  }, [ticketManagement.recentTickets]);
 
   // Load oil batch weights when taux changes for sale operations
   useEffect(() => {

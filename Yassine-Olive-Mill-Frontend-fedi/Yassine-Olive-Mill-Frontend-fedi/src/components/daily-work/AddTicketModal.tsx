@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { OliveButton } from '@/components/ui/olive-button';
 import {
   Select,
@@ -171,18 +170,6 @@ export function AddTicketModal({
                 setNewTicket((prev) => ({ ...prev, weightIn: e.target.value }))
               }
               placeholder="0.00"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">ملاحظات (اختياري)</Label>
-            <Textarea
-              id="notes"
-              value={newTicket.notes}
-              onChange={(e) =>
-                setNewTicket((prev) => ({ ...prev, notes: e.target.value }))
-              }
-              placeholder="أدخل أي ملاحظات"
             />
           </div>
 

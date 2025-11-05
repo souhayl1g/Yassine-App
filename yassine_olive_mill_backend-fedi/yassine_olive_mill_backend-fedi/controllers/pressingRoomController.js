@@ -12,7 +12,10 @@ const pressingRoomController = {
 
       // Get active sessions with detailed information
       const activeSessions = await PressingSession.findAll({ 
-        where: { finish: null },
+        where: { 
+          finish: null,
+          status: 'active' // Only get actively running sessions, exclude 'done' status
+        },
         include: [
           {
             model: db.Batch,
@@ -124,7 +127,7 @@ const pressingRoomController = {
       const activeSessions = await PressingSession.findAll({ 
         where: { 
           finish: null,
-          status: 'active' // Only get actively running sessions
+          status: 'active' // Only get actively running sessions, exclude 'done' status
         },
         include: [
           {
@@ -202,7 +205,7 @@ const pressingRoomController = {
       const activeSessions = await PressingSession.findAll({ 
         where: { 
           finish: null,
-          status: 'active' // Only get actively running sessions
+          status: 'active' // Only get actively running sessions, exclude 'done' status
         },
         include: [
           {

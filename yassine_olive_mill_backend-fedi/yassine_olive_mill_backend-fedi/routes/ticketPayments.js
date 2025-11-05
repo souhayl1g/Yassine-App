@@ -18,12 +18,13 @@ router.use(verifyToken);
 // Ticket payment routes
 router.get('/', getTicketPayments);
 router.get('/stats', getTicketPaymentStats);
+
+// Get payments for specific ticket (must be before '/:id')
+router.get('/ticket/:ticketId', getPaymentsByTicketId);
+
 router.get('/:id', getTicketPaymentById);
 router.post('/', createTicketPayment);
 router.put('/:id', updateTicketPayment);
 router.delete('/:id', deleteTicketPayment);
-
-// Get payments for specific ticket
-router.get('/ticket/:ticketId', getPaymentsByTicketId);
 
 export default router;

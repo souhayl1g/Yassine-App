@@ -143,36 +143,15 @@ export function OperatorScannerPage() {
 
   // Helper function to check if room selection should be disabled
   const shouldDisableRoomSelection = (): boolean => {
-    // Check if there's a different batch being queued
-    if (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket?.id || '0')) {
-      return true;
-    }
-    
-    // Check if current ticket queue status
-    if (currentTicketQueueInfo) {
-      // If not in queue at all, disable
-      if (!currentTicketQueueInfo.inQueue) {
-        return true;
-      }
-      // If in queue but not fully queued, disable
-      if (currentTicketQueueInfo.inQueue && currentTicketQueueInfo.totalBoxes !== currentTicketQueueInfo.boxesQueued) {
-        return true;
-      }
-    }
-    
-    return false;
+    // Only rely on the current ticket's queue status
+    if (!currentTicketQueueInfo) return true; // unknown -> disable
+    if (!currentTicketQueueInfo.inQueue) return true; // not in queue -> disable
+    // Allow only when fully queued
+    return !(Number(currentTicketQueueInfo.totalBoxes) === Number(currentTicketQueueInfo.boxesQueued));
   };
 
   // Get the appropriate button text and icon based on current state
   const getRoomSelectionButtonContent = () => {
-    // Different batch being queued
-    if (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket?.id || '0')) {
-      return {
-        icon: <Clock className="h-5 w-5 mr-2" />,
-        text: `انتظار إنهاء ${partiallyQueuedInfo.ticketNumber}`
-      };
-    }
-    
     // Current ticket not in queue at all
     if (currentTicketQueueInfo && !currentTicketQueueInfo.inQueue) {
       return {
@@ -200,59 +179,66 @@ export function OperatorScannerPage() {
   // Returns true ONLY if ticket is in queue AND all boxes are queued
   const checkTicketQueueStatus = async (ticketId: string): Promise<{ canProceed: boolean, queueInfo?: any }> => {
     try {
-      const res = await api.get<any>(`/pressing-queue/batch-status/${ticketId}`);
-      const data = getPayload<any>(res);
-      
-      // If ticket is not in queue at all, CANNOT proceed (must be queued first)
-      if (!data.inQueue) {
-        return { 
-          canProceed: false,
-          queueInfo: {
-            inQueue: false,
-            totalBoxes: data.totalBoxes || 0,
-            boxesQueued: 0,
-            remainingBoxes: data.totalBoxes || 0,
-            clientName: data.clientName,
-            ticketNumber: data.ticketNumber
-          }
-        };
+      // Primary source: queuer sessions via combined-display-data endpoint
+      const res = await api.get<any>('/pressing-rooms/combined-display-data');
+      const payload = getPayload<any>(res);
+      const queueItems = Array.isArray(payload?.queueItems) ? payload.queueItems : [];
+
+      // Find queue item for this batch (support batchId or currentBatchId keys)
+      const item = queueItems.find((q: any) => {
+        const bid = q?.batchId ?? q?.currentBatchId;
+        return String(bid) === String(ticketId);
+      });
+
+      if (!item) {
+        // Fallback to batch-status endpoint if not found in display-data
+        try {
+          const res2 = await api.get<any>(`/pressing-queue/batch-status/${ticketId}`);
+          const data = getPayload<any>(res2);
+          // Consider "in queue" if a session exists (i.e., any totalBoxes/boxesQueued info available),
+          // regardless of backend boolean flag
+          const totalBoxesFb = Number(data?.totalBoxes || 0);
+          const boxesQueuedFb = Number(data?.boxesQueued || 0);
+          const existsInQueue = Number.isFinite(totalBoxesFb) || Number.isFinite(boxesQueuedFb);
+          const inQueueComputed = existsInQueue && (totalBoxesFb > 0 || boxesQueuedFb >= 0);
+          const canProceedFb = inQueueComputed && totalBoxesFb > 0 && totalBoxesFb === boxesQueuedFb;
+          return {
+            canProceed: canProceedFb,
+            queueInfo: {
+              inQueue: inQueueComputed,
+              totalBoxes: totalBoxesFb,
+              boxesQueued: boxesQueuedFb,
+              remainingBoxes: Math.max(0, totalBoxesFb - boxesQueuedFb),
+              clientName: data.clientName,
+              ticketNumber: data.ticketNumber,
+            }
+          };
+        } catch (e) {
+          // If fallback fails, assume cannot proceed to be safe
+          return { canProceed: false, queueInfo: { inQueue: false, totalBoxes: 0, boxesQueued: 0, remainingBoxes: 0 } };
+        }
       }
-      
-      // If ticket is in queue, check if all boxes are queued
-      const totalBoxes = data.totalBoxes || 0;
-      const boxesQueued = data.boxesQueued || 0;
-      const canProceed = totalBoxes === boxesQueued;
-      
-      return { 
-        canProceed, 
+
+      const totalBoxes = parseInt((item.totalBoxes ?? item?.total_boxes ?? 0) as any, 10);
+      const boxesQueued = parseInt((item.boxesQueued ?? item?.queuedBoxes ?? item?.boxes_queued ?? 0) as any, 10);
+      const canProceed = totalBoxes > 0 && totalBoxes === boxesQueued;
+
+      return {
+        canProceed,
         queueInfo: {
-          inQueue: data.inQueue,
+          inQueue: true,
           totalBoxes,
           boxesQueued,
-          remainingBoxes: totalBoxes - boxesQueued,
-          clientName: data.clientName,
-          ticketNumber: data.ticketNumber
+          remainingBoxes: Math.max(0, totalBoxes - boxesQueued),
+          clientName: item.clientName || item?.client?.name || `${item?.client?.firstname || ''} ${item?.client?.lastname || ''}`.trim(),
+          ticketNumber: item.ticketNumber,
+          queueSessionId: item.id,
         }
       };
     } catch (error: any) {
       console.error('Failed to check ticket queue status:', error);
-      
-      // Check if this is a backend database error and handle gracefully
-      const errorMessage = error?.message || error?.response?.data?.error || error?.response?.data?.message || String(error);
-      const isBackendError = error?.response?.status === 500 || 
-                            errorMessage.includes('column') ||
-                            errorMessage.includes('does not exist') ||
-                            errorMessage.includes('QueuerSession') ||
-                            (error?.response?.status === 404); // Endpoint might not exist yet
-      
-      if (isBackendError || error?.response?.status === 404) {
-        console.log('Backend issue or endpoint not available, allowing to proceed');
-        // When backend is broken or endpoint doesn't exist, allow to proceed to not block the operator
-        return { canProceed: true };
-      } else {
-        // For other errors, default to allowing to proceed to not block workflow
-        return { canProceed: true };
-      }
+      // On failure, be safe and disallow proceeding (to enforce full queue rule)
+      return { canProceed: false, queueInfo: { inQueue: false, totalBoxes: 0, boxesQueued: 0, remainingBoxes: 0 } };
     }
   };
 
@@ -680,6 +666,9 @@ export function OperatorScannerPage() {
         operatorId: user?.id || 1, // Use current user ID or fallback to 1
         notes: `Loaded ${boxesToProcess} boxes to ${selectedRoom.name}`
       });
+
+      // Note: Backend will automatically remove batch from queuer_sessions 
+      // if all boxes have been loaded to pressing rooms
 
       toast({ 
         title: 'Success', 
@@ -1178,21 +1167,34 @@ export function OperatorScannerPage() {
                 })()}
               </OliveButton>
             ) : (
-              <OliveButton
-                onClick={handleProceedToRoomSelection}
-                className="flex-1 text-lg py-3" 
-                disabled={shouldDisableRoomSelection()}
-              >
-                {(() => {
-                  const { icon, text } = getRoomSelectionButtonContent();
-                  return (
-                    <>
-                      {icon}
-                      {text}
-                    </>
-                  );
-                })()}
-              </OliveButton>
+              <>
+                {/* If not in queue, provide direct CTA to add to queue */}
+                {currentTicketQueueInfo && !currentTicketQueueInfo.inQueue ? (
+                  <OliveButton
+                    onClick={() => setCurrentStep('queue-confirm')}
+                    className="flex-1 text-lg py-3 bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    <Layers className="h-5 w-5 mr-2" />
+                    إضافة للطابور أولاً
+                  </OliveButton>
+                ) : (
+                  <OliveButton
+                    onClick={handleProceedToRoomSelection}
+                    className="flex-1 text-lg py-3" 
+                    disabled={shouldDisableRoomSelection()}
+                  >
+                    {(() => {
+                      const { icon, text } = getRoomSelectionButtonContent();
+                      return (
+                        <>
+                          {icon}
+                          {text}
+                        </>
+                      );
+                    })()}
+                  </OliveButton>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -1218,29 +1220,7 @@ export function OperatorScannerPage() {
             </p>
           </div>
 
-          {/* Queue Option - Show when all rooms are full */}
-          {allRoomsFull && (
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-              <div className="text-center space-y-3">
-                <div className="flex items-center justify-center space-x-2">
-                  <Layers className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-                  <span className="text-lg font-semibold text-orange-800 dark:text-orange-200">
-                    إضافة للطابور
-                  </span>
-                </div>
-                <p className="text-sm text-orange-700 dark:text-orange-300">
-                  جميع غرف العصر مشغولة حالياً. يمكنك إضافة هذه العملية للطابور وسيتم تشغيلها تلقائياً عند توفر غرفة.
-                </p>
-                <OliveButton
-                  onClick={() => setCurrentStep('queue-confirm')}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                >
-                  <Layers className="h-4 w-4 mr-2" />
-                  إضافة للطابور
-                </OliveButton>
-              </div>
-            </div>
-          )}
+          {/* Queue Option removed: operator cannot add to queue */}
 
           {/* Rooms List */}
           <div className="space-y-3">
@@ -1529,122 +1509,7 @@ export function OperatorScannerPage() {
     );
   }
 
-  // Queue Confirmation Step
-  if (currentStep === 'queue-confirm' && scannedTicket) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
-        <div className="max-w-md mx-auto space-y-6">
-          {/* Header */}
-          <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-              تأكيد إضافة للطابور
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">مراجعة تفاصيل العملية قبل الإضافة للطابور</p>
-          </div>
-
-          {/* Queue Info */}
-          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">
-            <div className="text-center space-y-3">
-              <Layers className="h-12 w-12 text-orange-600 dark:text-orange-400 mx-auto" />
-              <h3 className="font-semibold text-orange-800 dark:text-orange-200 text-lg">
-                إضافة للطابور
-              </h3>
-              <p className="text-sm text-orange-700 dark:text-orange-300">
-                ستتم إضافة هذه العملية للطابور وسيتم تشغيلها تلقائياً عند توفر غرفة عصر.
-              </p>
-            </div>
-          </div>
-
-          {/* Ticket Summary */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
-            <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-4 text-lg">
-              ملخص العملية
-            </h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">رقم التذكرة:</span>
-                <span className="font-medium">{scannedTicket.ticketNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">اسم العميل:</span>
-                <span className="font-medium">{scannedTicket.clientName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">عدد الصناديق للمعالجة:</span>
-                <span className="font-medium text-orange-600 dark:text-orange-400">
-                  {numberOfBoxesToProcess}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">المشغل:</span>
-                <span className="font-medium text-blue-600 dark:text-blue-400">
-                  {user?.firstname} {user?.lastname}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Boxes Input */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="queueBoxesToProcess" className="flex items-center gap-2 text-lg">
-                <Box className="h-5 w-5" />
-                عدد الصناديق للمعالجة
-              </Label>
-              <Input
-                id="queueBoxesToProcess"
-                type="number"
-                min="1"
-                max={scannedTicket ? (scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0) : 999}
-                value={numberOfBoxesToProcess}
-                onChange={(e) => setNumberOfBoxesToProcess(e.target.value)}
-                placeholder="أدخل عدد الصناديق"
-                className="text-lg p-3"
-              />
-              <div className="space-y-1">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  المتاح للتحميل: {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0)} صندوق
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500">
-                  المحمل سابقاً: {scannedTicket.boxesLoadedToPressing || 0} من أصل {scannedTicket.numberOfBoxes || 0}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            <OliveButton
-              variant="outline"
-              onClick={() => setCurrentStep('room-selection')}
-              className="flex-1 text-lg py-3"
-              disabled={isSaving}
-            >
-              <RotateCcw className="h-5 w-5 mr-2" />
-              العودة للغرف
-            </OliveButton>
-            <OliveButton
-              onClick={handleAddToQueue}
-              className="flex-1 text-lg py-3 bg-orange-600 hover:bg-orange-700"
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  جاري الإضافة...
-                </>
-              ) : (
-                <>
-                  <Layers className="h-5 w-5 mr-2" />
-                  إضافة للطابور
-                </>
-              )}
-            </OliveButton>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Queue Confirmation Step removed for operator: operator cannot add to queue
 
   // Show camera scanner
   return (

@@ -18,6 +18,7 @@ interface RecentTicketsSectionProps {
   onPageChange?: (page: number) => void;
   onPayTicket?: (ticket: Ticket) => void;
   onViewPaymentHistory?: (clientId: string, clientName: string) => void;
+  getPaymentStatus?: (ticketId: string) => { isPaid: boolean; totalPaid: number; payments: any[]; paymentCount: number };
 }
 
 export function RecentTicketsSection({
@@ -33,6 +34,7 @@ export function RecentTicketsSection({
   onPageChange,
   onPayTicket,
   onViewPaymentHistory,
+  getPaymentStatus,
 }: RecentTicketsSectionProps) {
   const { t } = useTranslation();
   const scrollPositionRef = useRef<number>(0);
@@ -190,19 +192,40 @@ export function RecentTicketsSection({
                                 minute: '2-digit' 
                               })}
                             </div>
-                            {ticket.totalAmount && (
-                              <div className="flex items-center gap-4 text-sm font-medium text-primary">
-                                <span>المبلغ الإجمالي: {ticket.totalAmount} د.ت</span>
-                                {/* Payment Status Indicator */}
-                                <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
-                                  !ticket.isPaid && ticket.totalAmount && ticket.totalAmount > 0 
-                                    ? 'bg-red-100 text-red-800' 
-                                    : 'bg-green-100 text-green-800'
-                                }`}>
-                                  {!ticket.isPaid && ticket.totalAmount && ticket.totalAmount > 0 ? 'مستحق الدفع' : 'مدفوع'}
-                                </span>
-                              </div>
-                            )}
+                            {(ticket.totalAmount !== undefined || getPaymentStatus?.(ticket.id)) && (() => {
+                              const status = getPaymentStatus?.(ticket.id);
+                              const totalPaid = status ? status.totalPaid : 0;
+                              const firstPaymentAmount = status && status.payments && status.payments[0]
+                                ? Number(status.payments[0].amount || 0)
+                                : undefined;
+                              const displayAmount = firstPaymentAmount !== undefined
+                                ? firstPaymentAmount
+                                : Number(ticket.totalAmount || 0);
+                              const isSettled = displayAmount > 0
+                                ? totalPaid >= displayAmount - 0.001
+                                : (status ? status.isPaid : !!ticket.isPaid);
+                              return (
+                                <div className="flex items-center gap-4 text-sm font-medium mt-1">
+                                  <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
+                                    isSettled
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {isSettled ? 'مدفوع' : 'مستحق الدفع'}
+                                  </span>
+                                  {isSettled && (
+                                    <>
+                                      <span className="text-primary">
+                                        المبلغ: {displayAmount.toFixed(2)} د.ت
+                                      </span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {`${totalPaid.toFixed(2)} / ${displayAmount.toFixed(2)} د.ت`}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                         <div className="flex items-center gap-1 flex-wrap">

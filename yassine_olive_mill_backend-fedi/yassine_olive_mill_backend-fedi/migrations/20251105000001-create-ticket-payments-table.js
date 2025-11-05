@@ -3,8 +3,17 @@
 /** @type {import('sequelize-cli').Migration} */
 export default {
   async up(queryInterface, Sequelize) {
-    // Create ticket_payments table
-    await queryInterface.createTable('ticket_payments', {
+    // Create ticket_payments table (skip if already exists)
+    let tableExists = false;
+    try {
+      await queryInterface.describeTable('ticket_payments');
+      tableExists = true;
+    } catch (e) {
+      tableExists = false;
+    }
+
+    if (!tableExists) {
+      await queryInterface.createTable('ticket_payments', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -61,13 +70,33 @@ export default {
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       }
-    });
+      });
+    }
 
-    // Add indexes for ticket_payments
-    await queryInterface.addIndex('ticket_payments', ['ticketId']);
-    await queryInterface.addIndex('ticket_payments', ['payment_date']);
-    await queryInterface.addIndex('ticket_payments', ['payment_type']);
-    await queryInterface.addIndex('ticket_payments', ['operation_type']);
+    // Add indexes for ticket_payments (skip if they already exist)
+    const existingIndexes = await queryInterface.showIndex('ticket_payments');
+
+    const indexExistsOnFields = (fields) => {
+      return existingIndexes.some((idx) => {
+        const idxFields = (idx.fields || idx.columnNames || []).map((f) => (typeof f === 'string' ? f : f.attribute || f.name));
+        if (!Array.isArray(idxFields)) return false;
+        if (idxFields.length !== fields.length) return false;
+        return fields.every((f, i) => idxFields[i] === f);
+      });
+    };
+
+    if (!indexExistsOnFields(['ticketId'])) {
+      await queryInterface.addIndex('ticket_payments', ['ticketId']);
+    }
+    if (!indexExistsOnFields(['payment_date'])) {
+      await queryInterface.addIndex('ticket_payments', ['payment_date']);
+    }
+    if (!indexExistsOnFields(['payment_type'])) {
+      await queryInterface.addIndex('ticket_payments', ['payment_type']);
+    }
+    if (!indexExistsOnFields(['operation_type'])) {
+      await queryInterface.addIndex('ticket_payments', ['operation_type']);
+    }
   },
 
   async down(queryInterface, Sequelize) {

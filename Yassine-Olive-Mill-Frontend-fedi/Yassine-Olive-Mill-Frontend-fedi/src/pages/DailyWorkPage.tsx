@@ -52,6 +52,7 @@ export function DailyWorkPage() {
           onDeleteTicket={dailyWork.handleDeleteTicket}
           onPayTicket={payment.openPaymentModal}
           onViewPaymentHistory={(clientId, clientName) => payment.openPaymentHistory(clientId, clientName)}
+          getPaymentStatus={dailyWork.getTicketPaymentStatus}
         />
       </div>
 

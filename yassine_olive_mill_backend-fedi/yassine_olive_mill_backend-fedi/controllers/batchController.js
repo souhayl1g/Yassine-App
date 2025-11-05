@@ -3,7 +3,7 @@ import { Op } from 'sequelize';
 import Fuse from 'fuse.js';
 
 
-const { Batch, Client, Price, OilBatch, QualityTest, PressingSession, PressingRoom, BatchLoading } = db;
+const { Batch, Client, Price, OilBatch, QualityTest, PressingSession, PressingRoom, BatchLoading, QueuerSession } = db;
 
 
 const batchController = {
@@ -541,6 +541,22 @@ const batchController = {
           notes: notes || null,
           loadedAt: new Date()
         }, { transaction });
+
+        // Check if all boxes have been loaded and remove from queuer_sessions if so
+        if (newTotalLoaded >= totalBoxes) {
+          // Find and remove any active queuer session for this batch
+          const queuerSession = await db.QueuerSession.findOne({
+            where: {
+              currentBatchId: id,
+              status: 'active'
+            }
+          }, { transaction });
+
+          if (queuerSession) {
+            await queuerSession.destroy({ transaction });
+            console.log(`Removed batch ${id} from queuer_sessions - all boxes loaded (${newTotalLoaded}/${totalBoxes})`);
+          }
+        }
 
         await transaction.commit();
 

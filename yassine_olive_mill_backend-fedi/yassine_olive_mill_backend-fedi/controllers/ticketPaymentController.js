@@ -36,7 +36,7 @@ export const getTicketPayments = async (req, res) => {
             {
               model: Client,
               as: 'client',
-              attributes: ['id', 'name', 'phone']
+              attributes: ['id', 'firstname', 'lastname', 'phone']
             }
           ]
         }
@@ -82,7 +82,7 @@ export const getTicketPaymentById = async (req, res) => {
             {
               model: Client,
               as: 'client',
-              attributes: ['id', 'name', 'phone']
+              attributes: ['id', 'firstname', 'lastname', 'phone']
             }
           ]
         }
@@ -151,16 +151,32 @@ export const createTicketPayment = async (req, res) => {
       });
     }
 
-    const payment = await TicketPayment.create({
-      ticketId,
-      amount,
-      payment_date,
-      payment_method,
-      payment_type,
-      operation_type,
-      reference,
-      notes
-    });
+    // If a payment already exists for this ticket, update it instead of creating a duplicate
+    const existing = await TicketPayment.findOne({ where: { ticketId } });
+    let payment;
+    if (existing) {
+      await existing.update({
+        amount,
+        payment_date,
+        payment_method,
+        payment_type,
+        operation_type,
+        reference,
+        notes
+      });
+      payment = existing;
+    } else {
+      payment = await TicketPayment.create({
+        ticketId,
+        amount,
+        payment_date,
+        payment_method,
+        payment_type,
+        operation_type,
+        reference,
+        notes
+      });
+    }
 
     // Fetch the created payment with associations
     const createdPayment = await TicketPayment.findByPk(payment.id, {
@@ -172,17 +188,17 @@ export const createTicketPayment = async (req, res) => {
             {
               model: Client,
               as: 'client',
-              attributes: ['id', 'name', 'phone']
+              attributes: ['id', 'firstname', 'lastname', 'phone']
             }
           ]
         }
       ]
     });
 
-    res.status(201).json({
+    res.status(existing ? 200 : 201).json({
       success: true,
       data: createdPayment,
-      message: 'Ticket payment created successfully'
+      message: existing ? 'Ticket payment updated successfully' : 'Ticket payment created successfully'
     });
   } catch (error) {
     console.error('Error creating ticket payment:', error);
@@ -214,12 +230,30 @@ export const updateTicketPayment = async (req, res) => {
       });
     }
 
+    // Defensive coercions/validations
+    let nextAmount = payment.amount;
+    if (amount !== undefined) {
+      const parsed = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
+      nextAmount = Number.isNaN(parsed) ? payment.amount : parsed;
+    }
+
+    let nextDate = payment.payment_date;
+    if (payment_date) {
+      const dateStr = String(payment_date);
+      const ymd = /^\d{4}-\d{2}-\d{2}$/;
+      nextDate = ymd.test(dateStr) ? dateStr : payment.payment_date;
+    }
+
+    const nextMethod = payment_method || payment.payment_method;
+    const nextReference = reference !== undefined ? reference : payment.reference;
+    const nextNotes = notes !== undefined ? notes : payment.notes;
+
     await payment.update({
-      amount: amount !== undefined ? amount : payment.amount,
-      payment_date: payment_date || payment.payment_date,
-      payment_method: payment_method || payment.payment_method,
-      reference: reference !== undefined ? reference : payment.reference,
-      notes: notes !== undefined ? notes : payment.notes
+      amount: nextAmount,
+      payment_date: nextDate,
+      payment_method: nextMethod,
+      reference: nextReference,
+      notes: nextNotes
     });
 
     // Fetch updated payment with associations
@@ -298,7 +332,7 @@ export const getPaymentsByTicketId = async (req, res) => {
             {
               model: Client,
               as: 'client',
-              attributes: ['id', 'name', 'phone']
+              attributes: ['id', 'firstname', 'lastname', 'phone']
             }
           ]
         }

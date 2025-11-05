@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, RefreshCw, Minimize2, FileText } from 'lucide-react';
+import { X, RefreshCw, Minimize2, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Ticket, EditTicketForm, Price } from '@/types/daily-work';
 
 interface EditTicketModalProps {
@@ -286,24 +287,41 @@ export function EditTicketModal({
         <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
           <h3 className="text-sm font-semibold mb-4 text-gray-800 dark:text-gray-200">معلومات الدفع</h3>
           
-          {/* Payment Status Checkbox */}
+          {/* Payment Status Toggle (UI library) */}
           <div className="mb-4">
-            <div className="flex items-center space-x-2 rtl:space-x-reverse">
-              <Checkbox
-                id="isPaid"
-                checked={editForm.isPaid}
-                onCheckedChange={(checked) => {
-                  setEditForm((p) => ({ 
-                    ...p, 
-                    isPaid: checked as boolean,
-                    // Auto-fill payment amount with calculated total if marking as paid
-                    paymentAmount: checked && !p.paymentAmount ? totalAmount.toFixed(2) : p.paymentAmount
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-sm font-medium">حالة الدفع</Label>
+              <ToggleGroup
+                type="single"
+                value={editForm.isPaid ? 'paid' : 'unpaid'}
+                onValueChange={(val) => {
+                  if (!val) return;
+                  const willBePaid = val === 'paid';
+                  setEditForm((p) => ({
+                    ...p,
+                    isPaid: willBePaid,
+                    paymentAmount: willBePaid
+                      ? (p.paymentAmount || totalAmount.toFixed(2))
+                      : '',
                   }));
                 }}
-              />
-              <Label htmlFor="isPaid" className="text-sm font-medium">
-                تم الدفع
-              </Label>
+                className="rounded-full border border-muted bg-muted/50"
+              >
+                <ToggleGroupItem
+                  value="unpaid"
+                  className="data-[state=on]:bg-red-600 data-[state=on]:text-white text-muted-foreground px-4 py-2 rounded-full"
+                  aria-label="غير مدفوع"
+                >
+                  <span className="inline-flex items-center gap-2"><XCircle className="h-4 w-4" /> غير مدفوع</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="paid"
+                  className="data-[state=on]:bg-emerald-600 data-[state=on]:text-white text-muted-foreground px-4 py-2 rounded-full"
+                  aria-label="مدفوع"
+                >
+                  <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> مدفوع</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
           </div>
 

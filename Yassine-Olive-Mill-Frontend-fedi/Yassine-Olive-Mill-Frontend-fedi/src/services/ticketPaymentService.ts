@@ -39,7 +39,7 @@ export interface TicketPaymentStats {
 }
 
 class TicketPaymentService {
-  private baseUrl = '/api/ticket-payments';
+  private baseUrl = '/ticket-payments';
 
   // Get all ticket payments with filtering
   async getTicketPayments(params?: {

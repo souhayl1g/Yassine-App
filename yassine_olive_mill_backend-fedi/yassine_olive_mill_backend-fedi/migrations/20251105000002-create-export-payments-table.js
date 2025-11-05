@@ -3,8 +3,17 @@
 /** @type {import('sequelize-cli').Migration} */
 export default {
   async up(queryInterface, Sequelize) {
-    // Create export_payments table
-    await queryInterface.createTable('export_payments', {
+    // Create export_payments table (skip if already exists)
+    let tableExists = false;
+    try {
+      await queryInterface.describeTable('export_payments');
+      tableExists = true;
+    } catch (e) {
+      tableExists = false;
+    }
+
+    if (!tableExists) {
+      await queryInterface.createTable('export_payments', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -68,12 +77,30 @@ export default {
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       }
-    });
+      });
+    }
 
-    // Add indexes for export_payments
-    await queryInterface.addIndex('export_payments', ['containerId']);
-    await queryInterface.addIndex('export_payments', ['payment_date']);
-    await queryInterface.addIndex('export_payments', ['buyer_name']);
+    // Add indexes for export_payments (skip if already exist)
+    const existingIndexes = await queryInterface.showIndex('export_payments');
+
+    const indexExistsOnFields = (fields) => {
+      return existingIndexes.some((idx) => {
+        const idxFields = (idx.fields || idx.columnNames || []).map((f) => (typeof f === 'string' ? f : f.attribute || f.name));
+        if (!Array.isArray(idxFields)) return false;
+        if (idxFields.length !== fields.length) return false;
+        return fields.every((f, i) => idxFields[i] === f);
+      });
+    };
+
+    if (!indexExistsOnFields(['containerId'])) {
+      await queryInterface.addIndex('export_payments', ['containerId']);
+    }
+    if (!indexExistsOnFields(['payment_date'])) {
+      await queryInterface.addIndex('export_payments', ['payment_date']);
+    }
+    if (!indexExistsOnFields(['buyer_name'])) {
+      await queryInterface.addIndex('export_payments', ['buyer_name']);
+    }
   },
 
   async down(queryInterface, Sequelize) {
