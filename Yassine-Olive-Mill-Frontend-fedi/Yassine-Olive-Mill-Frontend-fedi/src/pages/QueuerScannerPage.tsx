@@ -321,12 +321,13 @@ export function QueuerScannerPage() {
     setIsSaving(true);
     try {
       const payload = {
-        ticketId: scannedTicket.id,
-        number_of_boxes: boxes,
-        operator_id: user?.id || 1,
+        batchId: parseInt(scannedTicket.id),
+        numberOfBoxes: boxes,
+        queuerId: user?.id || 1,
         notes: 'Added to queue by queuer'
       };
 
+      console.log('Sending queue payload:', payload);
       await api.post('/pressing-queue', payload);
 
       // Check if session is now complete
