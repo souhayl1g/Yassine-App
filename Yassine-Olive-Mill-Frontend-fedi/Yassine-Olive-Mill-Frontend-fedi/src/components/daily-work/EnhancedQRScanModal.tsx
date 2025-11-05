@@ -49,12 +49,12 @@ export function EnhancedQRScanModal({
   useEffect(() => {
     if (isOpen && !hasAutoStarted.current) {
       hasAutoStarted.current = true;
-      // Start with camera tab and activate immediately
-      setActiveTab('camera');
+      // Start with device scanner tab as default
+      setActiveTab('device');
       // Small delay to ensure DOM is ready
       const initTimeout = setTimeout(() => {
-        startCamera();
-        startDeviceScanner(); // Also start device scanner in background
+        startDeviceScanner(); // Start device scanner first
+        startCamera(); // Also start camera in background
       }, 100);
       
       return () => clearTimeout(initTimeout);
