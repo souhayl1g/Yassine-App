@@ -611,14 +611,14 @@ export function OperatorScannerPage() {
     }
 
     const totalBoxes = scannedTicket.numberOfBoxes || 0;
-    const alreadyLoaded = scannedTicket.boxesLoadedToPressing || 0;
-    const availableBoxes = totalBoxes - alreadyLoaded;
 
-    if (boxesToProcess > availableBoxes) {
+    // Basic validation - only check against total batch size
+    // Let backend handle precise availability calculations since frontend data might be stale
+    if (boxesToProcess > totalBoxes) {
       toast({ 
         variant: 'destructive', 
         title: 'Error', 
-        description: `Cannot load more than ${availableBoxes} boxes. Available: ${availableBoxes} out of ${totalBoxes}` 
+        description: `Cannot load more than ${totalBoxes} boxes (total batch size)` 
       });
       return;
     }
@@ -636,8 +636,8 @@ export function OperatorScannerPage() {
       const queueData = getPayload<any>(response);
 
       toast({ 
-        title: 'Success', 
-        description: `Successfully added to queue. Position: ${queueData.position || 'N/A'}` 
+        title: 'تم إضافة للطابور ✅', 
+        description: `تم إضافة ${boxesToProcess} صندوق للطابور بنجاح. الموضع في الطابور: ${queueData.position || 'غير محدد'}` 
       });
       
       // Reset for next scan
@@ -670,14 +670,14 @@ export function OperatorScannerPage() {
     }
 
     const totalBoxes = scannedTicket.numberOfBoxes || 0;
-    const alreadyLoaded = scannedTicket.boxesLoadedToPressing || 0;
-    const availableBoxes = totalBoxes - alreadyLoaded;
 
-    if (boxesToProcess > availableBoxes) {
+    // Basic validation - only check against total batch size
+    // Let backend handle precise availability calculations since frontend data might be stale
+    if (boxesToProcess > totalBoxes) {
       toast({ 
         variant: 'destructive', 
         title: 'Error', 
-        description: `Cannot load more than ${availableBoxes} boxes. Available: ${availableBoxes} out of ${totalBoxes}` 
+        description: `Cannot load more than ${totalBoxes} boxes (total batch size)` 
       });
       return;
     }
@@ -708,9 +708,18 @@ export function OperatorScannerPage() {
       // Note: Backend will automatically remove batch from queuer_sessions 
       // if all boxes have been loaded to pressing rooms
 
+      // Refresh ticket data to show updated loaded boxes count
+      try {
+        const updatedTicket = await fetchTicketByCode(scannedTicket.id);
+        setScannedTicket(updatedTicket);
+      } catch (error) {
+        console.log('Failed to refresh ticket data after loading boxes:', error);
+        // Don't fail the operation if refresh fails
+      }
+
       toast({ 
-        title: 'Success', 
-        description: `Successfully loaded ${boxesToProcess} boxes in ${selectedRoom.name} and created pressing session` 
+        title: 'نجحت العملية ✅', 
+        description: `تم تحميل ${boxesToProcess} صندوق في ${selectedRoom.name} وإنشاء جلسة عصر جديدة. تم تحديث إحصائيات التذكرة.` 
       });
       
       // Reset for next scan
@@ -1063,14 +1072,16 @@ export function OperatorScannerPage() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">المتبقية للتحميل:</span>
+                <span className="text-gray-600 dark:text-gray-400">حالة التحميل:</span>
                 <span className={`font-medium ${
                   (scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0) === 0
                     ? 'text-green-600 dark:text-green-400'
                     : 'text-orange-600 dark:text-orange-400'
                 }`}>
-                  {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0)}
-                  {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0) === 0 ? ' (مكتمل)' : ''}
+                  {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0) === 0 
+                    ? 'مكتمل بالكامل ✅' 
+                    : `متبقي ${(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0)} صندوق`
+                  }
                 </span>
               </div>
               {scannedTicket.pressingRooms && scannedTicket.pressingRooms.length > 0 && (
@@ -1423,7 +1434,7 @@ export function OperatorScannerPage() {
                 id="boxesToProcess"
                 type="number"
                 min="1"
-                max={scannedTicket ? (scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0) : 999}
+                max={scannedTicket ? (scannedTicket.numberOfBoxes || 0) : 999}
                 value={numberOfBoxesToProcess}
                 onChange={(e) => setNumberOfBoxesToProcess(e.target.value)}
                 placeholder="أدخل عدد الصناديق"
@@ -1432,11 +1443,16 @@ export function OperatorScannerPage() {
               {scannedTicket && (
                 <div className="space-y-1">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    المتاح للتحميل: {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0)} صندوق
+                    إجمالي الصناديق: {scannedTicket.numberOfBoxes || 0} صندوق
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-500">
-                    المحمل سابقاً: {scannedTicket.boxesLoadedToPressing || 0} من أصل {scannedTicket.numberOfBoxes || 0}
+                    محمل للعصر: {scannedTicket.boxesLoadedToPressing || 0} صندوق
                   </p>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2 mt-2">
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      💡 النظام سيتحقق من التوفر الفعلي بناء على الطابور وغرف العصر النشطة
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

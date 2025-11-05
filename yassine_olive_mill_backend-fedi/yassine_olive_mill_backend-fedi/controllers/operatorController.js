@@ -561,6 +561,8 @@ const operatorController = {
       }
 
       // Create pressing session
+      // NOTE: We don't create BatchLoading here - that will be done by loadBoxesToPressing
+      // This endpoint only creates the session, the actual loading is handled separately
       const session = await PressingSession.create({
         batch_id: parseInt(batch_id),
         pressing_roomID: parseInt(pressing_roomID),
@@ -571,26 +573,11 @@ const operatorController = {
         notes: notes || 'Started by operator'
       });
 
-      // Create batch loading entry
-      const batchLoading = await BatchLoading.create({
-        batchId: batch_id,
-        pressingRoomId: pressing_roomID,
-        boxesLoaded: number_of_boxes,
-        operatorId: operator_id,
-        loadedAt: new Date(),
-        pressingSessionId: session.id
-      });
-
-      // Update batch boxes loaded to pressing (calculate from actual batch loadings)
-      const newTotalLoaded = totalBoxesAlreadyLoaded + requestedBoxes;
-      await batch.update({
-        boxes_loaded_to_pressing: newTotalLoaded
-      });
-
-      // DEQUEUE CHECK: After creating pressing session, check if batch should be dequeued
-      await operatorController.ensureDequeueIfFullyLoaded(batch_id);
+      // Don't update batch.boxes_loaded_to_pressing here - that will be done by loadBoxesToPressing
+      // Don't create BatchLoading here - that will be done by loadBoxesToPressing
 
       res.status(201).json({
+        id: session.id,
         session: {
           ...session.toJSON(),
           batch: {
@@ -604,8 +591,7 @@ const operatorController = {
             id: room.id,
             name: room.name
           }
-        },
-        batchLoading: batchLoading.toJSON()
+        }
       });
     } catch (error) {
       console.error('Start pressing session error:', error);
@@ -635,9 +621,18 @@ const operatorController = {
 
       const requestedBoxes = parseInt(boxesToLoad);
       const totalBatchBoxes = batch.number_of_boxes || 0;
+
+      // Simple calculation: total boxes in batch - boxes already loaded
       const availableBoxes = totalBatchBoxes - totalBoxesAlreadyLoaded;
 
-      // Validate that we don't exceed the total boxes in the batch
+      console.log(`📦 AVAILABILITY for batch ${id}:`, {
+        totalBatchBoxes,
+        alreadyLoaded: totalBoxesAlreadyLoaded,
+        availableBoxes,
+        requested: requestedBoxes
+      });
+
+      // Validate that we don't exceed available boxes
       if (requestedBoxes > availableBoxes) {
         return res.status(400).json({ 
           error: `Cannot load ${requestedBoxes} boxes. Only ${availableBoxes} boxes available out of ${totalBatchBoxes} total.`,

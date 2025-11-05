@@ -1,6 +1,6 @@
 import db from '../models/index.js';
 import { Op } from 'sequelize';
-const { Batch, Client, PressingRoom, PressingSession, Container, OilBatch, QueuerSession, BatchLoading } = db;
+const { Batch, Client, PressingRoom, PressingSession, Container, OilBatch, QueuerSession, BatchLoading, PressingQueue, ContainerContent, ContainerOilBatch } = db;
 
 const employeeController = {
   // Get batch details for employee scanner
@@ -47,7 +47,26 @@ const employeeController = {
         order: [['label', 'ASC']]
       });
 
-      res.json(containers);
+      // Calculate currentWeight for each container from latest ContainerContent
+      const containersWithWeight = await Promise.all(
+        containers.map(async (container) => {
+          const latestContent = await ContainerContent.findOne({
+            where: { containerId: container.id },
+            order: [['recorded_at', 'DESC']]
+          });
+
+          return {
+            id: container.id,
+            label: container.label,
+            capacity: container.capacity,
+            currentWeight: latestContent ? latestContent.total_weight : 0,
+            createdAt: container.createdAt,
+            updatedAt: container.updatedAt
+          };
+        })
+      );
+
+      res.json(containersWithWeight);
     } catch (error) {
       console.error('Error fetching containers:', error);
       res.status(500).json({ error: 'Failed to fetch containers' });
@@ -57,11 +76,9 @@ const employeeController = {
   // Get pressing queue items for processing
   getPressingQueue: async (req, res) => {
     try {
-      const queueItems = await QueuerSession.findAll({
+      const queueItems = await PressingQueue.findAll({
         where: {
-          remaining_boxes: {
-            [Op.gt]: 0
-          }
+          status: 'queued'
         },
         include: [
           {
@@ -78,7 +95,7 @@ const employeeController = {
         ],
         order: [
           ['priority', 'DESC'],
-          ['created_at', 'ASC']
+          ['createdAt', 'ASC']
         ]
       });
 
@@ -261,7 +278,7 @@ const employeeController = {
     try {
       const { id } = req.params;
 
-      const queueItem = await QueuerSession.findByPk(id);
+      const queueItem = await PressingQueue.findByPk(id);
       if (!queueItem) {
         return res.status(404).json({ error: 'Queue item not found' });
       }
@@ -291,36 +308,86 @@ const employeeController = {
         });
       }
 
-      // Check if container exists
+      // Verify container exists
       const container = await Container.findByPk(containerId);
       if (!container) {
         return res.status(404).json({ error: 'Container not found' });
       }
 
-      // Create oil batch
-      const oilBatch = await OilBatch.create({
-        weight: parseInt(weight),
-        batchId,
-        pressing_sessionId,
-        containerId
-      });
+      // Start a transaction to ensure data consistency
+      const transaction = await db.sequelize.transaction();
 
-      // Update container weight
-      const newWeight = (container.currentWeight || 0) + parseInt(weight);
-      await container.update({ currentWeight: newWeight });
-
-      // DEQUEUE CHECK: After creating oil batch, check if associated batch should be dequeued
       try {
-        await employeeController.ensureDequeueIfFullyLoaded(batchId);
-      } catch (dequeueError) {
-        // Log error but don't fail the main operation
-        console.error(`🔄 EMPLOYEE-DEQUEUE ERROR: Failed to check/dequeue batch ${batchId}:`, dequeueError);
-      }
+        // Create the oil batch (without containerId - it doesn't exist in the model)
+        const oilBatch = await OilBatch.create({
+          weight: parseInt(weight),
+          residue: null,
+          batchId: batchId ? parseInt(batchId) : null,
+          pressing_sessionId: pressing_sessionId ? parseInt(pressing_sessionId) : null
+        }, { transaction });
 
-      res.json(oilBatch);
+        // Get the current total weight in the container
+        const latestContent = await ContainerContent.findOne({
+          where: { containerId: containerId },
+          order: [['recorded_at', 'DESC']],
+          transaction
+        });
+
+        const currentWeight = latestContent ? latestContent.total_weight : 0;
+        const newTotalWeight = currentWeight + parseInt(weight);
+
+        // Create new container content record
+        const containerContent = await ContainerContent.create({
+          containerId: parseInt(containerId),
+          total_weight: newTotalWeight,
+          recorded_at: new Date()
+        }, { transaction });
+
+        // Link the oil batch to the container content
+        await ContainerOilBatch.create({
+          containerContentId: containerContent.id,
+          oilBatchId: oilBatch.id,
+          weight: parseInt(weight)
+        }, { transaction });
+
+        // Commit the transaction
+        await transaction.commit();
+
+        // DEQUEUE CHECK: After creating oil batch, check if associated batch should be dequeued
+        try {
+          await employeeController.ensureDequeueIfFullyLoaded(batchId);
+        } catch (dequeueError) {
+          // Log error but don't fail the main operation
+          console.error(`🔄 EMPLOYEE-DEQUEUE ERROR: Failed to check/dequeue batch ${batchId}:`, dequeueError);
+        }
+
+        // Fetch the complete oil batch with all associations
+        const fullOilBatch = await OilBatch.findByPk(oilBatch.id, {
+          include: [
+            { model: Batch, as: 'batch' },
+            { model: PressingSession, as: 'pressingSession' },
+            { 
+              model: ContainerOilBatch, 
+              as: 'containerOilBatches',
+              include: [
+                { 
+                  model: ContainerContent, 
+                  as: 'containerContent',
+                  include: [{ model: Container, as: 'container' }]
+                }
+              ]
+            }
+          ]
+        });
+
+        res.status(201).json(fullOilBatch);
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
     } catch (error) {
       console.error('Error creating oil batch with container for employee:', error);
-      res.status(500).json({ error: 'Failed to create oil batch with container' });
+      res.status(500).json({ error: error.message || 'Failed to create oil batch with container' });
     }
   },
 

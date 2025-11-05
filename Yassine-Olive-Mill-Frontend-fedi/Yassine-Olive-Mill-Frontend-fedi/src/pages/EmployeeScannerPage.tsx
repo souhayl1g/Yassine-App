@@ -120,7 +120,9 @@ export function EmployeeScannerPage() {
           if (a.priority !== b.priority) {
             return b.priority - a.priority;
           }
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          const aTime = new Date(a.created_at).getTime();
+          const bTime = new Date(b.created_at).getTime();
+          return aTime - bTime;
         })[0];
 
       if (!nextQueueItem) {
