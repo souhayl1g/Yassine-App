@@ -149,7 +149,7 @@ All colors MUST be HSL for proper theming support.
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
 
   html {
@@ -169,7 +169,8 @@ All colors MUST be HSL for proper theming support.
 @layer components {
   /* Olive Mill Custom Components */
   .olive-card {
-    @apply bg-card text-card-foreground rounded-2xl border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300;
+    @apply bg-card text-card-foreground rounded-2xl border shadow-lg hover:shadow-xl transition-all duration-300;
+    border-color: hsl(var(--border) / 0.5);
   }
 
   .olive-button {
