@@ -94,7 +94,11 @@ const pressingQueueController = {
       let conflictingSessionInfo = null;
       
       if (activeQueuerSessions.length > 0) {
-        const differentBatchSession = activeQueuerSessions.find(session => session.currentBatchId !== batch.id);
+        const differentBatchSession = activeQueuerSessions.find(session => {
+          const remainingBoxes = session.totalBoxes - session.boxesQueued;
+          return session.currentBatchId !== batch.id && remainingBoxes > 0; // Only consider sessions with remaining boxes
+        });
+        
         if (differentBatchSession) {
           hasConflictingSession = true;
           const currentBatch = differentBatchSession.batch;
@@ -591,27 +595,30 @@ const pressingQueueController = {
         order: [['updatedAt', 'DESC']]
       });
 
-      const result = activeQueuerSessions.map(session => {
-        const batch = session.batch;
-        const remainingBoxes = session.totalBoxes - session.boxesQueued;
-        const queuerName = session.queuer 
-          ? `${session.queuer.firstname} ${session.queuer.lastname}`
-          : `Queuer #${session.queueId}`;
-        
-        return {
-          id: batch.id,
-          ticketNumber: batch.ticket_number,
-          clientName: batch.client 
-            ? `${batch.client.firstname} ${batch.client.lastname}` 
-            : `Client #${batch.clientId}`,
-          totalBoxes: session.totalBoxes,
-          queuedBoxes: session.boxesQueued,
-          remainingBoxes: remainingBoxes,
-          queuerName: queuerName,
-          sessionStarted: session.startedAt,
-          updatedAt: session.updatedAt
-        };
-      });
+      // Filter out sessions that are complete (remainingBoxes <= 0)
+      const result = activeQueuerSessions
+        .map(session => {
+          const batch = session.batch;
+          const remainingBoxes = session.totalBoxes - session.boxesQueued;
+          const queuerName = session.queuer 
+            ? `${session.queuer.firstname} ${session.queuer.lastname}`
+            : `Queuer #${session.queueId}`;
+          
+          return {
+            id: batch.id,
+            ticketNumber: batch.ticket_number,
+            clientName: batch.client 
+              ? `${batch.client.firstname} ${batch.client.lastname}` 
+              : `Client #${batch.clientId}`,
+            totalBoxes: session.totalBoxes,
+            queuedBoxes: session.boxesQueued,
+            remainingBoxes: remainingBoxes,
+            queuerName: queuerName,
+            sessionStarted: session.startedAt,
+            updatedAt: session.updatedAt
+          };
+        })
+        .filter(session => session.remainingBoxes > 0); // Only include sessions with remaining boxes
 
       res.json({
         partiallyQueuedBatches: result,
@@ -672,6 +679,210 @@ const pressingQueueController = {
     } catch (error) {
       console.error('Get batch status error:', error);
       res.status(500).json({ error: error.message });
+    }
+  },
+
+  // GET /api/pressing-queue/batch/:batchId/details - Get batch details for queuer scanner
+  getBatchForQueuer: async (req, res) => {
+    try {
+      const { batchId } = req.params;
+      let idOrCode = batchId;
+      
+      // Handle different ID formats
+      if (typeof batchId === 'string') {
+        const num = parseInt(batchId.replace(/\D+/g, ''), 10);
+        idOrCode = isNaN(num) ? batchId : String(num);
+      }
+
+      const batch = await Batch.findByPk(idOrCode, {
+        include: [
+          { 
+            model: Client, 
+            as: 'client',
+            attributes: ['id', 'firstname', 'lastname']
+          }
+        ]
+      });
+
+      if (!batch) {
+        return res.status(404).json({ 
+          error: 'التذكرة غير موجودة في النظام',
+          message: 'Batch not found' 
+        });
+      }
+
+      // Calculate available boxes 
+      const totalBoxes = batch.number_of_boxes || 0;
+      let availableBoxes = totalBoxes;
+      
+      // Check if there's an active queuer session for this batch
+      try {
+        const activeSession = await QueuerSession.findOne({
+          where: {
+            currentBatchId: parseInt(batch.id),
+            status: 'active'
+          }
+        });
+        
+        if (activeSession) {
+          // This batch has an active session, use remaining boxes from session
+          availableBoxes = activeSession.totalBoxes - activeSession.boxesQueued;
+        } else {
+          // Check other active sessions to see if they affect this batch's availability
+          const otherActiveSessions = await QueuerSession.findAll({
+            where: {
+              status: 'active'
+            }
+          });
+          
+          if (otherActiveSessions.length === 0) {
+            // No active sessions, use normal calculation
+            const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
+            const committedBoxes = batch.boxes_committed_to_queue || 0;
+            availableBoxes = totalBoxes - Math.max(loadedBoxes - committedBoxes, 0);
+          } else {
+            // Other sessions are active, this batch might not be available
+            const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
+            availableBoxes = totalBoxes - loadedBoxes;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking queuer sessions:', error);
+        // Fallback to basic calculation
+        const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
+        availableBoxes = totalBoxes - loadedBoxes;
+      }
+
+      // Prepare client name
+      const clientName = batch.client
+        ? `${batch.client.firstname || ''} ${batch.client.lastname || ''}`.trim()
+        : `עميל #${batch.clientId}`;
+
+      const response = {
+        id: String(batch.id),
+        ticketNumber: batch.ticket_number || `#${batch.id}`,
+        clientName: clientName,
+        weightIn: batch.weight_in ?? 0,
+        status: batch.status || 'received',
+        operationType: batch.operation_type || 'milling',
+        numberOfBoxes: availableBoxes > 0 ? availableBoxes : undefined
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Get batch for queuer error:', error);
+      const errorMessage = error?.message || 'فشل جلب التذكرة';
+      res.status(500).json({ 
+        error: errorMessage,
+        message: 'Failed to fetch batch details'
+      });
+    }
+  },
+
+  // GET /api/pressing-queue/batch/:batchId/pressing-status - Check if batch is currently being pressed
+  checkBatchPressingStatus: async (req, res) => {
+    try {
+      const { batchId } = req.params;
+      
+      // Check if batch exists in pressing sessions table
+      const existingSession = await PressingSession.findOne({
+        where: {
+          batch_id: parseInt(batchId)
+        },
+        include: [
+          {
+            model: PressingRoom,
+            as: 'pressingRoom',
+            attributes: ['id', 'name']
+          }
+        ]
+      });
+      
+      if (existingSession) {
+        res.json({
+          isCurrentlyPressed: true,
+          pressingRoomInfo: {
+            roomName: existingSession.pressingRoom?.name || `Room ${existingSession.pressing_roomID}`,
+            sessionStartTime: existingSession.start
+          }
+        });
+      } else {
+        res.json({
+          isCurrentlyPressed: false,
+          pressingRoomInfo: null
+        });
+      }
+    } catch (error) {
+      console.error('Check batch pressing status error:', error);
+      res.status(500).json({ 
+        error: error.message,
+        isCurrentlyPressed: false,
+        pressingRoomInfo: null
+      });
+    }
+  },
+
+  // GET /api/pressing-queue/display-data - Get queue display data for queuer scanner
+  getQueueDisplayData: async (req, res) => {
+    try {
+      // Get queue items from queuer sessions (active sessions show current queue status)
+      const queuerSessions = await QueuerSession.findAll({
+        where: {
+          status: 'active'
+        },
+        include: [
+          {
+            model: Batch,
+            as: 'batch',
+            include: [
+              {
+                model: Client,
+                as: 'client',
+                attributes: ['id', 'firstname', 'lastname']
+              }
+            ]
+          },
+          {
+            model: User,
+            as: 'queuer',
+            attributes: ['id', 'firstname', 'lastname']
+          }
+        ]
+      });
+
+      // Transform queuer sessions into queue items format, only include sessions with remaining boxes > 0
+      const queueItems = queuerSessions
+        .map(session => {
+          const batch = session.batch;
+          const client = batch?.client;
+          const remainingBoxes = session.totalBoxes - session.boxesQueued;
+          
+          return {
+            batchId: session.currentBatchId,
+            currentBatchId: session.currentBatchId,
+            totalBoxes: session.totalBoxes,
+            total_boxes: session.totalBoxes,
+            boxesQueued: session.boxesQueued,
+            queuedBoxes: session.boxesQueued,
+            boxes_queued: session.boxesQueued,
+            remainingBoxes: remainingBoxes,
+            clientName: client ? `${client.firstname || ''} ${client.lastname || ''}`.trim() : 'Unknown',
+            ticketNumber: batch?.ticket_number || `#${batch?.id || session.currentBatchId}`,
+            status: session.status,
+            queuerName: session.queuer ? `${session.queuer.firstname || ''} ${session.queuer.lastname || ''}`.trim() : 'Unknown'
+          };
+        })
+        .filter(item => item.remainingBoxes > 0); // Only include sessions with remaining boxes
+
+      res.json({
+        queueItems: queueItems
+      });
+    } catch (error) {
+      console.error('Get queue display data error:', error);
+      res.status(500).json({ 
+        error: error.message,
+        queueItems: []
+      });
     }
   }
 };
