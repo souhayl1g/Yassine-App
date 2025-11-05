@@ -21,6 +21,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import QrScanner from 'qr-scanner';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface EnhancedQRScanModalProps {
   isOpen: boolean;
@@ -49,7 +51,23 @@ export function EnhancedQRScanModal({
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const deviceInputRef = useRef<HTMLInputElement>(null);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const { toast } = useToast();
+  const hasAutoStarted = useRef(false);
+
+  // Auto-start scanning when modal opens
+  useEffect(() => {
+    if (isOpen && !hasAutoStarted.current) {
+      hasAutoStarted.current = true;
+      // Start camera immediately on open
+      setActiveTab('camera');
+      startCamera();
+      // Also activate device scanner in background
+      startDeviceScanner();
+    } else if (!isOpen) {
+      hasAutoStarted.current = false;
+    }
+  }, [isOpen]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -65,6 +83,13 @@ export function EnhancedQRScanModal({
       deviceInputRef.current.focus();
     }
   }, [isDeviceScannerActive]);
+
+  // Auto-start camera when switching to camera tab
+  useEffect(() => {
+    if (isOpen && activeTab === 'camera' && !isCameraActive) {
+      startCamera();
+    }
+  }, [activeTab, isOpen]);
 
   // Start device scanner listening
   const startDeviceScanner = () => {
@@ -92,21 +117,33 @@ export function EnhancedQRScanModal({
   // Start phone camera
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
-      });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-        setIsCameraActive(true);
-        setScanStatus('scanning');
-        
-        toast({
-          title: 'الكاميرا نشطة',
-          description: 'وجه الكاميرا نحو رمز QR',
-        });
+      if (!html5QrCodeRef.current) {
+        html5QrCodeRef.current = new Html5Qrcode('qr-reader');
       }
+
+      await html5QrCodeRef.current.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 }
+        },
+        (decodedText) => {
+          // QR code successfully scanned
+          processScannedData(decodedText);
+          stopCamera();
+        },
+        (errorMessage) => {
+          // QR code scan error - ignore these as they happen continuously during scanning
+        }
+      );
+
+      setIsCameraActive(true);
+      setScanStatus('scanning');
+      
+      toast({
+        title: 'الكاميرا نشطة',
+        description: 'وجه الكاميرا نحو رمز QR',
+      });
     } catch (error) {
       console.error('Error accessing camera:', error);
       toast({
@@ -117,34 +154,48 @@ export function EnhancedQRScanModal({
     }
   };
 
-  const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
+  const stopCamera = async () => {
+    try {
+      if (html5QrCodeRef.current && isCameraActive) {
+        await html5QrCodeRef.current.stop();
+      }
+    } catch (error) {
+      console.error('Error stopping camera:', error);
     }
     setIsCameraActive(false);
     setScanStatus('idle');
   };
 
   // Handle file upload
-  const handleFileUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      // Here you would use a QR code decoder library
-      // For now, we'll simulate it
+  const handleFileUpload = async (file: File) => {
+    try {
       toast({
         title: 'جاري معالجة الصورة',
         description: 'يتم فك تشفير رمز QR...',
       });
       
-      // Simulate QR decode
-      setTimeout(() => {
-        processScannedData('SIMULATED-QR-DATA-FROM-IMAGE');
-      }, 1000);
-    };
-    reader.readAsDataURL(file);
+      // Use QrScanner to decode QR from image
+      const result = await QrScanner.scanImage(file);
+      
+      if (result) {
+        processScannedData(result);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'خطأ',
+          description: 'لم يتم العثور على رمز QR في الصورة',
+        });
+        setScanStatus('error');
+      }
+    } catch (error) {
+      console.error('QR scan from image error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'فشل قراءة رمز QR من الصورة',
+      });
+      setScanStatus('error');
+    }
   };
 
   // Process scanned data
@@ -282,22 +333,12 @@ export function EnhancedQRScanModal({
           {/* Phone Camera Tab */}
           <TabsContent value="camera" className="space-y-4">
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
-              <div className="relative aspect-video bg-black rounded overflow-hidden mb-4">
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-cover"
-                  playsInline
-                  autoPlay
-                />
+              <div className="relative mb-4">
+                <div id="qr-reader" className="w-full"></div>
                 {!isCameraActive && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+                  <div className="flex flex-col items-center justify-center text-muted-foreground py-12">
                     <Camera className="h-16 w-16 mb-2 opacity-50" />
                     <p className="text-sm">الكاميرا غير نشطة</p>
-                  </div>
-                )}
-                {isCameraActive && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-48 h-48 border-4 border-primary rounded-lg"></div>
                   </div>
                 )}
               </div>
@@ -374,9 +415,7 @@ export function EnhancedQRScanModal({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {recentTickets
-                      .filter(ticket => ticket.status === 'pending' || ticket.status === 'in-progress')
-                      .map((ticket) => (
+                    {recentTickets.map((ticket) => (
                       <div
                         key={ticket.id}
                         onClick={() => handleTicketSelect(ticket.id)}
@@ -390,16 +429,26 @@ export function EnhancedQRScanModal({
                             </p>
                           </div>
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            ticket.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            ticket.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                            ticket.status === 'received' ? 'bg-yellow-100 text-yellow-800' :
+                            ticket.status === 'in_process' ? 'bg-blue-100 text-blue-800' :
+                            ticket.status === 'completed' ? 'bg-green-100 text-green-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {ticket.status === 'pending' ? 'قيد الانتظار' :
-                             ticket.status === 'in-progress' ? 'قيد المعالجة' :
+                            {ticket.status === 'received' ? 'مستلم' :
+                             ticket.status === 'in_process' ? 'قيد المعالجة' :
+                             ticket.status === 'completed' ? 'مكتمل' :
                              ticket.status}
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground">{ticket.date}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(ticket.date).toLocaleDateString('ar-MA', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
                       </div>
                     ))}
                   </div>
