@@ -10,8 +10,15 @@ import {
   RotateCcw,
   Clock,
   Users
-} from 'lucide-react';
-import { api } from '@/integrations/api/client';
+} from 'luci      return {
+        id: String(batchData.id),
+        ticketNumber: batchData.ticketNumber || `#${batchData.id}`,
+        clientName: batchData.clientName || `عميل #${batchData.id}`,
+        weightIn: batchData.weightIn ?? 0,
+        status: batchData.status || 'received',
+        operationType: batchData.operationType || 'milling',
+        numberOfBoxes: availableBoxes > 0 ? availableBoxes : undefined
+      };import { api } from '@/integrations/api/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import QrScanner from 'qr-scanner';
@@ -73,16 +80,11 @@ export function QueuerScannerPage() {
   // Check for active queuer sessions (batches currently being queued) system-wide
   const checkPartiallyQueuedBatches = async () => {
     try {
-      const res = await api.get<any>('/pressing-queue/partially-queued');
+      const res = await api.get<any>('/pressing-queue/queuer-scanner-status');
       const data = getPayload<any>(res);
       
-      // Only consider it partially queued if there are remaining boxes > 0
-      const hasActiveSession = data.hasPartiallyQueued && 
-                              data.partiallyQueuedBatches.length > 0 && 
-                              data.partiallyQueuedBatches[0].remainingBoxes > 0;
-      
-      setHasPartiallyQueued(hasActiveSession);
-      if (hasActiveSession) {
+      setHasPartiallyQueued(data.hasPartiallyQueued);
+      if (data.hasPartiallyQueued && data.partiallyQueuedBatches.length > 0) {
         setPartiallyQueuedInfo(data.partiallyQueuedBatches[0]); // Show info for the first active queuer session
       } else {
         setPartiallyQueuedInfo(null);
@@ -192,20 +194,35 @@ export function QueuerScannerPage() {
         throw new Error('لم يتم العثور على معرف التذكرة في رمز QR');
       }
 
-      // Check if batch is currently being pressed using dedicated pressing-queue endpoint
+      // Check if batch exists in pressing sessions table - if it exists at all, block it
       try {
-        const statusRes = await api.get<any>(`/pressing-queue/batch/${ticketId}/pressing-status`);
-        const statusData = getPayload<any>(statusRes);
+        const sessionsRes = await api.get<any>('/pressing-sessions');
+        const sessionsData = getPayload<any>(sessionsRes);
         
-        if (statusData.isCurrentlyPressed) {
-          setIsCurrentlyPressed(true);
-          setPressingRoomInfo(statusData.pressingRoomInfo);
+        if (Array.isArray(sessionsData)) {
+          // If batch ID exists in pressing sessions table at all, block it
+          const existingSession = sessionsData.find((session: any) => 
+            session.batch_id && 
+            (session.batch_id === parseInt(String(ticketId)) || 
+             String(session.batch_id) === String(ticketId))
+          );
+          
+          if (existingSession) {
+            setIsCurrentlyPressed(true);
+            setPressingRoomInfo({
+              roomName: existingSession.pressingRoom?.name || `Room ${existingSession.pressing_roomID}`,
+              sessionStartTime: existingSession.start
+            });
+          } else {
+            setIsCurrentlyPressed(false);
+            setPressingRoomInfo(null);
+          }
         } else {
           setIsCurrentlyPressed(false);
           setPressingRoomInfo(null);
         }
-      } catch (statusError) {
-        console.error('Failed to check pressing status:', statusError);
+      } catch (sessionsError) {
+        console.error('Failed to check pressing sessions:', sessionsError);
         setIsCurrentlyPressed(false);
         setPressingRoomInfo(null);
       }
@@ -218,12 +235,12 @@ export function QueuerScannerPage() {
         setNumberOfBoxes(String(ticket.numberOfBoxes));
       }
       
-      // Check queue status using dedicated pressing-queue endpoint
+      // Check queue status
       try {
-        const queueRes = await api.get<any>('/pressing-queue/display-data');
-        const queueData = getPayload<any>(queueRes);
+        const combinedRes = await api.get<any>('/pressing-rooms/combined-display-data');
+        const combined = getPayload<any>(combinedRes);
         
-        const queueItems = Array.isArray(queueData?.queueItems) ? queueData.queueItems : [];
+        const queueItems = Array.isArray(combined?.queueItems) ? combined.queueItems : [];
         const item = queueItems.find((q: any) => {
           const bid = q?.batchId ?? q?.currentBatchId;
           return String(bid) === String(ticketId);
@@ -249,7 +266,7 @@ export function QueuerScannerPage() {
     }
   };
 
-  // Fetch ticket by code using dedicated pressing-queue endpoint
+  // Fetch ticket by code from API
   const fetchTicketByCode = async (code: string | number): Promise<ScannedTicketData> => {
     let idOrCode: string;
     
@@ -263,48 +280,75 @@ export function QueuerScannerPage() {
     }
 
     try {
-      const res = await api.get<any>(`/pressing-queue/batch/${idOrCode}/details`);
+      // Use the dedicated queuer scanner endpoint
+      const res = await api.get<any>(`/pressing-queue/batch-info/${idOrCode}`);
       const data = getPayload<any>(res);
 
-      if (!data || !data.id) {
+      if (!data || !data.batch) {
         throw new Error('التذكرة غير موجودة');
       }
 
+      const batchData = data.batch;
+
+      // Set the pressing room info and current batch queue info from the response
+      setIsCurrentlyPressed(data.isCurrentlyPressed || false);
+      setPressingRoomInfo(data.pressingRoomInfo || null);
+      setCurrentBatchQueueInfo(data.currentBatchQueueInfo || null);
+
+      // Calculate available boxes 
+      // The new endpoint already provides availableBoxes calculation
+      const totalBoxes = batchData.totalBoxes || 0;
+      let availableBoxes = batchData.availableBoxes || totalBoxes;
+
+
       return {
-        id: data.id,
-        ticketNumber: data.ticketNumber,
-        clientName: data.clientName,
-        weightIn: data.weightIn,
-        status: data.status,
-        operationType: data.operationType,
-        numberOfBoxes: data.numberOfBoxes
+        id: String(data.id),
+        ticketNumber: data.ticket_number || `#${data.id}`,
+        clientName: data.client
+          ? `${data.client.firstname || ''} ${data.client.lastname || ''}`.trim()
+          : `עميل #${data.clientId}`,
+        weightIn: data.weight_in ?? 0,
+        status: data.status || 'received',
+        operationType: data.operation_type || 'milling',
+        numberOfBoxes: availableBoxes > 0 ? availableBoxes : undefined
       };
     } catch (e: any) {
       const errorMessage = e?.response?.status === 404 
-        ? e?.response?.data?.error || 'التذكرة غير موجودة في النظام'
+        ? 'التذكرة غير موجودة في النظام'
         : e?.message || 'فشل جلب التذكرة';
       
       throw new Error(errorMessage);
     }
-  };  // Add ticket to queue - specific functionality for queuer role
+  };
+
+  // Add ticket to queue - specific functionality for queuer role
   const handleAddToQueue = async () => {
     if (!scannedTicket) return;
 
-    // Check if batch is currently being pressed using dedicated pressing-queue endpoint
+    // Simple check: if batch exists in pressing_sessions table at all, prohibit adding to queue
     try {
-      const statusRes = await api.get<any>(`/pressing-queue/batch/${scannedTicket.id}/pressing-status`);
-      const statusData = getPayload<any>(statusRes);
+      const sessionsRes = await api.get<any>('/pressing-sessions');
+      const sessionsData = getPayload<any>(sessionsRes);
       
-      if (statusData.isCurrentlyPressed) {
-        toast({
-          variant: 'destructive',
-          title: 'غير قابل للإضافة',
-          description: 'هذه التذكرة قيد العصر حالياً ولا يمكن إضافتها للطابور.',
-        });
-        return;
+      if (Array.isArray(sessionsData)) {
+        // If batch ID exists in pressing sessions table at all, block it
+        const existingSession = sessionsData.find((session: any) => 
+          session.batch_id && 
+          (session.batch_id === parseInt(scannedTicket.id) || 
+           String(session.batch_id) === scannedTicket.id)
+        );
+        
+        if (existingSession) {
+          toast({
+            variant: 'destructive',
+            title: 'غير قابل للإضافة',
+            description: 'هذه التذكرة موجودة في جدول جلسات العصر ولا يمكن إضافتها للطابور.',
+          });
+          return;
+        }
       }
     } catch (error) {
-      console.error('Failed to check pressing status:', error);
+      console.error('Failed to check pressing sessions:', error);
       // Continue with the process if check fails to avoid blocking
     }
 
@@ -318,10 +362,8 @@ export function QueuerScannerPage() {
       return;
     }
 
-    // Check for conflicting sessions before proceeding (only if there are remaining boxes > 0)
-    if (hasPartiallyQueued && partiallyQueuedInfo && 
-        partiallyQueuedInfo.remainingBoxes > 0 && 
-        partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) {
+    // Check for conflicting sessions before proceeding
+    if (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) {
       // Don't show error toast - the UI already shows the warning and button is disabled
       return;
     }
@@ -655,10 +697,8 @@ export function QueuerScannerPage() {
             </div>
           )}
 
-          {/* Active Session Warning - only show if there are remaining boxes > 0 */}
-          {hasPartiallyQueued && partiallyQueuedInfo && 
-           partiallyQueuedInfo.remainingBoxes > 0 && 
-           partiallyQueuedInfo.id !== parseInt(scannedTicket.id) && (
+          {/* Active Session Warning */}
+          {hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id) && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
               <div className="text-center">
                 <h3 className="text-red-800 dark:text-red-200 font-bold text-lg mb-3">
@@ -679,75 +719,52 @@ export function QueuerScannerPage() {
             </div>
           )}
 
-          {/* Fully Loaded Warning */}
-          {(scannedTicket.numberOfBoxes !== undefined && scannedTicket.numberOfBoxes <= 0) && (
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-              <div className="text-center">
-                <h3 className="text-green-800 dark:text-green-200 font-bold text-lg mb-3">
-                  ✅ هذه الدفعة مكتملة التحميل
-                </h3>
-                <div className="bg-white dark:bg-green-800/30 border border-green-300 dark:border-green-700 rounded-lg p-3 mb-3">
-                  <p className="text-green-900 dark:text-green-100 font-bold text-xl mb-1">
-                    تم تحميل جميع الصناديق
-                  </p>
-                  <p className="text-green-700 dark:text-green-300 text-sm">
-                    لا توجد صناديق متبقية للإضافة
-                  </p>
+          {/* Input Form */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="boxes" className="flex items-center gap-2 text-lg">
+                <Box className="h-5 w-5" />
+                عدد الصناديق
+              </Label>
+              <Input
+                id="boxes"
+                type="number"
+                min="0"
+                max={scannedTicket.numberOfBoxes || 0}
+                value={numberOfBoxes}
+                onChange={(e) => setNumberOfBoxes(e.target.value)}
+                placeholder={`أدخل عدد الصناديق (الحد الأقصى: ${scannedTicket.numberOfBoxes || 0})`}
+                className="text-lg p-3"
+                disabled={isCurrentlyPressed || (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) || (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued)}
+              />
+            </div>
+
+
+            {/* Queue Info */}
+            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+              <div className="text-center space-y-2">
+                <div className="flex items-center justify-center space-x-2">
+                  <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                  <span className="text-lg font-semibold text-purple-800 dark:text-purple-200">
+                    إضافة إلى قائمة الانتظار
+                  </span>
                 </div>
-                <p className="text-green-600 dark:text-green-400 text-sm">
-                  هذه الدفعة موجودة بالفعل في قائمة الانتظار بالكامل
-                </p>
+                {isCurrentlyPressed ? (
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    هذه التذكرة قيد العصر حالياً، لا يمكن إضافتها للطابور.
+                  </p>
+                ) : currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued ? (
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    هذه التذكرة موجودة بالفعل في الطابور ومكتملة التحميل، لا يمكن إضافتها مرة أخرى.
+                  </p>
+                ) : (
+                  <p className="text-sm text-purple-700 dark:text-purple-300">
+                    سيتم إضافة هذه التذكرة إلى قائمة انتظار المعالجة مع الطابع الزمني.
+                  </p>
+                )}
               </div>
             </div>
-          )}
-
-          {/* Input Form - only show if there are boxes available */}
-          {(scannedTicket.numberOfBoxes !== undefined && scannedTicket.numberOfBoxes > 0) && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="boxes" className="flex items-center gap-2 text-lg">
-                  <Box className="h-5 w-5" />
-                  عدد الصناديق
-                </Label>
-                <Input
-                  id="boxes"
-                  type="number"
-                  min="0"
-                  max={scannedTicket.numberOfBoxes || 0}
-                  value={numberOfBoxes}
-                  onChange={(e) => setNumberOfBoxes(e.target.value)}
-                  placeholder={`أدخل عدد الصناديق (الحد الأقصى: ${scannedTicket.numberOfBoxes || 0})`}
-                  className="text-lg p-3"
-                  disabled={isCurrentlyPressed || (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.remainingBoxes > 0 && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) || (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued)}
-                />
-              </div>
-
-              {/* Queue Info */}
-              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-                <div className="text-center space-y-2">
-                  <div className="flex items-center justify-center space-x-2">
-                    <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                    <span className="text-lg font-semibold text-purple-800 dark:text-purple-200">
-                      إضافة إلى قائمة الانتظار
-                    </span>
-                  </div>
-                  {isCurrentlyPressed ? (
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      هذه التذكرة قيد العصر حالياً، لا يمكن إضافتها للطابور.
-                    </p>
-                  ) : currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued ? (
-                    <p className="text-sm text-red-700 dark:text-red-300">
-                      هذه التذكرة موجودة بالفعل في الطابور ومكتملة التحميل، لا يمكن إضافتها مرة أخرى.
-                    </p>
-                  ) : (
-                    <p className="text-sm text-purple-700 dark:text-purple-300">
-                      سيتم إضافة هذه التذكرة إلى قائمة انتظار المعالجة مع الطابع الزمني.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3">
@@ -760,46 +777,36 @@ export function QueuerScannerPage() {
               <RotateCcw className="h-5 w-5 mr-2" />
               مسح جديد
             </OliveButton>
-            {/* Only show Add to Queue button if there are boxes available */}
-            {(scannedTicket.numberOfBoxes !== undefined && scannedTicket.numberOfBoxes > 0) ? (
-              <OliveButton
-                onClick={handleAddToQueue}
-                className="flex-1 text-lg py-3 bg-purple-600 hover:bg-purple-700"
-                disabled={isSaving || isCurrentlyPressed || (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.remainingBoxes > 0 && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) || (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued)}
-              >
-                {isSaving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    جاري الإضافة...
-                  </>
-                ) : isCurrentlyPressed ? (
-                  <>
-                    ⚙️ قيد العصر حالياً
-                  </>
-                ) : (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.remainingBoxes > 0 && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) ? (
-                  <>
-                    <Clock className="h-5 w-5 mr-2" />
-                    انتظار إنهاء {partiallyQueuedInfo.ticketNumber}
-                  </>
-                ) : (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued) ? (
-                  <>
-                    غير قابل للإضافة
-                  </>
-                ) : (
-                  <>
-                    <Users className="h-5 w-5 mr-2" />
-                    إضافة للقائمة
-                  </>
-                )}
-              </OliveButton>
-            ) : (
-              <OliveButton
-                disabled
-                className="flex-1 text-lg py-3 bg-gray-400 cursor-not-allowed"
-              >
-                ✅ مكتملة التحميل
-              </OliveButton>
-            )}
+            <OliveButton
+              onClick={handleAddToQueue}
+              className="flex-1 text-lg py-3 bg-purple-600 hover:bg-purple-700"
+              disabled={isSaving || isCurrentlyPressed || (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) || (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued)}
+            >
+              {isSaving ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  جاري الإضافة...
+                </>
+              ) : isCurrentlyPressed ? (
+                <>
+                  ⚙️ قيد العصر حالياً
+                </>
+              ) : (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) ? (
+                <>
+                  <Clock className="h-5 w-5 mr-2" />
+                  انتظار إنهاء {partiallyQueuedInfo.ticketNumber}
+                </>
+              ) : (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued) ? (
+                <>
+                  غير قابل للإضافة
+                </>
+              ) : (
+                <>
+                  <Users className="h-5 w-5 mr-2" />
+                  إضافة للقائمة
+                </>
+              )}
+            </OliveButton>
           </div>
         </div>
       </div>
@@ -823,8 +830,8 @@ export function QueuerScannerPage() {
           </p>
         </div>
 
-        {/* Partially Queued Warning Banner - only show if there are remaining boxes > 0 */}
-        {hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.remainingBoxes > 0 && (
+        {/* Partially Queued Warning Banner */}
+        {hasPartiallyQueued && partiallyQueuedInfo && (
           <div className="mx-4 mb-4 p-4 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg">
             <div className="flex items-start gap-3">
               <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />

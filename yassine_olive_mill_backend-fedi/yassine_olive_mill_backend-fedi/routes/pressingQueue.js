@@ -37,4 +37,13 @@ router.get('/partially-queued', pressingQueueController.getPartiallyQueuedBatche
 // GET /api/pressing-queue/batch-status/:batchId - Get queue status for a specific batch
 router.get('/batch-status/:batchId', pressingQueueController.getBatchStatus);
 
+// GET /api/pressing-queue/batch/:batchId/details - Get batch details for queuer scanner
+router.get('/batch/:batchId/details', pressingQueueController.getBatchForQueuer);
+
+// GET /api/pressing-queue/batch/:batchId/pressing-status - Check if batch is currently being pressed
+router.get('/batch/:batchId/pressing-status', pressingQueueController.checkBatchPressingStatus);
+
+// GET /api/pressing-queue/display-data - Get queue display data for queuer scanner
+router.get('/display-data', pressingQueueController.getQueueDisplayData);
+
 export default router;
