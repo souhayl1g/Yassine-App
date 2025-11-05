@@ -67,3 +67,5 @@ nbproject/
 .env.*.local
 
 *.sh
+
+.vercel

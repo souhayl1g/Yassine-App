@@ -126,14 +126,55 @@ const pressingQueueController = {
             });
           }
         } else {
-          // No active session, create a new one for this batch
-          activeSession = await QueuerSession.create({
-            queueId: operator_id,
-            currentBatchId: batch.id,
-            totalBoxes: batch.number_of_boxes || 0,
-            boxesQueued: 0,
-            status: 'active'
-          });
+          // No active session, create a new one for this batch using findOrCreate to prevent duplicates
+          try {
+            const [session, created] = await QueuerSession.findOrCreate({
+              where: { 
+                queueId: operator_id,
+                status: 'active'
+              },
+              defaults: {
+                currentBatchId: batch.id,
+                totalBoxes: batch.number_of_boxes || 0,
+                boxesQueued: 0,
+                status: 'active'
+              }
+            });
+            activeSession = session;
+            
+            // If session already exists but for different batch, return error
+            if (!created && session.currentBatchId !== batch.id) {
+              const currentBatch = await Batch.findByPk(session.currentBatchId, { include: ['client'] });
+              const currentBatchName = currentBatch 
+                ? `${currentBatch.ticket_number || `#${currentBatch.id}`} - ${currentBatch.client ? `${currentBatch.client.firstname} ${currentBatch.client.lastname}` : `Client #${currentBatch.clientId}`}`
+                : `Batch #${session.currentBatchId}`;
+              
+              const remainingBoxes = session.totalBoxes - session.boxesQueued;
+              
+              return res.status(400).json({ 
+                error: 'Cannot switch to a different batch while processing another batch',
+                currentBatch: currentBatchName,
+                remainingBoxes: remainingBoxes,
+                message: `يجب إنهاء معالجة الدفعة الحالية قبل البدء في دفعة جديدة: ${currentBatchName} (متبقي ${remainingBoxes} صندوق)`
+              });
+            }
+          } catch (createError) {
+            console.error('Error creating queuer session:', createError);
+            // If creation fails due to unique constraint (race condition), try fetching again
+            activeSession = await QueuerSession.findOne({
+              where: { 
+                queueId: operator_id, 
+                status: 'active' 
+              }
+            });
+            
+            if (activeSession && activeSession.currentBatchId !== batch.id) {
+              return res.status(400).json({ 
+                error: 'Cannot switch to a different batch while processing another batch',
+                message: 'يجب إنهاء معالجة الدفعة الحالية قبل البدء في دفعة جديدة'
+              });
+            }
+          }
         }
       }
 

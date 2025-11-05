@@ -1516,3 +1516,5 @@ t=2025-11-05T03:16:28+0100 lvl=info msg="join connections" obj=join id=8728dfa5d
 t=2025-11-05T03:16:28+0100 lvl=info msg="join connections" obj=join id=d64cb77bd42a l=[::1]:3000 r=196.239.151.64:62400
 t=2025-11-05T03:16:36+0100 lvl=info msg="join connections" obj=join id=3f852c85ebb2 l=[::1]:3000 r=196.239.151.64:62824
 t=2025-11-05T03:16:36+0100 lvl=info msg="join connections" obj=join id=29c8c8ab36be l=[::1]:3000 r=196.239.151.64:62400
+t=2025-11-05T03:18:50+0100 lvl=info msg=start pg=/api/tunnels id=23e15f6444b6b799
+t=2025-11-05T03:18:50+0100 lvl=info msg=end pg=/api/tunnels id=23e15f6444b6b799 status=200 dur=505.2µs
