@@ -16,7 +16,7 @@ router.get('/', pressingQueueController.getQueuedSessions);
 // POST /api/pressing-queue/process-next - Process next session in queue
 router.post('/process-next', pressingQueueController.processNextInQueue);
 
-// DELETE /api/pressing-queue/:id - Remove session from queue
+// DELETE /api/pressing-queue/:id - Remove session from queue or queuer session
 router.delete('/:id', pressingQueueController.removeFromQueue);
 
 // GET /api/pressing-queue/stats - Get queue statistics
@@ -33,5 +33,8 @@ router.put('/queuer/:queuer_id/session', pressingQueueController.updateQueuerSes
 
 // GET /api/pressing-queue/partially-queued - Get active queuer sessions (batches being queued) system-wide
 router.get('/partially-queued', pressingQueueController.getPartiallyQueuedBatches);
+
+// GET /api/pressing-queue/batch-status/:batchId - Get queue status for a specific batch
+router.get('/batch-status/:batchId', pressingQueueController.getBatchStatus);
 
 export default router;

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +41,7 @@ interface ScannedRoomData {
 
 export function EmployeeScannerPage() {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Scanner state
   const [isCameraActive, setIsCameraActive] = useState(true);
@@ -250,12 +252,16 @@ export function EmployeeScannerPage() {
         qrData = { id: isNaN(directId) ? result : directId };
       }
 
-      const roomId = qrData.id || qrData.roomId;
-      if (!roomId) {
-        throw new Error('لم يتم العثور على معرف الغرفة في رمز QR');
+      const batchId = qrData.id || qrData.ticketId;
+      if (!batchId) {
+        throw new Error('لم يتم العثور على معرف التذكرة في رمز QR');
       }
 
-      const room = await fetchRoomById(roomId);
+      // First fetch the batch to get its information
+      const batch = await fetchBatchById(batchId);
+      
+      // Then find the room where this batch is currently being processed
+      const room = await findRoomByBatch(batch);
       setScannedRoom(room);
       
       // Stop scanning after successful scan
@@ -271,22 +277,70 @@ export function EmployeeScannerPage() {
     }
   };
 
-  // Fetch room by ID from API
-  const fetchRoomById = async (roomId: string | number): Promise<ScannedRoomData> => {
+  // Fetch batch by ID from API (similar to OperatorScannerPage)
+  const fetchBatchById = async (batchId: string | number) => {
+    let idOrCode: string;
+    
+    if (typeof batchId === 'number') {
+      idOrCode = String(batchId);
+    } else if (typeof batchId === 'string') {
+      const num = parseInt(batchId.replace(/\D+/g, ''), 10);
+      idOrCode = isNaN(num) ? batchId : String(num);
+    } else {
+      throw new Error('معرف التذكرة غير صالح');
+    }
+
+    try {
+      const res = await api.get<any>(`/batches/${idOrCode}`);
+      const data = getPayload<any>(res);
+
+      if (!data || !data.id) {
+        throw new Error('التذكرة غير موجودة في النظام');
+      }
+
+      return {
+        id: String(data.id),
+        ticketNumber: data.ticket_number || `#${data.id}`,
+        clientName: data.client
+          ? `${data.client.firstname || ''} ${data.client.lastname || ''}`.trim()
+          : `Client #${data.clientId}`,
+        weightIn: data.weight_in ?? 0,
+        status: data.status || 'received',
+        numberOfBoxes: data.number_of_boxes || undefined,
+        numberOfBidons: data.number_of_bidons || undefined,
+        operationType: data.operation_type || 'milling'
+      };
+    } catch (e: any) {
+      const errorMessage = e?.response?.status === 404 
+        ? 'التذكرة غير موجودة في النظام'
+        : e?.message || 'فشل جلب بيانات التذكرة';
+      
+      throw new Error(errorMessage);
+    }
+  };
+
+  // Find room where this batch is currently being processed
+  const findRoomByBatch = async (batch: any): Promise<ScannedRoomData> => {
     try {
       const res = await api.get<any>(`/pressing-rooms/display-data`);
       const rooms = getPayload<any[]>(res);
       
-      const room = rooms.find((r: any) => r.id === Number(roomId));
+      // Find the room that has this batch currently active
+      const room = rooms.find((r: any) => 
+        r.currentBatch && 
+        (r.currentBatch.batchId === parseInt(batch.id) || 
+         r.currentBatch.id === batch.ticketNumber ||
+         r.currentBatch.id === batch.id)
+      );
+
       if (!room) {
-        throw new Error('الغرفة غير موجودة في النظام');
+        throw new Error('هذه التذكرة غير موجودة في أي غرفة عصر حالياً');
       }
 
-      console.log('Room data from API:', room); // Debug log
+      console.log('Found room for batch:', room); // Debug log
       console.log('Current batch data:', room.currentBatch); // Debug current batch structure
 
       // Transform the room data to match our interface
-      // Check if room has an active session (busy status or currentBatch exists)
       const hasActiveSession = room.status === 'busy' || room.currentBatch;
       
       return {
@@ -299,19 +353,19 @@ export function EmployeeScannerPage() {
           startTime: room.currentBatch.sessionStartTime,
           numberOfBoxes: room.currentBatch.numberOfBatches || 0,
           status: 'active',
-          operationType: room.currentBatch.operationType, // Add operation type from API
+          operationType: room.currentBatch.operationType || batch.operationType, // Use from API or batch
           batch: {
-            id: room.currentBatch.batchId, // Use the actual batch database ID
-            clientName: room.currentBatch.clientName,
-            weightIn: room.currentBatch.weightIn || 0,
-            ticketNumber: room.currentBatch.id // Keep the ticket ID for display
+            id: room.currentBatch.batchId || parseInt(batch.id), // Use the actual batch database ID
+            clientName: room.currentBatch.clientName || batch.clientName,
+            weightIn: room.currentBatch.weightIn || batch.weightIn || 0,
+            ticketNumber: room.currentBatch.id || batch.ticketNumber // Keep the ticket ID for display
           }
         } : null
       };
     } catch (e: any) {
       const errorMessage = e?.response?.status === 404 
-        ? 'الغرفة غير موجودة في النظام'
-        : e?.message || 'فشل جلب بيانات الغرفة';
+        ? 'غرف العصر غير متاحة حالياً'
+        : e?.message || 'فشل العثور على غرفة العصر للتذكرة';
       
       throw new Error(errorMessage);
     }
@@ -516,9 +570,9 @@ export function EmployeeScannerPage() {
           {/* Header */}
           <div className="text-center space-y-2">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
-              ماسح الغرف (المشغل)
+              ماسح التذاكر (المشغل)
             </h1>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">معلومات الغرفة</p>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">معلومات الغرفة والجلسة</p>
           </div>
 
           {/* Operation Type Badge - Show prominently if there's an active session */}
@@ -1015,15 +1069,15 @@ export function EmployeeScannerPage() {
         {/* Header */}
         <div className="p-3 sm:p-4 text-center bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
-            ماسح الغرف (المشغل)
+            ماسح التذاكر (المشغل)
           </h1>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mt-1">
-            وجه الكاميرا نحو رمز QR الخاص بالغرفة
+            وجه الكاميرا نحو رمز QR الخاص بالتذكرة
           </p>
         </div>
 
         {/* Camera View */}
-        <div className="flex-1 flex items-center justify-center p-2 sm:p-4 bg-gray-100 dark:bg-gray-900">
+        <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 bg-gray-100 dark:bg-gray-900 space-y-4">
           <div className="relative w-full max-w-xs sm:max-w-sm aspect-square bg-black rounded-lg overflow-hidden shadow-2xl">
             <video
               ref={videoRef}
@@ -1052,12 +1106,30 @@ export function EmployeeScannerPage() {
                   {/* Instructions */}
                   <div className="absolute -bottom-12 left-0 right-0 text-center">
                     <p className="text-white text-sm font-medium bg-black/70 px-3 py-1 rounded-lg">
-                      ضع رمز QR داخل الإطار
+                      ضع رمز QR الخاص بالتذكرة داخل الإطار
                     </p>
                   </div>
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Navigation Buttons - Below Camera */}
+          <div className="flex gap-2 w-full max-w-xs sm:max-w-sm">
+            <OliveButton
+              variant="outline"
+              onClick={() => navigate('/employee-scanner')}
+              className="flex-1 text-sm sm:text-base py-2"
+            >
+              📷 ماسح الغرف
+            </OliveButton>
+            <OliveButton
+              variant="outline"
+              onClick={() => navigate('/operator-scanner')}
+              className="flex-1 text-sm sm:text-base py-2"
+            >
+              🎯 ماسح المشغل
+            </OliveButton>
           </div>
         </div>
 

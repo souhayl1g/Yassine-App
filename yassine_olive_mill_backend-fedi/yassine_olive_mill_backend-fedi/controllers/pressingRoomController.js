@@ -1,6 +1,6 @@
 import db from "../models/index.js";
 
-const { PressingRoom, PressingSession, PressingQueue, Batch, User, BatchLoading, Client } = db;
+const { PressingRoom, PressingSession, PressingQueue, Batch, User, BatchLoading, Client, QueuerSession } = db;
 
 const pressingRoomController = {
   // GET /api/pressing-rooms
@@ -12,7 +12,10 @@ const pressingRoomController = {
 
       // Get active sessions with detailed information
       const activeSessions = await PressingSession.findAll({ 
-        where: { finish: null },
+        where: { 
+          finish: null,
+          status: 'active' // Only get actively running sessions, exclude 'done' status
+        },
         include: [
           {
             model: db.Batch,
@@ -124,7 +127,7 @@ const pressingRoomController = {
       const activeSessions = await PressingSession.findAll({ 
         where: { 
           finish: null,
-          status: 'active' // Only get actively running sessions
+          status: 'active' // Only get actively running sessions, exclude 'done' status
         },
         include: [
           {
@@ -202,7 +205,7 @@ const pressingRoomController = {
       const activeSessions = await PressingSession.findAll({ 
         where: { 
           finish: null,
-          status: 'active' // Only get actively running sessions
+          status: 'active' // Only get actively running sessions, exclude 'done' status
         },
         include: [
           {
@@ -261,9 +264,8 @@ const pressingRoomController = {
         currentBatch: sessionMap.get(room.id) || undefined
       }));
 
-      // Get queue data
-      const queuedSessions = await PressingQueue.findAll({
-        where: { status: 'queued' },
+      // Get queue data from all queuer sessions (existence in table means there's queuing activity)
+      const queuerSessions = await QueuerSession.findAll({
         include: [
           {
             model: Batch,
@@ -277,38 +279,43 @@ const pressingRoomController = {
             ]
           },
           {
-            model: BatchLoading,
-            as: 'batchLoading',
-            include: [
-              {
-                model: Batch,
-                as: 'batch',
-                include: [
-                  {
-                    model: db.Client,
-                    as: 'client',
-                    attributes: ['id', 'firstname', 'lastname']
-                  }
-                ]
-              }
-            ]
-          },
-          {
             model: User,
-            as: 'operator',
+            as: 'queuer',
             attributes: ['id', 'firstname', 'lastname']
           }
         ],
         order: [
-          ['priority', 'DESC'],
-          ['created_at', 'ASC']
+          ['startedAt', 'ASC'] // Order by when session started (first come, first served)
         ]
+      });
+
+      // Format queuer sessions data for display
+      const queueItems = queuerSessions.map(session => {
+        const batch = session.batch;
+        const client = batch?.client;
+        const queuer = session.queuer;
+        
+        return {
+          id: session.id,
+          batchId: session.currentBatchId,
+          ticketNumber: batch?.ticket_number || batch?.id.toString() || 'N/A',
+          clientName: client ? `${client.firstname} ${client.lastname}`.trim() : 'Unknown',
+          totalBoxes: session.totalBoxes,
+          boxesQueued: session.boxesQueued,
+          boxesRemaining: session.totalBoxes - session.boxesQueued,
+          progress: Math.round((session.boxesQueued / session.totalBoxes) * 100),
+          startedAt: session.startedAt,
+          queuerName: queuer ? `${queuer.firstname} ${queuer.lastname}`.trim() : 'Unknown',
+          weightIn: batch?.weight_in || 0,
+          operationType: batch?.operation_type || 'milling',
+          status: session.status
+        };
       });
 
       // Return combined data
       res.json({
         pressingRooms: roomsWithStatus,
-        queueItems: queuedSessions
+        queueItems: queueItems
       });
     } catch (error) {
       console.error("Get combined display data error:", error);

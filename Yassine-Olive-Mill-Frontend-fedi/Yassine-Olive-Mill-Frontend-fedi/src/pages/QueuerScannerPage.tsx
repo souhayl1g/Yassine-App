@@ -44,6 +44,9 @@ export function QueuerScannerPage() {
   // Active queuer sessions state
   const [hasPartiallyQueued, setHasPartiallyQueued] = useState(false);
   const [partiallyQueuedInfo, setPartiallyQueuedInfo] = useState<any>(null);
+  const [currentBatchQueueInfo, setCurrentBatchQueueInfo] = useState<{ totalBoxes: number; boxesQueued: number } | null>(null);
+  const [isCurrentlyPressed, setIsCurrentlyPressed] = useState(false);
+  const [pressingRoomInfo, setPressingRoomInfo] = useState<{ roomName: string; sessionStartTime: string } | null>(null);
 
   // Camera refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -184,9 +187,38 @@ export function QueuerScannerPage() {
         throw new Error('لم يتم العثور على معرف التذكرة في رمز QR');
       }
 
-      // Note: We'll check for active queuer sessions system-wide later in the form display
-      // Allow the scan to proceed even if there are active sessions
-      // The warning will be shown in the form interface instead of blocking the scan
+      // Check if batch exists in pressing sessions table - if it exists at all, block it
+      try {
+        const sessionsRes = await api.get<any>('/pressing-sessions');
+        const sessionsData = getPayload<any>(sessionsRes);
+        
+        if (Array.isArray(sessionsData)) {
+          // If batch ID exists in pressing sessions table at all, block it
+          const existingSession = sessionsData.find((session: any) => 
+            session.batch_id && 
+            (session.batch_id === parseInt(String(ticketId)) || 
+             String(session.batch_id) === String(ticketId))
+          );
+          
+          if (existingSession) {
+            setIsCurrentlyPressed(true);
+            setPressingRoomInfo({
+              roomName: existingSession.pressingRoom?.name || `Room ${existingSession.pressing_roomID}`,
+              sessionStartTime: existingSession.start
+            });
+          } else {
+            setIsCurrentlyPressed(false);
+            setPressingRoomInfo(null);
+          }
+        } else {
+          setIsCurrentlyPressed(false);
+          setPressingRoomInfo(null);
+        }
+      } catch (sessionsError) {
+        console.error('Failed to check pressing sessions:', sessionsError);
+        setIsCurrentlyPressed(false);
+        setPressingRoomInfo(null);
+      }
 
       const ticket = await fetchTicketByCode(ticketId);
       setScannedTicket(ticket);
@@ -194,6 +226,27 @@ export function QueuerScannerPage() {
       // Pre-populate form fields with existing values if they exist
       if (ticket.numberOfBoxes !== undefined && ticket.numberOfBoxes > 0) {
         setNumberOfBoxes(String(ticket.numberOfBoxes));
+      }
+      
+      // Check queue status
+      try {
+        const combinedRes = await api.get<any>('/pressing-rooms/combined-display-data');
+        const combined = getPayload<any>(combinedRes);
+        
+        const queueItems = Array.isArray(combined?.queueItems) ? combined.queueItems : [];
+        const item = queueItems.find((q: any) => {
+          const bid = q?.batchId ?? q?.currentBatchId;
+          return String(bid) === String(ticketId);
+        });
+        if (item) {
+          const total = parseInt((item.totalBoxes ?? item.total_boxes ?? 0) as any, 10);
+          const queued = parseInt((item.boxesQueued ?? item.queuedBoxes ?? item.boxes_queued ?? 0) as any, 10);
+          setCurrentBatchQueueInfo({ totalBoxes: total, boxesQueued: queued });
+        } else {
+          setCurrentBatchQueueInfo(null);
+        }
+      } catch (e) {
+        setCurrentBatchQueueInfo(null);
       }
       
       // Stop scanning after successful scan
@@ -290,6 +343,43 @@ export function QueuerScannerPage() {
   const handleAddToQueue = async () => {
     if (!scannedTicket) return;
 
+    // Simple check: if batch exists in pressing_sessions table at all, prohibit adding to queue
+    try {
+      const sessionsRes = await api.get<any>('/pressing-sessions');
+      const sessionsData = getPayload<any>(sessionsRes);
+      
+      if (Array.isArray(sessionsData)) {
+        // If batch ID exists in pressing sessions table at all, block it
+        const existingSession = sessionsData.find((session: any) => 
+          session.batch_id && 
+          (session.batch_id === parseInt(scannedTicket.id) || 
+           String(session.batch_id) === scannedTicket.id)
+        );
+        
+        if (existingSession) {
+          toast({
+            variant: 'destructive',
+            title: 'غير قابل للإضافة',
+            description: 'هذه التذكرة موجودة في جدول جلسات العصر ولا يمكن إضافتها للطابور.',
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check pressing sessions:', error);
+      // Continue with the process if check fails to avoid blocking
+    }
+
+    // If batch already fully queued in queuer_sessions, do not allow queueing
+    if (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued) {
+      toast({
+        variant: 'destructive',
+        title: 'غير قابل للإضافة',
+        description: 'هذه التذكرة موجودة بالفعل في الطابور ومكتملة التحميل.',
+      });
+      return;
+    }
+
     // Check for conflicting sessions before proceeding
     if (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) {
       // Don't show error toast - the UI already shows the warning and button is disabled
@@ -354,6 +444,21 @@ export function QueuerScannerPage() {
       const errorData = error?.response?.data;
       const errorText = errorData?.message || errorData?.error || error?.message || '';
       
+      // Check for "currently being pressed" error first
+      if (errorData?.isCurrentlyPressed || 
+          (errorText && (
+            errorText.includes('قيد العصر حالياً') ||
+            errorText.includes('currently being pressed') ||
+            errorText.includes('unfinished pressing session')
+          ))) {
+        toast({
+          variant: 'destructive',
+          title: 'غير قابل للإضافة',
+          description: 'هذه التذكرة قيد العصر حالياً في إحدى الغرف.',
+        });
+        return;
+      }
+
       // Comprehensive check for conflicting session errors
       const isConflictingSessionError = (
         // Status code checks
@@ -499,6 +604,9 @@ export function QueuerScannerPage() {
   const resetScanner = () => {
     setScannedTicket(null);
     setNumberOfBoxes('');
+    setCurrentBatchQueueInfo(null);
+    setIsCurrentlyPressed(false);
+    setPressingRoomInfo(null);
     setIsCameraActive(true);
     setTimeout(() => {
       checkPartiallyQueuedBatches(); // Refresh active queuer sessions status
@@ -585,6 +693,28 @@ export function QueuerScannerPage() {
             </div>
           </div>
 
+          {/* Currently Being Pressed Warning */}
+          {isCurrentlyPressed && pressingRoomInfo && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="text-center">
+                <h3 className="text-blue-800 dark:text-blue-200 font-bold text-lg mb-3">
+                  ⚙️ هذه التذكرة قيد العصر حالياً
+                </h3>
+                <div className="bg-white dark:bg-blue-800/30 border border-blue-300 dark:border-blue-700 rounded-lg p-3 mb-3">
+                  <p className="text-blue-900 dark:text-blue-100 font-bold text-xl mb-1">
+                    {pressingRoomInfo.roomName}
+                  </p>
+                  <p className="text-blue-700 dark:text-blue-300 text-sm">
+                    جلسة العصر نشطة
+                  </p>
+                </div>
+                <p className="text-blue-600 dark:text-blue-400 text-sm">
+                  لا يمكن إضافة هذه التذكرة للطابور أثناء العصر
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Active Session Warning */}
           {hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id) && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -623,10 +753,9 @@ export function QueuerScannerPage() {
                 onChange={(e) => setNumberOfBoxes(e.target.value)}
                 placeholder={`أدخل عدد الصناديق (الحد الأقصى: ${scannedTicket.numberOfBoxes || 0})`}
                 className="text-lg p-3"
-                disabled={hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)}
+                disabled={isCurrentlyPressed || (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) || (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued)}
               />
             </div>
-
 
 
             {/* Queue Info */}
@@ -638,9 +767,19 @@ export function QueuerScannerPage() {
                     إضافة إلى قائمة الانتظار
                   </span>
                 </div>
-                <p className="text-sm text-purple-700 dark:text-purple-300">
-                  سيتم إضافة هذه التذكرة إلى قائمة انتظار المعالجة مع الطابع الزمني.
-                </p>
+                {isCurrentlyPressed ? (
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    هذه التذكرة قيد العصر حالياً، لا يمكن إضافتها للطابور.
+                  </p>
+                ) : currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued ? (
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    هذه التذكرة موجودة بالفعل في الطابور ومكتملة التحميل، لا يمكن إضافتها مرة أخرى.
+                  </p>
+                ) : (
+                  <p className="text-sm text-purple-700 dark:text-purple-300">
+                    سيتم إضافة هذه التذكرة إلى قائمة انتظار المعالجة مع الطابع الزمني.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -659,17 +798,25 @@ export function QueuerScannerPage() {
             <OliveButton
               onClick={handleAddToQueue}
               className="flex-1 text-lg py-3 bg-purple-600 hover:bg-purple-700"
-              disabled={isSaving || (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id))}
+              disabled={isSaving || isCurrentlyPressed || (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) || (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued)}
             >
               {isSaving ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                   جاري الإضافة...
                 </>
+              ) : isCurrentlyPressed ? (
+                <>
+                  ⚙️ قيد العصر حالياً
+                </>
               ) : (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) ? (
                 <>
                   <Clock className="h-5 w-5 mr-2" />
                   انتظار إنهاء {partiallyQueuedInfo.ticketNumber}
+                </>
+              ) : (currentBatchQueueInfo && currentBatchQueueInfo.totalBoxes > 0 && currentBatchQueueInfo.totalBoxes === currentBatchQueueInfo.boxesQueued) ? (
+                <>
+                  غير قابل للإضافة
                 </>
               ) : (
                 <>

@@ -24,8 +24,9 @@ export default (sequelize) => {
       allowNull: false
     },
     payment_method: {
-      type: DataTypes.ENUM('cash', 'check', 'bank_transfer'),
-      allowNull: true
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'cash'
     },
     reference: {
       type: DataTypes.STRING,

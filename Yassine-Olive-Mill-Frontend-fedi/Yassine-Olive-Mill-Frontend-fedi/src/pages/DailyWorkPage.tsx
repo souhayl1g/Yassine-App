@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DailyWorkHeader } from '@/components/daily-work/DailyWorkHeader';
 import { AddTicketModal } from '@/components/daily-work/AddTicketModal';
 import { QRScanModal, CameraScanModal } from '@/components/daily-work/QRScanModal';
@@ -9,10 +9,19 @@ import { PrintTicketModal } from '@/components/daily-work/PrintTicketModal';
 import { QRDisplayModal } from '@/components/daily-work/QRDisplayModal';
 import { TicketDetailsModal } from '@/components/daily-work/TicketDetailsModal';
 import { OperationButtons } from '@/components/daily-work/OperationButtons';
+import { PaymentModal } from '@/components/payments/PaymentModal';
+import { PaymentHistoryModal } from '@/components/payments/PaymentHistoryModal';
 import { useDailyWork } from '@/hooks/daily-work/useDailyWork';
+import { usePaymentOperations } from '@/hooks/usePaymentOperations';
 
 export function DailyWorkPage() {
   const dailyWork = useDailyWork();
+  const payment = usePaymentOperations();
+
+  // Handle payment completion
+  const handlePaymentComplete = () => {
+    dailyWork.loadRecentTickets(dailyWork.currentPage);
+  };
 
   return (
     <>
@@ -41,6 +50,9 @@ export function DailyWorkPage() {
           onShowQrCode={dailyWork.handleShowQrCode}
           onPageChange={dailyWork.loadRecentTickets}
           onDeleteTicket={dailyWork.handleDeleteTicket}
+          onPayTicket={payment.openPaymentModal}
+          onViewPaymentHistory={(clientId, clientName) => payment.openPaymentHistory(clientId, clientName)}
+          getPaymentStatus={dailyWork.getTicketPaymentStatus}
         />
       </div>
 
@@ -153,6 +165,22 @@ export function DailyWorkPage() {
           dailyWork.setIsQrScanOpen(false);
           dailyWork.setIsCameraScanOpen(true);
         }}
+      />
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={payment.isPaymentModalOpen}
+        onClose={payment.closePaymentModal}
+        ticket={payment.selectedTicket}
+        onPaymentComplete={handlePaymentComplete}
+      />
+
+      {/* Payment History Modal */}
+      <PaymentHistoryModal
+        isOpen={payment.isPaymentHistoryOpen}
+        onClose={payment.closePaymentHistory}
+        clientId={payment.selectedClientId}
+        clientName={payment.selectedClientName}
       />
     </>
   );

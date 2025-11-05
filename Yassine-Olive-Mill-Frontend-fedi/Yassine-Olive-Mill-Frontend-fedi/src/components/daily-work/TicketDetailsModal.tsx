@@ -220,7 +220,7 @@ export function TicketDetailsModal({
                     {ticket.netWeight} كيلو × {ticket.unitPrice} دينار = {(ticket.netWeight * ticket.unitPrice).toFixed(2)} دينار
                     {ticket.totalAmount > (ticket.netWeight * ticket.unitPrice) && (
                       <span className="block mt-1 text-xs">
-                        (تم تطبيق الحد الأدنى 40 دينار)
+                        (تم تطبيق الحد الأدنى: 200 كيلو × سعر الوحدة)
                       </span>
                     )}
                   </div>

@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import db from "../models/index.js"
-const { Payment, Invoice } = db;
+const { Payment, Invoice, Client } = db;
 
 // GET /api/payments - Get all payments
 router.get('/', async (req, res) => {
@@ -13,7 +13,11 @@ router.get('/', async (req, res) => {
 
     const payments = await Payment.findAll({
       where: whereClause,
-      include: [{ model: Invoice, as: 'invoice' }],
+      include: [{ 
+        model: Invoice, 
+        as: 'invoice',
+        include: [{ model: Client, as: 'client' }]
+      }],
       order: [['payment_date', 'DESC']]
     });
 

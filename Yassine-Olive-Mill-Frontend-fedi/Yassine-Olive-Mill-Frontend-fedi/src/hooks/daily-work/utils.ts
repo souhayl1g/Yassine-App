@@ -98,6 +98,8 @@ export const getClientDisplayName = (client: any): string => {
 
 // Update batch via API
 export const updateBatch = async (id: string, payload: any) => {
+  console.log('🚀 API DEBUG: Attempting to update batch', id, 'with payload:', payload);
+  
   const attempts: Array<() => Promise<any>> = [
     () => api.put(`/batches/${id}`, payload),
     () => api.post(`/batches/${id}`, { ...payload, _method: 'PUT' }),
@@ -108,16 +110,22 @@ export const updateBatch = async (id: string, payload: any) => {
   let lastErr: any;
   for (const tryCall of attempts) {
     try {
+      console.log('🔄 API DEBUG: Trying API call...');
       const r = await tryCall();
+      console.log('✅ API DEBUG: Success! Response:', r);
       return r;
     } catch (err: any) {
+      console.log('❌ API DEBUG: Failed with error:', err);
       lastErr = err;
       const msg = (err?.message || '').toLowerCase();
       if (!(msg.includes('404') || msg.includes('405') || msg.includes('not found') || msg.includes('method'))) {
+        console.log('🔴 API DEBUG: Non-recoverable error, throwing:', err);
         throw err;
       }
+      console.log('🔄 API DEBUG: Recoverable error, trying next endpoint...');
     }
   }
+  console.log('💥 API DEBUG: All attempts failed, throwing last error:', lastErr);
   throw lastErr;
 };
 

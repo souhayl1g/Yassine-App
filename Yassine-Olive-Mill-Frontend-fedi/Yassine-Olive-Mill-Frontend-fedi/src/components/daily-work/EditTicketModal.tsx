@@ -1,9 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, Minimize2, FileText } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, RefreshCw, Minimize2, FileText, CheckCircle2, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { OliveButton } from '@/components/ui/olive-button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Ticket, EditTicketForm, Price } from '@/types/daily-work';
 
 interface EditTicketModalProps {
@@ -50,6 +52,7 @@ export function EditTicketModal({
   const [totalAmount, setTotalAmount] = useState<number>(0);
   const [isMinimumApplied, setIsMinimumApplied] = useState<boolean>(false);
   const [calculationLoading, setCalculationLoading] = useState<boolean>(false);
+  const lastAutoUpdatedAmount = useRef<number>(0);
 
   // Check if the form is valid for saving
   const isFormValid = () => {
@@ -62,7 +65,7 @@ export function EditTicketModal({
 
   // Update calculations when form changes
   useEffect(() => {
-    if (editForm.weightOut && ticket?.operationType) {
+    if (ticket?.operationType) {
       setCalculationLoading(true);
       Promise.all([
         calculateEditTotalAmount(ticket.operationType),
@@ -77,11 +80,46 @@ export function EditTicketModal({
     }
   }, [editForm.weightOut, editForm.numberOfBoxes, editForm.taux, ticket?.operationType, calculateEditTotalAmount, isMinimumPriceApplied]);
 
+  // Auto-update payment amount when isPaid changes or total amount changes
+  useEffect(() => {
+    if (editForm.isPaid && 
+        (!editForm.paymentAmount || parseFloat(editForm.paymentAmount) === 0) && 
+        totalAmount > 0 && 
+        lastAutoUpdatedAmount.current !== totalAmount) {
+      setEditForm(prev => ({ ...prev, paymentAmount: totalAmount.toFixed(2) }));
+      lastAutoUpdatedAmount.current = totalAmount;
+    }
+  }, [editForm.isPaid, totalAmount]);
+
+  // Initialize calculations when modal opens
+  useEffect(() => {
+    if (isOpen && ticket?.operationType) {
+      lastAutoUpdatedAmount.current = 0; // Reset the ref when modal opens
+      setCalculationLoading(true);
+      Promise.all([
+        calculateEditTotalAmount(ticket.operationType),
+        isMinimumPriceApplied(ticket.operationType)
+      ]).then(([amount, isMinimum]) => {
+        setTotalAmount(amount);
+        setIsMinimumApplied(isMinimum);
+        setCalculationLoading(false);
+      }).catch(() => {
+        setCalculationLoading(false);
+      });
+    }
+  }, [isOpen, ticket?.id, calculateEditTotalAmount, isMinimumPriceApplied]);
+
   if (!isOpen || !ticket) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 text-foreground rounded-lg p-6 w-full max-w-lg shadow-lg relative">
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white dark:bg-gray-900 text-foreground rounded-lg p-6 w-full max-w-lg shadow-lg relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button 
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 z-10" 
           onClick={onClose}
@@ -172,7 +210,7 @@ export function EditTicketModal({
           
           {ticket?.operationType === 'sale' && (
             <div className="text-xs text-muted-foreground">
-              إذا لم يتم إدخال معدل الاستخراج، سيتم حساب السعر بناءً على دفعات الزيت المسجلة
+              إذا تم إدخال معدل الاستخراج، سيتم حساب كمية الزيت ثم ضربها في سعر شراء الزيتون. وإلا سيتم حساب السعر مباشرة على الوزن الصافي.
             </div>
           )}
         </div>
@@ -189,13 +227,13 @@ export function EditTicketModal({
             ) : currentPrices ? (
               <div>
                 {ticket?.operationType === 'sale' ? (
-                  currentPrices.oil_client_selling_price_per_kg > 0 ? (
-                    <div className="text-base font-bold text-blue-700 dark:text-blue-300">
-                      سعر بيع الزيت: {currentPrices.oil_client_selling_price_per_kg} دينار/كيلو
-                    </div>
+                  currentPrices.olive_buying_price_per_kg > 0 ? (
+                    <p className="text-sm text-olive-600">
+                      سعر شراء الزيتون: {currentPrices.olive_buying_price_per_kg} دينار/كيلو
+                    </p>
                   ) : (
                     <div className="text-red-700 dark:text-red-400 text-sm">
-                      لا يوجد سعر بيع الزيت محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                      لا يوجد سعر شراء الزيتون محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
                     </div>
                   )
                 ) : (
@@ -219,44 +257,100 @@ export function EditTicketModal({
         </div>
 
         {/* Calculated values */}
-        {editForm.weightOut && (
-          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div className="p-3 rounded bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-              <div className="text-blue-800 dark:text-blue-200 font-medium">الوزن الصافي</div>
-              <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                {calculateEditNetWeight().toFixed(2)} كيلو
-              </div>
-            </div>
-            <div className="p-3 rounded bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
-              <div className="text-green-800 dark:text-green-200 font-medium">المبلغ الإجمالي</div>
-              <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                {calculationLoading ? (
-                  <RefreshCw className="h-4 w-4 animate-spin inline" />
-                ) : (
-                  <>
-                    {totalAmount.toFixed(2)} دينار
-                    {isMinimumApplied && (
-                      <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                        تم تطبيق الحد الأدنى للسعر (40 دينار)
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+          <div className="p-3 rounded bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+            <div className="text-blue-800 dark:text-blue-200 font-medium">الوزن الصافي</div>
+            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+              {calculateEditNetWeight().toFixed(2)} كيلو
             </div>
           </div>
-        )}
+          <div className="p-3 rounded bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+            <div className="text-green-800 dark:text-green-200 font-medium">المبلغ الإجمالي</div>
+            <div className="text-lg font-bold text-green-600 dark:text-green-400">
+              {calculationLoading ? (
+                <RefreshCw className="h-4 w-4 animate-spin inline" />
+              ) : (
+                <>
+                  {totalAmount.toFixed(2)} دينار
+                  {isMinimumApplied && (
+                    <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      تم تطبيق الحد الأدنى للسعر (200 كيلو × سعر الوحدة)
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
 
-        <div className="mb-6">
-          <label className="text-sm">
-            <span className="block mb-1">ملاحظات (اختياري)</span>
-            <Textarea
-              value={editForm.notes}
-              onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
-              placeholder="أدخل أي ملاحظات إضافية"
-              className="w-full"
-            />
-          </label>
+        {/* Payment Section */}
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <h3 className="text-sm font-semibold mb-4 text-gray-800 dark:text-gray-200">معلومات الدفع</h3>
+          
+          {/* Payment Status Toggle (UI library) */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-sm font-medium">حالة الدفع</Label>
+              <ToggleGroup
+                type="single"
+                value={editForm.isPaid ? 'paid' : 'unpaid'}
+                onValueChange={(val) => {
+                  if (!val) return;
+                  const willBePaid = val === 'paid';
+                  setEditForm((p) => ({
+                    ...p,
+                    isPaid: willBePaid,
+                    paymentAmount: willBePaid
+                      ? (p.paymentAmount || totalAmount.toFixed(2))
+                      : '',
+                  }));
+                }}
+                className="rounded-full border border-muted bg-muted/50"
+              >
+                <ToggleGroupItem
+                  value="unpaid"
+                  className="data-[state=on]:bg-red-600 data-[state=on]:text-white text-muted-foreground px-4 py-2 rounded-full"
+                  aria-label="غير مدفوع"
+                >
+                  <span className="inline-flex items-center gap-2"><XCircle className="h-4 w-4" /> غير مدفوع</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="paid"
+                  className="data-[state=on]:bg-emerald-600 data-[state=on]:text-white text-muted-foreground px-4 py-2 rounded-full"
+                  aria-label="مدفوع"
+                >
+                  <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> مدفوع</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </div>
+
+          {/* Payment Details - Only show if paid */}
+          {editForm.isPaid && (
+            <div className="space-y-4">
+              {/* Payment Amount */}
+              <div>
+                <Label htmlFor="paymentAmount" className="text-sm font-medium">
+                  المبلغ المدفوع (دينار)
+                </Label>
+                <Input
+                  id="paymentAmount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editForm.paymentAmount}
+                  onChange={(e) => setEditForm((p) => ({ ...p, paymentAmount: e.target.value }))}
+                  placeholder="أدخل المبلغ المدفوع"
+                  className="w-full mt-1"
+                />
+              </div>
+
+              {/* Payment Method is always cash - no need for selection */}
+              <div className="text-sm text-muted-foreground">
+                طريقة الدفع: نقدي
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Validation message for finishing operations */}

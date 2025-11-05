@@ -17,6 +17,10 @@ export interface Ticket {
   numberOfBoxes: number;
   unitPrice?: number;
   totalAmount?: number;
+  isPaid?: boolean;
+  paymentMethod?: string;
+  paymentReference?: string;
+  datePaid?: string;
   dateReceived: string;
   status: 'received' | 'in_process' | 'completed';
   operationType?: 'milling' | 'sale';
@@ -39,22 +43,26 @@ export interface NewTicketForm {
   lastname: string;
   weightIn: string;
   operationType: 'milling' | 'sale';
-  notes: string;
 }
 
 export interface EditTicketForm {
   weightOut: string;
   numberOfBoxes: string;
-  notes: string;
   taux: string; // Oil extraction percentage for sale operations
+  // Payment fields
+  isPaid: boolean;
+  paymentAmount: string;
 }
 
 export interface Price {
-  id: string;
+  id: number;
   milling_price_per_kg: number;
-  oil_client_selling_price_per_kg: number;
+  oil_export_selling_price_per_kg: number;
+  olive_buying_price_per_kg: number;
   empty_bidon_price: number;
   date: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DailyWorkState {

@@ -1,5 +1,5 @@
 import db from '../models/index.js';
-const { PressingQueue, Batch, User, PressingSession, PressingRoom, BatchLoading, QueuerSession } = db;
+const { PressingQueue, Batch, User, PressingSession, PressingRoom, BatchLoading, QueuerSession, Client } = db;
 
 const pressingQueueController = {
   // Add a new batch loading to the queue
@@ -30,6 +30,43 @@ const pressingQueueController = {
 
       if (!batch) {
         return res.status(404).json({ error: 'Batch not found (provide batch_id, ticketId or ticketNumber)' });
+      }
+
+      // Check if batch is already in an active pressing session
+      const activePressingSession = await db.PressingSession.findOne({
+        where: {
+          batch_id: batch.id,
+          status: 'active'
+        }
+      });
+
+      if (activePressingSession) {
+        return res.status(400).json({ 
+          error: 'Cannot add batch to queue - it is currently being pressed',
+          message: 'لا يمكن إضافة هذه التذكرة للطابور - قيد العصر حالياً',
+          isCurrentlyPressed: true,
+          batchId: batch.id,
+          sessionId: activePressingSession.id
+        });
+      }
+
+      // Also check for sessions that are not finished (regardless of status)
+      const unfinishedPressingSession = await db.PressingSession.findOne({
+        where: {
+          batch_id: batch.id,
+          finish: null
+        }
+      });
+
+      if (unfinishedPressingSession && unfinishedPressingSession.status !== 'waiting') {
+        return res.status(400).json({ 
+          error: 'Cannot add batch to queue - it has an unfinished pressing session',
+          message: 'لا يمكن إضافة هذه التذكرة للطابور - لها جلسة عصر غير مكتملة',
+          isCurrentlyPressed: true,
+          batchId: batch.id,
+          sessionId: unfinishedPressingSession.id,
+          sessionStatus: unfinishedPressingSession.status
+        });
       }
 
       // Check if there are any active queuer sessions system-wide for different batches
@@ -91,8 +128,10 @@ const pressingQueueController = {
 
       // Check if queuer has an active session and enforce batch consistency
       const operator = await User.findByPk(operator_id);
+      let activeSession = null; // Declare outside the queuer block for later use
+      
       if (operator && operator.role === 'queuer') {
-        const activeSession = await QueuerSession.findOne({
+        activeSession = await QueuerSession.findOne({
           where: { 
             queueId: operator_id, 
             status: 'active' 
@@ -125,7 +164,7 @@ const pressingQueueController = {
           }
         } else {
           // No active session, create a new one for this batch
-          await QueuerSession.create({
+          activeSession = await QueuerSession.create({
             queueId: operator_id,
             currentBatchId: batch.id,
             totalBoxes: batch.number_of_boxes || 0,
@@ -139,8 +178,16 @@ const pressingQueueController = {
       const totalBoxes = batch.number_of_boxes || 0;
       const loadedBoxes = batch.boxes_loaded_to_pressing || 0;
       const committedBoxes = batch.boxes_committed_to_queue || 0;
-      // Available = total - actually loaded - committed to queue
-      const availableBoxes = totalBoxes - loadedBoxes - committedBoxes;
+      let availableBoxes;
+
+      // If this is a queuer with an active session, use session progress
+      if (operator && operator.role === 'queuer' && activeSession) {
+        availableBoxes = totalBoxes - activeSession.boxesQueued;
+      } else {
+        // For operators or no active session, use batch-level calculations
+        // Available = total - actually loaded - committed to queue
+        availableBoxes = totalBoxes - loadedBoxes - committedBoxes;
+      }
 
       if (number_of_boxes > availableBoxes) {
         return res.status(400).json({ 
@@ -177,18 +224,12 @@ const pressingQueueController = {
         if (activeSession) {
           const newBoxesQueued = activeSession.boxesQueued + number_of_boxes;
           
-          // Check if session is complete
-          if (newBoxesQueued >= activeSession.totalBoxes) {
-            await activeSession.update({
-              boxesQueued: newBoxesQueued,
-              status: 'completed',
-              completedAt: new Date()
-            });
-          } else {
-            await activeSession.update({
-              boxesQueued: newBoxesQueued
-            });
-          }
+          // Update the session with new boxes queued count
+          await activeSession.update({
+            boxesQueued: newBoxesQueued
+          });
+          
+          console.log(`Updated queuer session ${activeSession.id} - boxes queued: ${newBoxesQueued}/${activeSession.totalBoxes}`);
         }
       }
 
@@ -257,119 +298,37 @@ const pressingQueueController = {
   },
 
   // Process next batch loading in queue (auto-assign to available room)
+  // Disabled by policy: auto-assignment is not allowed.
   processNextInQueue: async (req, res) => {
-    try {
-      const { room_id } = req.body;
-
-      // Find available room if not specified
-      let availableRoom;
-      if (room_id) {
-        availableRoom = await PressingRoom.findOne({
-          where: { 
-            id: room_id,
-            status: 'available' 
-          }
-        });
-        
-        if (!availableRoom) {
-          return res.status(400).json({ 
-            error: 'Specified room is not available' 
-          });
-        }
-      } else {
-        availableRoom = await PressingRoom.findOne({
-          where: { status: 'available' },
-          order: [['id', 'ASC']]
-        });
-        
-        if (!availableRoom) {
-          return res.status(400).json({ 
-            error: 'No available rooms found' 
-          });
-        }
-      }
-
-      // Get next queued batch loading
-      const nextInQueue = await PressingQueue.findOne({
-        where: { status: 'queued' },
-        include: [
-          {
-            model: Batch,
-            as: 'batch'
-          },
-          {
-            model: BatchLoading,
-            as: 'batchLoading',
-            required: false // Allow null batch loading for queued items
-          }
-        ],
-        order: [
-          ['priority', 'DESC'],
-          ['created_at', 'ASC']
-        ]
-      });
-
-      if (!nextInQueue) {
-        return res.status(404).json({ 
-          error: 'No batch loadings in queue' 
-        });
-      }
-
-      // Mark queue entry as processing
-      await nextInQueue.update({ status: 'processing' });
-
-      // Create pressing session
-      const pressingSession = await PressingSession.create({
-        pressing_roomID: availableRoom.id,
-        number_of_boxes: nextInQueue.number_of_boxes,
-        batch_id: nextInQueue.batch_id,
-        status: 'active'
-      });
-
-      // Create batch loading entry now that we have session and room info
-      const batchLoading = await BatchLoading.create({
-        batchId: nextInQueue.batch_id,
-        pressingSessionId: pressingSession.id,
-        pressingRoomId: availableRoom.id,
-        operatorId: nextInQueue.operator_id,
-        boxesLoaded: nextInQueue.number_of_boxes,
-        notes: nextInQueue.notes
-      });
-
-      // Update queue entry with batch loading reference
-      await nextInQueue.update({ batch_loading_id: batchLoading.id });
-
-      // Update room status
-      await availableRoom.update({ status: 'active' });
-
-      // Now that processing has started, move boxes from committed to loaded
-      const batch = nextInQueue.batch;
-      await batch.update({
-        boxes_loaded_to_pressing: (batch.boxes_loaded_to_pressing || 0) + nextInQueue.number_of_boxes,
-        boxes_committed_to_queue: Math.max(0, (batch.boxes_committed_to_queue || 0) - nextInQueue.number_of_boxes)
-      });
-
-      // Mark queue entry as completed
-      await nextInQueue.update({ status: 'completed' });
-
-      res.json({
-        message: 'Successfully processed next batch loading in queue',
-        pressingSession,
-        queueEntry: nextInQueue,
-        batchLoading: batchLoading,
-        room: availableRoom
-      });
-    } catch (error) {
-      console.error('Process next in queue error:', error);
-      res.status(500).json({ error: error.message });
-    }
+    return res.status(403).json({ error: 'Auto-assigning next queue item is disabled.' });
   },
 
-  // Remove batch loading from queue
+  // Remove batch loading from queue or queuer session
   removeFromQueue: async (req, res) => {
     try {
       const { id } = req.params;
 
+      // First try to find as a QueuerSession
+      const queuerSession = await QueuerSession.findByPk(id, {
+        include: [
+          {
+            model: Batch,
+            as: 'batch'
+          }
+        ]
+      });
+
+      if (queuerSession) {
+        // Remove queuer session
+        await queuerSession.destroy();
+        return res.json({ 
+          message: 'Queuer session removed successfully',
+          type: 'queuer_session',
+          batchId: queuerSession.currentBatchId
+        });
+      }
+
+      // If not found as queuer session, try as PressingQueue entry
       const queueEntry = await PressingQueue.findByPk(id, {
         include: [
           {
@@ -385,7 +344,7 @@ const pressingQueueController = {
       });
 
       if (!queueEntry) {
-        return res.status(404).json({ error: 'Queue entry not found' });
+        return res.status(404).json({ error: 'Queue entry or queuer session not found' });
       }
 
       if (queueEntry.status === 'processing') {
@@ -411,6 +370,7 @@ const pressingQueueController = {
 
       res.json({ 
         message: 'Batch loading removed from queue successfully',
+        type: 'pressing_queue',
         releasedBoxes: queueEntry.number_of_boxes
       });
     } catch (error) {
@@ -585,8 +545,15 @@ const pressingQueueController = {
       };
 
       if (action === 'complete') {
-        updateData.completedAt = new Date();
-        updateData.boxesQueued = activeSession.totalBoxes; // Mark all as queued
+        // When manually completing, remove the session entirely
+        await activeSession.destroy();
+        console.log(`Manually removed queuer session ${activeSession.id} - marked as complete`);
+        
+        return res.json({
+          message: `Queuer session completed and removed successfully`,
+          sessionId: activeSession.id,
+          action: action
+        });
       }
 
       await activeSession.update(updateData);
@@ -652,6 +619,58 @@ const pressingQueueController = {
       });
     } catch (error) {
       console.error('Get active queuer sessions error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // GET /api/pressing-queue/batch-status/:batchId - Get queue status for a specific batch
+  getBatchStatus: async (req, res) => {
+    try {
+      const { batchId } = req.params;
+
+      // Find queuer session for this batch
+      const queuerSession = await QueuerSession.findOne({
+        where: {
+          currentBatchId: parseInt(batchId),
+          status: 'active'
+        },
+        include: [
+          {
+            model: Batch,
+            as: 'batch',
+            include: [
+              {
+                model: Client,
+                as: 'client',
+                attributes: ['id', 'firstname', 'lastname']
+              }
+            ]
+          }
+        ]
+      });
+
+      if (!queuerSession) {
+        return res.json({
+          inQueue: false,
+          totalBoxes: 0,
+          boxesQueued: 0,
+          clientName: null,
+          ticketNumber: null
+        });
+      }
+
+      const batch = queuerSession.batch;
+      const client = batch?.client;
+      
+      return res.json({
+        inQueue: true,
+        totalBoxes: queuerSession.totalBoxes,
+        boxesQueued: queuerSession.boxesQueued,
+        clientName: client ? `${client.firstname || ''} ${client.lastname || ''}`.trim() : 'Unknown',
+        ticketNumber: batch?.ticket_number || batch?.id?.toString() || 'N/A'
+      });
+    } catch (error) {
+      console.error('Get batch status error:', error);
       res.status(500).json({ error: error.message });
     }
   }

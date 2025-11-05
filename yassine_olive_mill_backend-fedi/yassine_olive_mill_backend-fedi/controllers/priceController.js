@@ -50,7 +50,6 @@ const priceController = {
       const {
         date,
         milling_price_per_kg,
-        oil_client_selling_price_per_kg,
         oil_export_selling_price_per_kg,
         olive_buying_price_per_kg,
         empty_bidon_price
@@ -66,8 +65,6 @@ const priceController = {
         date: date || new Date().toISOString().split('T')[0], // Today's date if not provided
         milling_price_per_kg: milling_price_per_kg !== undefined ? 
           milling_price_per_kg : (latestPrice?.milling_price_per_kg || 0),
-        oil_client_selling_price_per_kg: oil_client_selling_price_per_kg !== undefined ? 
-          oil_client_selling_price_per_kg : (latestPrice?.oil_client_selling_price_per_kg || 0),
         oil_export_selling_price_per_kg: oil_export_selling_price_per_kg !== undefined ? 
           oil_export_selling_price_per_kg : (latestPrice?.oil_export_selling_price_per_kg || 0),
         olive_buying_price_per_kg: olive_buying_price_per_kg !== undefined ? 
@@ -92,7 +89,6 @@ const priceController = {
       const {
         date,
         milling_price_per_kg,
-        oil_client_selling_price_per_kg,
         oil_export_selling_price_per_kg,
         olive_buying_price_per_kg,
         empty_bidon_price
@@ -107,7 +103,6 @@ const priceController = {
       const updateData = {};
       if (date !== undefined) updateData.date = date;
       if (milling_price_per_kg !== undefined) updateData.milling_price_per_kg = milling_price_per_kg;
-      if (oil_client_selling_price_per_kg !== undefined) updateData.oil_client_selling_price_per_kg = oil_client_selling_price_per_kg;
       if (oil_export_selling_price_per_kg !== undefined) updateData.oil_export_selling_price_per_kg = oil_export_selling_price_per_kg;
       if (olive_buying_price_per_kg !== undefined) updateData.olive_buying_price_per_kg = olive_buying_price_per_kg;
       if (empty_bidon_price !== undefined) updateData.empty_bidon_price = empty_bidon_price;

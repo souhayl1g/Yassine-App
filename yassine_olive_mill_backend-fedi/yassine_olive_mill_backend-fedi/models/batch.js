@@ -106,6 +106,39 @@ export default (sequelize) => {
       type: DataTypes.DECIMAL(5, 2),
       allowNull: true,
       comment: 'Oil extraction percentage (taux) used for sale operations calculations'
+    },
+    // Payment tracking fields
+    unit_price: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: 'Unit price per kg for calculations'
+    },
+    total_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: 'Total amount due for this batch'
+    },
+    is_paid: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Whether this batch has been fully paid'
+    },
+    payment_method: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'cash',
+      comment: 'Method used for payment - defaults to cash'
+    },
+    payment_reference: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Payment reference number or transaction ID'
+    },
+    date_paid: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Date when payment was completed'
     }
   }, {
     tableName: 'batches',

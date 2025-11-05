@@ -43,7 +43,6 @@ interface CompanySettings {
 
 interface PricingSettings {
   millingPricePerKg: number;
-  oilClientSellingPricePerKg: number;
   oilExportSellingPricePerKg: number;
   oliveBuyingPricePerKg: number;
   emptyBidonPrice: number;
@@ -71,7 +70,6 @@ export function SettingsPage() {
 
   const [pricingSettings, setPricingSettings] = useState<PricingSettings>({
     millingPricePerKg: 0,
-    oilClientSellingPricePerKg: 0,
     oilExportSellingPricePerKg: 0,
     oliveBuyingPricePerKg: 0,
     emptyBidonPrice: 0,
@@ -103,7 +101,6 @@ export function SettingsPage() {
       if (response && typeof response === 'object' && response !== null) {
         setPricingSettings({
           millingPricePerKg: (response as any).milling_price_per_kg || 0,
-          oilClientSellingPricePerKg: (response as any).oil_client_selling_price_per_kg || 0,
           oilExportSellingPricePerKg: (response as any).oil_export_selling_price_per_kg || 0,
           oliveBuyingPricePerKg: (response as any).olive_buying_price_per_kg || 0,
           emptyBidonPrice: (response as any).empty_bidon_price || 0,
@@ -113,7 +110,6 @@ export function SettingsPage() {
         // If no response or null, set all to 0
         setPricingSettings({
           millingPricePerKg: 0,
-          oilClientSellingPricePerKg: 0,
           oilExportSellingPricePerKg: 0,
           oliveBuyingPricePerKg: 0,
           emptyBidonPrice: 0,
@@ -125,7 +121,6 @@ export function SettingsPage() {
       // Set all prices to 0 if fetch fails
       setPricingSettings({
         millingPricePerKg: 0,
-        oilClientSellingPricePerKg: 0,
         oilExportSellingPricePerKg: 0,
         oliveBuyingPricePerKg: 0,
         emptyBidonPrice: 0,
@@ -161,7 +156,6 @@ export function SettingsPage() {
       
       // Validate that at least one price is set
       const hasValidPrice = pricingSettings.millingPricePerKg > 0 || 
-                           pricingSettings.oilClientSellingPricePerKg > 0 || 
                            pricingSettings.oilExportSellingPricePerKg > 0 || 
                            pricingSettings.oliveBuyingPricePerKg > 0 ||
                            pricingSettings.emptyBidonPrice > 0;
@@ -178,7 +172,7 @@ export function SettingsPage() {
       // Create new price record with current settings
       const priceData = {
         milling_price_per_kg: pricingSettings.millingPricePerKg,
-        oil_client_selling_price_per_kg: pricingSettings.oilClientSellingPricePerKg,
+
         oil_export_selling_price_per_kg: pricingSettings.oilExportSellingPricePerKg,
         olive_buying_price_per_kg: pricingSettings.oliveBuyingPricePerKg,
         empty_bidon_price: pricingSettings.emptyBidonPrice,
@@ -352,21 +346,6 @@ export function SettingsPage() {
                         onChange={(e) => setPricingSettings({
                           ...pricingSettings, 
                           millingPricePerKg: parseFloat(e.target.value) || 0
-                        })}
-                        className="olive-input"
-                        disabled={savingPrices}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>سعر بيع الزيت للعملاء لكل كيلو</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={pricingSettings.oilClientSellingPricePerKg}
-                        onChange={(e) => setPricingSettings({
-                          ...pricingSettings, 
-                          oilClientSellingPricePerKg: parseFloat(e.target.value) || 0
                         })}
                         className="olive-input"
                         disabled={savingPrices}

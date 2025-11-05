@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,6 +44,7 @@ interface ScannedTicketData {
   numberOfBoxes?: number;
   numberOfBidons?: number;
   boxesLoadedToPressing?: number;
+  pressingRooms?: Room[]; // Rooms where this ticket is currently being processed
 }
 
 interface Room {
@@ -56,12 +58,14 @@ interface Room {
     numberOfBoxes: number;
     status: string;
     occupantName: string;
+    batchId?: number;
   } | null;
 }
 
 export function OperatorScannerPage() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   // Scanner state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -72,7 +76,11 @@ export function OperatorScannerPage() {
   const [errorMessage, setErrorMessage] = useState('');
   
   // Multi-step flow state
-  const [currentStep, setCurrentStep] = useState<'scanner' | 'ticket-info' | 'room-selection' | 'boxes-input' | 'queue-confirm'>('scanner');
+  const [currentStep, setCurrentStep] = useState<'scanner' | 'active-room-selection' | 'ticket-info' | 'room-selection' | 'boxes-input' | 'queue-confirm' | 'bidons-input'>('scanner');
+  
+  // Active room selection state
+  const [activeRoomsForTicket, setActiveRoomsForTicket] = useState<Room[]>([]);
+  const [selectedActiveRoom, setSelectedActiveRoom] = useState<Room | null>(null);
   
   // Room selection state
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -82,10 +90,12 @@ export function OperatorScannerPage() {
   
   // Form state
   const [numberOfBoxesToProcess, setNumberOfBoxesToProcess] = useState('1');
+  const [numberOfBidons, setNumberOfBidons] = useState('1');
   
   // Queue session state
   const [hasPartiallyQueued, setHasPartiallyQueued] = useState(false);
-  const [partiallyQueuedInfo, setPartiallyQueuedInfo] = useState<any>(null);  // Camera refs
+  const [partiallyQueuedInfo, setPartiallyQueuedInfo] = useState<any>(null);
+  const [currentTicketQueueInfo, setCurrentTicketQueueInfo] = useState<any>(null);  // Camera refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const qrScannerRef = useRef<QrScanner | null>(null);
 
@@ -128,6 +138,107 @@ export function OperatorScannerPage() {
         setHasPartiallyQueued(false);
         setPartiallyQueuedInfo(null);
       }
+    }
+  };
+
+  // Helper function to check if room selection should be disabled
+  const shouldDisableRoomSelection = (): boolean => {
+    // Only rely on the current ticket's queue status
+    if (!currentTicketQueueInfo) return true; // unknown -> disable
+    if (!currentTicketQueueInfo.inQueue) return true; // not in queue -> disable
+    // Allow only when fully queued
+    return !(Number(currentTicketQueueInfo.totalBoxes) === Number(currentTicketQueueInfo.boxesQueued));
+  };
+
+  // Get the appropriate button text and icon based on current state
+  const getRoomSelectionButtonContent = () => {
+    // Current ticket not in queue at all
+    if (currentTicketQueueInfo && !currentTicketQueueInfo.inQueue) {
+      return {
+        icon: <Layers className="h-5 w-5 mr-2" />,
+        text: 'يجب إضافة التذكرة للطابور أولاً'
+      };
+    }
+    
+    // Current ticket in queue but not fully queued
+    if (currentTicketQueueInfo && currentTicketQueueInfo.inQueue && currentTicketQueueInfo.totalBoxes !== currentTicketQueueInfo.boxesQueued) {
+      return {
+        icon: <Clock className="h-5 w-5 mr-2" />,
+        text: `انتظار إنهاء التحميل للطابور (متبقي ${currentTicketQueueInfo.remainingBoxes})`
+      };
+    }
+    
+    // Default state
+    return {
+      icon: <ArrowRight className="h-5 w-5 mr-2" />,
+      text: 'متابعة لاختيار الغرفة'
+    };
+  };
+
+  // Check if a specific ticket can proceed to room selection
+  // Returns true ONLY if ticket is in queue AND all boxes are queued
+  const checkTicketQueueStatus = async (ticketId: string): Promise<{ canProceed: boolean, queueInfo?: any }> => {
+    try {
+      // Primary source: queuer sessions via combined-display-data endpoint
+      const res = await api.get<any>('/pressing-rooms/combined-display-data');
+      const payload = getPayload<any>(res);
+      const queueItems = Array.isArray(payload?.queueItems) ? payload.queueItems : [];
+
+      // Find queue item for this batch (support batchId or currentBatchId keys)
+      const item = queueItems.find((q: any) => {
+        const bid = q?.batchId ?? q?.currentBatchId;
+        return String(bid) === String(ticketId);
+      });
+
+      if (!item) {
+        // Fallback to batch-status endpoint if not found in display-data
+        try {
+          const res2 = await api.get<any>(`/pressing-queue/batch-status/${ticketId}`);
+          const data = getPayload<any>(res2);
+          // Consider "in queue" if a session exists (i.e., any totalBoxes/boxesQueued info available),
+          // regardless of backend boolean flag
+          const totalBoxesFb = Number(data?.totalBoxes || 0);
+          const boxesQueuedFb = Number(data?.boxesQueued || 0);
+          const existsInQueue = Number.isFinite(totalBoxesFb) || Number.isFinite(boxesQueuedFb);
+          const inQueueComputed = existsInQueue && (totalBoxesFb > 0 || boxesQueuedFb >= 0);
+          const canProceedFb = inQueueComputed && totalBoxesFb > 0 && totalBoxesFb === boxesQueuedFb;
+          return {
+            canProceed: canProceedFb,
+            queueInfo: {
+              inQueue: inQueueComputed,
+              totalBoxes: totalBoxesFb,
+              boxesQueued: boxesQueuedFb,
+              remainingBoxes: Math.max(0, totalBoxesFb - boxesQueuedFb),
+              clientName: data.clientName,
+              ticketNumber: data.ticketNumber,
+            }
+          };
+        } catch (e) {
+          // If fallback fails, assume cannot proceed to be safe
+          return { canProceed: false, queueInfo: { inQueue: false, totalBoxes: 0, boxesQueued: 0, remainingBoxes: 0 } };
+        }
+      }
+
+      const totalBoxes = parseInt((item.totalBoxes ?? item?.total_boxes ?? 0) as any, 10);
+      const boxesQueued = parseInt((item.boxesQueued ?? item?.queuedBoxes ?? item?.boxes_queued ?? 0) as any, 10);
+      const canProceed = totalBoxes > 0 && totalBoxes === boxesQueued;
+
+      return {
+        canProceed,
+        queueInfo: {
+          inQueue: true,
+          totalBoxes,
+          boxesQueued,
+          remainingBoxes: Math.max(0, totalBoxes - boxesQueued),
+          clientName: item.clientName || item?.client?.name || `${item?.client?.firstname || ''} ${item?.client?.lastname || ''}`.trim(),
+          ticketNumber: item.ticketNumber,
+          queueSessionId: item.id,
+        }
+      };
+    } catch (error: any) {
+      console.error('Failed to check ticket queue status:', error);
+      // On failure, be safe and disallow proceeding (to enforce full queue rule)
+      return { canProceed: false, queueInfo: { inQueue: false, totalBoxes: 0, boxesQueued: 0, remainingBoxes: 0 } };
     }
   };
 
@@ -248,13 +359,38 @@ export function OperatorScannerPage() {
       const ticket = await fetchTicketByCode(ticketId);
       setScannedTicket(ticket);
       
+      // Check queue status for this ticket
+      try {
+        const { queueInfo } = await checkTicketQueueStatus(String(ticketId));
+        setCurrentTicketQueueInfo(queueInfo);
+      } catch (error) {
+        console.log('Failed to get queue status, continuing without it');
+        setCurrentTicketQueueInfo(null);
+      }
+      
       // Stop scanning after successful scan
       stopCamera();
       
-      // Move to ticket info step
-      setCurrentStep('ticket-info');
-      
-      toast({ title: 'Success', description: 'QR code scanned successfully' });
+      // Check if ticket is active in multiple pressing rooms
+      if (ticket.pressingRooms && ticket.pressingRooms.length > 1) {
+        // Multiple active rooms - show room selection
+        setActiveRoomsForTicket(ticket.pressingRooms);
+        setCurrentStep('active-room-selection');
+        toast({ 
+          title: 'Success', 
+          description: `QR code scanned successfully. This ticket is active in ${ticket.pressingRooms.length} rooms.` 
+        });
+      } else if (ticket.pressingRooms && ticket.pressingRooms.length === 1) {
+        // Single active room - proceed normally but set the selected room
+        setSelectedActiveRoom(ticket.pressingRooms[0]);
+        setCurrentStep('ticket-info');
+        toast({ title: 'Success', description: 'QR code scanned successfully' });
+      } else {
+        // No active rooms - proceed normally
+        setSelectedActiveRoom(null);
+        setCurrentStep('ticket-info');
+        toast({ title: 'Success', description: 'QR code scanned successfully' });
+      }
     } catch (error: any) {
       console.error('QR scan error:', error);
       toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to read QR code' });
@@ -303,6 +439,9 @@ export function OperatorScannerPage() {
         throw new Error('Ticket not found');
       }
 
+      // Also fetch pressing rooms to see where this batch is currently active
+      const pressingRooms = await findActiveRoomsForBatch(data.id);
+
       return {
         id: String(data.id),
         ticketNumber: data.ticket_number || `#${data.id}`,
@@ -313,7 +452,8 @@ export function OperatorScannerPage() {
         status: data.status || 'received',
         numberOfBoxes: data.number_of_boxes || undefined,
         numberOfBidons: data.number_of_bidons || undefined,
-        boxesLoadedToPressing: data.boxes_loaded_to_pressing || 0
+        boxesLoadedToPressing: data.boxes_loaded_to_pressing || 0,
+        pressingRooms: pressingRooms
       };
     } catch (e: any) {
       const errorMessage = e?.response?.status === 404 
@@ -324,51 +464,80 @@ export function OperatorScannerPage() {
     }
   };
 
+  // Find active pressing rooms for a specific batch
+  const findActiveRoomsForBatch = async (batchId: number): Promise<Room[]> => {
+    try {
+      const res = await api.get<any>('/pressing-rooms/display-data');
+      const rooms = getPayload<any[]>(res);
+      
+      // Find rooms that have this batch currently active
+      const activeRooms = rooms.filter((room: any) => 
+        room.currentBatch && 
+        (room.currentBatch.batchId === batchId || 
+         room.currentBatch.id === batchId)
+      );
+
+      // Transform to Room interface
+      return activeRooms.map((room: any) => ({
+        id: room.id,
+        name: room.name,
+        status: room.status || 'active',
+        capacity: room.capacity,
+        currentSession: room.currentBatch ? {
+          id: room.currentBatch.sessionId,
+          startTime: room.currentBatch.sessionStartTime,
+          numberOfBoxes: room.currentBatch.numberOfBatches || 0,
+          status: 'active',
+          occupantName: room.currentBatch.clientName,
+          batchId: room.currentBatch.batchId
+        } : null
+      }));
+    } catch (error: any) {
+      console.error('Failed to fetch active rooms for batch:', error);
+      return []; // Return empty array if fetch fails
+    }
+  };
+
   // Handle proceeding to room selection
   const handleProceedToRoomSelection = async () => {
     if (!scannedTicket) return;
 
-    // Check if there's an active queuer session that prevents processing
+    // Check if this specific ticket can proceed to room selection
     try {
+      const { canProceed, queueInfo } = await checkTicketQueueStatus(scannedTicket.id);
+      
+      if (!canProceed && queueInfo) {
+        if (!queueInfo.inQueue) {
+          toast({
+            variant: 'destructive',
+            title: 'خطأ',
+            description: 'يجب إضافة التذكرة للطابور أولاً قبل اختيار غرفة العصر',
+          });
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'خطأ',
+            description: `يجب إنهاء تحميل جميع الصناديق للطابور قبل اختيار غرفة العصر. متبقي: ${queueInfo.remainingBoxes} صندوق من أصل ${queueInfo.totalBoxes}`,
+          });
+        }
+        return;
+      }
+
+      // Also check for other active queuer sessions that might prevent processing
       await checkPartiallyQueuedBatches();
       
-      // If there's a partially queued batch (any batch being queued), block the operation
-      if (hasPartiallyQueued && partiallyQueuedInfo) {
-        // Check if it's a different batch
-        if (partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) {
-          toast({
-            variant: 'destructive',
-            title: 'خطأ',
-            description: `يجب إنهاء معالجة الدفعة الحالية (${partiallyQueuedInfo.clientName}) أولاً`,
-          });
-          return;
-        } else {
-          // Same batch but not fully queued yet
-          toast({
-            variant: 'destructive',
-            title: 'خطأ',
-            description: `يجب إنهاء تحميل هذه الدفعة للطابور قبل اختيار غرفة العصر. متبقي: ${partiallyQueuedInfo.remainingBoxes} صندوق`,
-          });
-          return;
-        }
+      // If there's a different partially queued batch, block the operation
+      if (hasPartiallyQueued && partiallyQueuedInfo && partiallyQueuedInfo.id !== parseInt(scannedTicket.id)) {
+        toast({
+          variant: 'destructive',
+          title: 'خطأ',
+          description: `يجب إنهاء معالجة الدفعة الحالية (${partiallyQueuedInfo.clientName}) أولاً`,
+        });
+        return;
       }
     } catch (error: any) {
-      console.log('Session check failed, proceeding anyway:', error);
-      // Check if this is a backend database error and handle gracefully
-      const errorMessage = error?.message || error?.response?.data?.error || error?.response?.data?.message || String(error);
-      const isBackendError = error?.response?.status === 500 || 
-                            errorMessage.includes('column QueuerSession.updated_at does not exist') ||
-                            errorMessage.includes('column QueuerSession.updatedAt does not exist') ||
-                            errorMessage.includes('QueuerSession.updated_at') ||
-                            errorMessage.includes('QueuerSession.updatedAt') ||
-                            errorMessage.includes('does not exist') ||
-                            errorMessage.includes('column') && errorMessage.includes('QueuerSession') ||
-                            (error?.response?.status === 500 && errorMessage.includes('/pressing-queue/partially-queued'));
-      
-      if (isBackendError) {
-        console.log('Backend database issue detected, continuing workflow');
-      }
-      // If session check fails, proceed anyway to not block the operator
+      console.log('Queue status check failed, proceeding anyway:', error);
+      // If check fails, proceed anyway to not block the operator
     }
 
     await fetchPressingRooms();
@@ -498,6 +667,9 @@ export function OperatorScannerPage() {
         notes: `Loaded ${boxesToProcess} boxes to ${selectedRoom.name}`
       });
 
+      // Note: Backend will automatically remove batch from queuer_sessions 
+      // if all boxes have been loaded to pressing rooms
+
       toast({ 
         title: 'Success', 
         description: `Successfully loaded ${boxesToProcess} boxes in ${selectedRoom.name} and created pressing session` 
@@ -517,12 +689,81 @@ export function OperatorScannerPage() {
     }
   };
 
+  // Handle selecting an active room for the ticket
+  const handleActiveRoomSelection = (room: Room) => {
+    setSelectedActiveRoom(room);
+    // Go to bidons input step before completing the session
+    setCurrentStep('bidons-input');
+  };
+
+  // Handle completing an active session in a room
+  const handleCompleteActiveSession = async () => {
+    if (!scannedTicket || !selectedActiveRoom?.currentSession) {
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'لا توجد جلسة نشطة في هذه الغرفة لإنهائها',
+      });
+      return;
+    }
+
+    const bidonsCount = parseInt(numberOfBidons || '1', 10);
+
+    if (bidonsCount <= 0) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: 'يرجى إدخال عدد صحيح من البدونات' 
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Complete the pressing session
+      const sessionPayload = {
+        finish: new Date().toISOString(),
+        status: 'done',
+        oil_bidons_produced: bidonsCount
+      };
+
+      await api.put(`/pressing-sessions/${selectedActiveRoom.currentSession.id}`, sessionPayload);
+
+      // Update batch status to completed
+      await api.put(`/batches/${scannedTicket.id}`, {
+        status: 'completed',
+        number_of_bidons: bidonsCount
+      });
+
+      toast({ 
+        title: 'نجح', 
+        description: `تم إنهاء جلسة العصر بنجاح في ${selectedActiveRoom.name}. تم إنتاج ${bidonsCount} بدونة زيت` 
+      });
+      
+      // Reset for next scan
+      resetScanner();
+    } catch (error: any) {
+      console.error('Complete pressing session failed:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: error?.response?.data?.error || error?.message || 'فشل في إنهاء جلسة العصر',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Reset scanner for new scan
   const resetScanner = () => {
     setScannedTicket(null);
     setSelectedRoom(null);
+    setSelectedActiveRoom(null);
+    setActiveRoomsForTicket([]);
     setRooms([]);
     setNumberOfBoxesToProcess('1');
+    setNumberOfBidons('1');
+    setCurrentTicketQueueInfo(null);
     setCurrentStep('scanner');
     setIsCameraActive(true);
     setTimeout(() => {
@@ -546,6 +787,121 @@ export function OperatorScannerPage() {
       checkPartiallyQueuedBatches();
     }
   }, [currentStep, scannedTicket]);
+
+  // Active Room Selection Step - When ticket is active in multiple rooms
+  if (currentStep === 'active-room-selection' && scannedTicket && activeRoomsForTicket.length > 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 p-4">
+        <div className="max-w-md mx-auto space-y-6">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+              اختيار الغرفة النشطة
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300">
+              هذه التذكرة نشطة في عدة غرف. اختر الغرفة التي تريد إنهاء جلستها.
+            </p>
+          </div>
+
+          {/* Ticket Summary */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
+            <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-4 text-lg">
+              معلومات التذكرة
+            </h3>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">رقم التذكرة:</span>
+                <span className="font-medium">{scannedTicket.ticketNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">اسم العميل:</span>
+                <span className="font-medium">{scannedTicket.clientName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">الغرف النشطة:</span>
+                <span className="font-medium text-purple-600 dark:text-purple-400">
+                  {activeRoomsForTicket.length} غرفة
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Rooms List */}
+          <div className="space-y-3">
+            <h3 className="font-semibold text-gray-800 dark:text-white text-lg">
+              الغرف النشطة:
+            </h3>
+            {activeRoomsForTicket.map((room) => (
+              <div
+                key={room.id}
+                className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg border border-purple-200 dark:border-purple-800 cursor-pointer transition-all hover:shadow-xl hover:border-purple-400 dark:hover:border-purple-600"
+                onClick={() => handleActiveRoomSelection(room)}
+              >
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-semibold text-lg text-purple-800 dark:text-purple-200">
+                        {room.name}
+                      </h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        السعة: {room.capacity || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                      نشطة
+                    </div>
+                  </div>
+                  
+                  {/* Show current session information */}
+                  {room.currentSession && (
+                    <div className="border-t pt-3 mt-3">
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 dark:text-gray-400">مدة التشغيل:</span>
+                          <span className="font-medium text-orange-600 dark:text-orange-400">
+                            {calculateDuration(room.currentSession.startTime)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 dark:text-gray-400">عدد الصناديق:</span>
+                          <span className="font-medium text-blue-600 dark:text-blue-400">
+                            {room.currentSession.numberOfBoxes}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 dark:text-gray-400">حالة الجلسة:</span>
+                          <span className="font-medium text-green-600 dark:text-green-400">
+                            {room.currentSession.status === 'active' ? 'نشطة' : room.currentSession.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action hint */}
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mt-3">
+                    <p className="text-green-700 dark:text-green-300 text-sm text-center font-medium">
+                      انقر لإدخال عدد البدونات وإنهاء الجلسة
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Back Button */}
+          <OliveButton
+            variant="outline"
+            onClick={resetScanner}
+            className="w-full text-lg py-3"
+          >
+            <RotateCcw className="h-5 w-5 mr-2" />
+            مسح جديد
+          </OliveButton>
+        </div>
+      </div>
+    );
+  }
 
   // Ticket Info Step
   if (currentStep === 'ticket-info' && scannedTicket) {
@@ -578,6 +934,37 @@ export function OperatorScannerPage() {
                 <p className="text-red-600 dark:text-red-400 text-sm">
                   متبقي: {partiallyQueuedInfo.remainingBoxes} صندوق
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Selected Active Room Info */}
+          {selectedActiveRoom && (
+            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-6">
+              <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-4 text-lg">
+                الغرفة المختارة (نشطة)
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">اسم الغرفة:</span>
+                  <span className="font-medium text-purple-600 dark:text-purple-400">{selectedActiveRoom.name}</span>
+                </div>
+                {selectedActiveRoom.currentSession && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">مدة التشغيل:</span>
+                      <span className="font-medium text-orange-600 dark:text-orange-400">
+                        {calculateDuration(selectedActiveRoom.currentSession.startTime)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">صناديق الجلسة:</span>
+                      <span className="font-medium text-blue-600 dark:text-blue-400">
+                        {selectedActiveRoom.currentSession.numberOfBoxes}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -618,8 +1005,90 @@ export function OperatorScannerPage() {
                   {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0)}
                 </span>
               </div>
+              {scannedTicket.pressingRooms && scannedTicket.pressingRooms.length > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">الغرف النشطة:</span>
+                  <span className="font-medium text-purple-600 dark:text-purple-400">
+                    {scannedTicket.pressingRooms.length} غرفة
+                  </span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Queue Status Info */}
+          {currentTicketQueueInfo && (
+            <div className={`rounded-lg p-6 shadow-lg border ${
+              !currentTicketQueueInfo.inQueue
+                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                : currentTicketQueueInfo.totalBoxes === currentTicketQueueInfo.boxesQueued
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+            }`}>
+              <h3 className={`font-semibold mb-4 text-lg ${
+                !currentTicketQueueInfo.inQueue
+                  ? 'text-red-800 dark:text-red-200'
+                  : currentTicketQueueInfo.totalBoxes === currentTicketQueueInfo.boxesQueued
+                  ? 'text-green-800 dark:text-green-200'
+                  : 'text-yellow-800 dark:text-yellow-200'
+              }`}>
+                حالة الطابور
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">في الطابور:</span>
+                  <span className={`font-medium ${
+                    currentTicketQueueInfo.inQueue 
+                      ? 'text-blue-600 dark:text-blue-400' 
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {currentTicketQueueInfo.inQueue ? 'نعم' : 'لا'}
+                  </span>
+                </div>
+                {currentTicketQueueInfo.inQueue ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">الصناديق في الطابور:</span>
+                      <span className="font-medium text-orange-600 dark:text-orange-400">
+                        {currentTicketQueueInfo.boxesQueued} من أصل {currentTicketQueueInfo.totalBoxes}
+                      </span>
+                    </div>
+                    {currentTicketQueueInfo.remainingBoxes > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">المتبقية للطابور:</span>
+                        <span className="font-medium text-red-600 dark:text-red-400">
+                          {currentTicketQueueInfo.remainingBoxes} صندوق
+                        </span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">إجمالي الصناديق:</span>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                      {currentTicketQueueInfo.totalBoxes} صندوق
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">الحالة:</span>
+                  <span className={`font-medium ${
+                    !currentTicketQueueInfo.inQueue
+                      ? 'text-red-600 dark:text-red-400'
+                      : currentTicketQueueInfo.totalBoxes === currentTicketQueueInfo.boxesQueued
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-yellow-600 dark:text-yellow-400'
+                  }`}>
+                    {!currentTicketQueueInfo.inQueue
+                      ? 'يجب إضافة للطابور أولاً'
+                      : currentTicketQueueInfo.totalBoxes === currentTicketQueueInfo.boxesQueued 
+                      ? 'مكتمل - يمكن اختيار الغرفة' 
+                      : 'غير مكتمل - يجب إنهاء التحميل للطابور'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3">
@@ -631,27 +1100,102 @@ export function OperatorScannerPage() {
               <RotateCcw className="h-5 w-5 mr-2" />
               مسح جديد
             </OliveButton>
-            <OliveButton
-              onClick={handleProceedToRoomSelection}
-              className="flex-1 text-lg py-3"
-              disabled={hasPartiallyQueued && partiallyQueuedInfo}
-            >
-              {hasPartiallyQueued && partiallyQueuedInfo ? (
-                partiallyQueuedInfo.id !== parseInt(scannedTicket.id) ? (
-                  <>
-                    <Clock className="h-5 w-5 mr-2" />
-                    انتظار إنهاء {partiallyQueuedInfo.ticketNumber}
-                  </>
+            
+            {/* Show different button based on whether we have multiple active rooms */}
+            {scannedTicket.pressingRooms && scannedTicket.pressingRooms.length > 1 && !selectedActiveRoom ? (
+              <OliveButton
+                onClick={() => {
+                  setActiveRoomsForTicket(scannedTicket.pressingRooms || []);
+                  setCurrentStep('active-room-selection');
+                }}
+                className="flex-1 text-lg py-3"
+              >
+                <Settings className="h-5 w-5 mr-2" />
+                اختيار الغرفة النشطة
+              </OliveButton>
+            ) : selectedActiveRoom && scannedTicket.pressingRooms && scannedTicket.pressingRooms.length > 1 ? (
+              <div className="flex gap-2 flex-1">
+                <OliveButton
+                  variant="outline"
+                  onClick={() => {
+                    setActiveRoomsForTicket(scannedTicket.pressingRooms || []);
+                    setCurrentStep('active-room-selection');
+                  }}
+                  className="text-sm py-3"
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  تغيير الغرفة
+                </OliveButton>
+                <OliveButton
+                  onClick={() => {
+                    // For active rooms, we might want to show different options
+                    // For now, we'll proceed to room selection to show other available rooms
+                    handleProceedToRoomSelection();
+                  }}
+                  className="flex-1 text-lg py-3"
+                  disabled={shouldDisableRoomSelection()}
+                >
+                  {(() => {
+                    const { icon, text } = getRoomSelectionButtonContent();
+                    return (
+                      <>
+                        {icon}
+                        {shouldDisableRoomSelection() ? text : 'إدارة الغرفة النشطة'}
+                      </>
+                    );
+                  })()}
+                </OliveButton>
+              </div>
+            ) : selectedActiveRoom ? (
+              <OliveButton
+                onClick={() => {
+                  // For active rooms, we might want to show different options
+                  // For now, we'll proceed to room selection to show other available rooms
+                  handleProceedToRoomSelection();
+                }}
+                className="flex-1 text-lg py-3"
+                disabled={shouldDisableRoomSelection()}
+              >
+                {(() => {
+                  const { icon, text } = getRoomSelectionButtonContent();
+                  return (
+                    <>
+                      {icon}
+                      {shouldDisableRoomSelection() ? text : 'إدارة الغرفة النشطة'}
+                    </>
+                  );
+                })()}
+              </OliveButton>
+            ) : (
+              <>
+                {/* If not in queue, provide direct CTA to add to queue */}
+                {currentTicketQueueInfo && !currentTicketQueueInfo.inQueue ? (
+                  <OliveButton
+                    onClick={() => setCurrentStep('queue-confirm')}
+                    className="flex-1 text-lg py-3 bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    <Layers className="h-5 w-5 mr-2" />
+                    إضافة للطابور أولاً
+                  </OliveButton>
                 ) : (
-                  <>
-                    <Clock className="h-5 w-5 mr-2" />
-                    انتظار إنهاء التحميل (متبقي {partiallyQueuedInfo.remainingBoxes})
-                  </>
-                )
-              ) : (
-                'متابعة لاختيار الغرفة'
-              )}
-            </OliveButton>
+                  <OliveButton
+                    onClick={handleProceedToRoomSelection}
+                    className="flex-1 text-lg py-3" 
+                    disabled={shouldDisableRoomSelection()}
+                  >
+                    {(() => {
+                      const { icon, text } = getRoomSelectionButtonContent();
+                      return (
+                        <>
+                          {icon}
+                          {text}
+                        </>
+                      );
+                    })()}
+                  </OliveButton>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -676,29 +1220,7 @@ export function OperatorScannerPage() {
             </p>
           </div>
 
-          {/* Queue Option - Show when all rooms are full */}
-          {allRoomsFull && (
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-              <div className="text-center space-y-3">
-                <div className="flex items-center justify-center space-x-2">
-                  <Layers className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-                  <span className="text-lg font-semibold text-orange-800 dark:text-orange-200">
-                    إضافة للطابور
-                  </span>
-                </div>
-                <p className="text-sm text-orange-700 dark:text-orange-300">
-                  جميع غرف العصر مشغولة حالياً. يمكنك إضافة هذه العملية للطابور وسيتم تشغيلها تلقائياً عند توفر غرفة.
-                </p>
-                <OliveButton
-                  onClick={() => setCurrentStep('queue-confirm')}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                >
-                  <Layers className="h-4 w-4 mr-2" />
-                  إضافة للطابور
-                </OliveButton>
-              </div>
-            </div>
-          )}
+          {/* Queue Option removed: operator cannot add to queue */}
 
           {/* Rooms List */}
           <div className="space-y-3">
@@ -878,36 +1400,25 @@ export function OperatorScannerPage() {
     );
   }
 
-  // Queue Confirmation Step
-  if (currentStep === 'queue-confirm' && scannedTicket) {
+  // Bidons Input Step - For completing active sessions
+  if (currentStep === 'bidons-input' && scannedTicket && selectedActiveRoom) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-900 dark:to-gray-800 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 p-4">
         <div className="max-w-md mx-auto space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-              تأكيد إضافة للطابور
+              عدد بدونات الزيت المنتجة
             </h1>
-            <p className="text-gray-600 dark:text-gray-300">مراجعة تفاصيل العملية قبل الإضافة للطابور</p>
+            <p className="text-gray-600 dark:text-gray-300">
+              غرفة العصر: {selectedActiveRoom.name}
+            </p>
           </div>
 
-          {/* Queue Info */}
-          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">
-            <div className="text-center space-y-3">
-              <Layers className="h-12 w-12 text-orange-600 dark:text-orange-400 mx-auto" />
-              <h3 className="font-semibold text-orange-800 dark:text-orange-200 text-lg">
-                إضافة للطابور
-              </h3>
-              <p className="text-sm text-orange-700 dark:text-orange-300">
-                ستتم إضافة هذه العملية للطابور وسيتم تشغيلها تلقائياً عند توفر غرفة عصر.
-              </p>
-            </div>
-          </div>
-
-          {/* Ticket Summary */}
+          {/* Session Summary */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border">
-            <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-4 text-lg">
-              ملخص العملية
+            <h3 className="font-semibold text-purple-800 dark:text-purple-200 mb-4 text-lg">
+              ملخص الجلسة المكتملة
             </h3>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
@@ -919,45 +1430,48 @@ export function OperatorScannerPage() {
                 <span className="font-medium">{scannedTicket.clientName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">عدد الصناديق للمعالجة:</span>
-                <span className="font-medium text-orange-600 dark:text-orange-400">
-                  {numberOfBoxesToProcess}
-                </span>
+                <span className="text-gray-600 dark:text-gray-400">اسم الغرفة:</span>
+                <span className="font-medium text-purple-600 dark:text-purple-400">{selectedActiveRoom.name}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">المشغل:</span>
-                <span className="font-medium text-blue-600 dark:text-blue-400">
-                  {user?.firstname} {user?.lastname}
-                </span>
-              </div>
+              {selectedActiveRoom.currentSession && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">مدة التشغيل:</span>
+                    <span className="font-medium text-orange-600 dark:text-orange-400">
+                      {calculateDuration(selectedActiveRoom.currentSession.startTime)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">عدد الصناديق:</span>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                      {selectedActiveRoom.currentSession.numberOfBoxes}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Boxes Input */}
+          {/* Bidons Input */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="queueBoxesToProcess" className="flex items-center gap-2 text-lg">
-                <Box className="h-5 w-5" />
-                عدد الصناديق للمعالجة
+              <Label htmlFor="bidonsProduced" className="flex items-center gap-2 text-lg">
+                <Package className="h-5 w-5" />
+                عدد بدونات الزيت المنتجة
               </Label>
               <Input
-                id="queueBoxesToProcess"
+                id="bidonsProduced"
                 type="number"
                 min="1"
-                max={scannedTicket ? (scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0) : 999}
-                value={numberOfBoxesToProcess}
-                onChange={(e) => setNumberOfBoxesToProcess(e.target.value)}
-                placeholder="أدخل عدد الصناديق"
+                max="999"
+                value={numberOfBidons}
+                onChange={(e) => setNumberOfBidons(e.target.value)}
+                placeholder="أدخل عدد البدونات المنتجة"
                 className="text-lg p-3"
               />
-              <div className="space-y-1">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  المتاح للتحميل: {(scannedTicket.numberOfBoxes || 0) - (scannedTicket.boxesLoadedToPressing || 0)} صندوق
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500">
-                  المحمل سابقاً: {scannedTicket.boxesLoadedToPressing || 0} من أصل {scannedTicket.numberOfBoxes || 0}
-                </p>
-              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                أدخل عدد بدونات الزيت التي تم إنتاجها من هذه الجلسة
+              </p>
             </div>
           </div>
 
@@ -965,7 +1479,7 @@ export function OperatorScannerPage() {
           <div className="flex gap-3">
             <OliveButton
               variant="outline"
-              onClick={() => setCurrentStep('room-selection')}
+              onClick={() => setCurrentStep('active-room-selection')}
               className="flex-1 text-lg py-3"
               disabled={isSaving}
             >
@@ -973,19 +1487,19 @@ export function OperatorScannerPage() {
               العودة للغرف
             </OliveButton>
             <OliveButton
-              onClick={handleAddToQueue}
-              className="flex-1 text-lg py-3 bg-orange-600 hover:bg-orange-700"
+              onClick={handleCompleteActiveSession}
+              className="flex-1 text-lg py-3"
               disabled={isSaving}
             >
               {isSaving ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  جاري الإضافة...
+                  جاري الإنهاء...
                 </>
               ) : (
                 <>
-                  <Layers className="h-5 w-5 mr-2" />
-                  إضافة للطابور
+                  <Save className="h-5 w-5 mr-2" />
+                  إنهاء الجلسة
                 </>
               )}
             </OliveButton>
@@ -994,6 +1508,8 @@ export function OperatorScannerPage() {
       </div>
     );
   }
+
+  // Queue Confirmation Step removed for operator: operator cannot add to queue
 
   // Show camera scanner
   return (
@@ -1010,7 +1526,7 @@ export function OperatorScannerPage() {
         </div>
 
         {/* Camera View */}
-        <div className="flex-1 flex items-center justify-center p-4 bg-gray-100 dark:bg-gray-900">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 bg-gray-100 dark:bg-gray-900 space-y-4">
           <div className="relative w-full max-w-sm aspect-square bg-black rounded-lg overflow-hidden shadow-2xl">
             <video
               ref={videoRef}
@@ -1045,6 +1561,24 @@ export function OperatorScannerPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Navigation Buttons - Below Camera */}
+          <div className="flex gap-2 w-full max-w-sm">
+            <OliveButton
+              variant="outline"
+              onClick={() => navigate('/employee-scanner')}
+              className="flex-1 text-sm sm:text-base py-2"
+            >
+              📷 ماسح الغرف
+            </OliveButton>
+            <OliveButton
+              variant="outline"
+              onClick={() => navigate('/operator-scanner')}
+              className="flex-1 text-sm sm:text-base py-2"
+            >
+              🎯 ماسح المشغل 
+            </OliveButton>
           </div>
         </div>
 

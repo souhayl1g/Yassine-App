@@ -22,6 +22,9 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
     if (userRole === 'employee') {
       return '/employee-scanner';
     }
+    if (userRole === 'queuer') {
+      return '/queuer-scanner';
+    }
     return '/dashboard';
   };
 
