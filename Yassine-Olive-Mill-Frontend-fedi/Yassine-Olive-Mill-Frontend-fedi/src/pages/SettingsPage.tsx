@@ -21,10 +21,12 @@ import {
   Plus,
   Edit2,
   Trash2,
-  Loader
+  Loader,
+  QrCode
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
+import { useQRScannerMode } from '@/hooks/useQRScannerMode';
 
 interface UserProfile {
   firstname: string;
@@ -53,6 +55,7 @@ export function SettingsPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { scannerMode, setScannerMode, isDeviceMode } = useQRScannerMode();
 
   const [userProfile, setUserProfile] = useState<UserProfile>({
     firstname: user?.firstname || '',
@@ -234,7 +237,7 @@ export function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             الملف الشخصي
@@ -246,6 +249,10 @@ export function SettingsPage() {
           <TabsTrigger value="company" className="gap-2">
             <Building className="h-4 w-4" />
             الشركة
+          </TabsTrigger>
+          <TabsTrigger value="scanner" className="gap-2">
+            <QrCode className="h-4 w-4" />
+            المسح الضوئي
           </TabsTrigger>
           <TabsTrigger value="print" className="gap-2">
             <Printer className="h-4 w-4" />
@@ -500,6 +507,86 @@ export function SettingsPage() {
                 <Save className="h-4 w-4" />
                 {t('actions.save')}
               </OliveButton>
+            </OliveCardContent>
+          </OliveCard>
+        </TabsContent>
+
+        {/* Scanner Settings */}
+        <TabsContent value="scanner">
+          <OliveCard>
+            <OliveCardHeader>
+              <OliveCardTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                إعدادات المسح الضوئي
+              </OliveCardTitle>
+            </OliveCardHeader>
+            <OliveCardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex-1">
+                    <Label htmlFor="scanner-mode">نوع الماسح الضوئي</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      اختر طريقة المسح الضوئي لرموز QR
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id="camera-mode"
+                        name="scanner-mode"
+                        value="camera"
+                        checked={scannerMode === 'camera'}
+                        onChange={(e) => setScannerMode(e.target.value as any)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      />
+                      <label htmlFor="camera-mode" className="text-sm font-medium text-gray-700">
+                        كاميرا الجهاز
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id="device-mode"
+                        name="scanner-mode"
+                        value="device"
+                        checked={scannerMode === 'device'}
+                        onChange={(e) => setScannerMode(e.target.value as any)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      />
+                      <label htmlFor="device-mode" className="text-sm font-medium text-gray-700">
+                        ماسح خارجي
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {isDeviceMode && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <h4 className="font-semibold text-green-800 mb-2">إعدادات الماسح الخارجي</h4>
+                    <div className="space-y-2 text-sm text-green-700">
+                      <p><strong>النوع:</strong> HENEX HC-3206R-2D</p>
+                      <p><strong>نوع الاتصال:</strong> USB HID (محاكاة لوحة المفاتيح)</p>
+                      <p><strong>الدعم:</strong> رموز QR، الباركود، وغيرها</p>
+                      <p><strong>التعريفات:</strong> Plug-and-play (لا تحتاج تعريفات إضافية)</p>
+                    </div>
+                    <div className="mt-3 p-3 bg-white border border-green-300 rounded">
+                      <p className="text-sm text-green-800">
+                        <strong>ملاحظة:</strong> عند تفعيل هذا الوضع، سيقوم الماسح بإدخال البيانات مباشرة في حقول النص المطلوبة عند توجيهه نحو رمز QR.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!isDeviceMode && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="font-semibold text-blue-800 mb-2">وضع الكاميرا</h4>
+                    <p className="text-sm text-blue-700">
+                      سيتم استخدام كاميرا الجهاز لمسح رموز QR. يتطلب هذا الوضع إذن الوصول للكاميرا والاتصال الآمن (HTTPS).
+                    </p>
+                  </div>
+                )}
+              </div>
             </OliveCardContent>
           </OliveCard>
         </TabsContent>

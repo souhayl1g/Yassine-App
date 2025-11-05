@@ -9,12 +9,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { OliveButton } from '@/components/ui/olive-button';
 import { QrCode, Camera, X } from 'lucide-react';
+import { DeviceQRScanner } from '@/components/scanner/DeviceQRScanner';
+import { useQRScannerMode } from '@/hooks/useQRScannerMode';
 
 interface QRScanModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onFileUpload: (file: File) => void;
   onOpenCamera: () => void;
+  onDeviceScan?: (qrData: string) => void;
 }
 
 export function QRScanModal({
@@ -22,7 +25,9 @@ export function QRScanModal({
   onOpenChange,
   onFileUpload,
   onOpenCamera,
+  onDeviceScan,
 }: QRScanModalProps) {
+  const { isDeviceMode } = useQRScannerMode();
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -34,43 +39,56 @@ export function QRScanModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
-            <QrCode className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground mb-4">
-              اختر ملف صورة QR أو اسحبه هنا
-            </p>
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  onFileUpload(file);
-                }
-              }}
-              className="w-full"
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <OliveButton
-              onClick={() => {
+          {isDeviceMode && onDeviceScan ? (
+            <DeviceQRScanner
+              onScan={(qrData) => {
+                onDeviceScan(qrData);
                 onOpenChange(false);
-                onOpenCamera();
               }}
-              className="flex-1"
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              فتح الكاميرا
-            </OliveButton>
-            <OliveButton
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="flex-1"
-            >
-              إغلاق
-            </OliveButton>
-          </div>
+              isActive={isOpen}
+              placeholder="امسح رمز QR باستخدام الماسح الضوئي لإكمال التذكرة..."
+            />
+          ) : (
+            <>
+              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
+                <QrCode className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  اختر ملف صورة QR أو اسحبه هنا
+                </p>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      onFileUpload(file);
+                    }
+                  }}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <OliveButton
+                  onClick={() => {
+                    onOpenChange(false);
+                    onOpenCamera();
+                  }}
+                  className="flex-1"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  فتح الكاميرا
+                </OliveButton>
+                <OliveButton
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className="flex-1"
+                >
+                  إغلاق
+                </OliveButton>
+              </div>
+            </>
+          )}
 
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800">

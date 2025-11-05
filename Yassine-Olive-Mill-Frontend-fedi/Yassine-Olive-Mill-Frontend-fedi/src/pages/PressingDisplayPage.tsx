@@ -54,7 +54,33 @@ export function PressingDisplayPage() {
   const [pressingRooms, setPressingRooms] = useState<PressingRoomData[]>([]);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [screenSize, setScreenSize] = useState('md');
   const { isFullscreen, toggleFullscreen } = useFullscreen();
+
+  // Helper function to get number of columns based on screen size
+  const getColumnCount = () => {
+    if (typeof window === 'undefined') return 3;
+    const width = window.innerWidth;
+    if (width >= 1536) return 7; // 2xl
+    if (width >= 1280) return 6; // xl
+    if (width >= 1024) return 5; // lg
+    if (width >= 768) return 4;  // md
+    if (width >= 640) return 3;  // sm
+    return 2; // base
+  };
+
+  // Organize queue items into columns
+  const organizeIntoColumns = (items: QueueItem[]) => {
+    const columnCount = getColumnCount();
+    const columns: QueueItem[][] = Array.from({ length: columnCount }, () => []);
+    
+    items.forEach((item, index) => {
+      const columnIndex = index % columnCount;
+      columns[columnIndex].push(item);
+    });
+    
+    return columns;
+  };
 
   // Load combined data from API (rooms and queue in single call)
   const loadCombinedData = async () => {
@@ -133,6 +159,16 @@ export function PressingDisplayPage() {
 
   // Fullscreen functionality is now handled by the context
 
+  // Handle screen resize
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenSize('updated'); // Trigger re-render
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Auto refresh data and time
   useEffect(() => {
     loadCombinedData();
@@ -155,9 +191,9 @@ export function PressingDisplayPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 p-6 relative">
-      {/* Date Display - Top Left */}
+      {/* Date - Top Left */}
       <div className="absolute top-6 left-6 z-50">
-        <div className="text-lg text-gray-600 font-mono bg-white px-6 py-2 rounded-full shadow-md border border-gray-300">
+        <div className="text-lg text-gray-600 font-mono bg-white px-6 py-2 rounded-full shadow-md">
           {formatCurrentTime(currentTime)}
         </div>
       </div>
@@ -208,22 +244,20 @@ export function PressingDisplayPage() {
                 relative rounded-2xl p-5 shadow-lg border-2 transition-all duration-500 hover:shadow-2xl
                 ${isAvailable 
                   ? 'bg-white border-gray-300' 
-                  : timeInfo?.isOvertime
-                    ? 'bg-red-50 border-red-500 animate-pulse'
-                    : 'bg-green-50 border-green-500'
+                  : 'bg-green-50 border-green-500'
                 }
               `}
             >
               {/* Room Header */}
               <div className="text-center mb-4 pb-3 border-b-2 border-gray-200">
                 <div className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl mb-2 ${
-                  isAvailable ? 'bg-gray-100' : timeInfo?.isOvertime ? 'bg-red-100' : 'bg-green-100'
+                  isAvailable ? 'bg-gray-100' : 'bg-green-100'
                 }`}>
                   <Factory className={`h-7 w-7 ${
-                    isAvailable ? 'text-gray-600' : timeInfo?.isOvertime ? 'text-red-600' : 'text-green-600'
+                    isAvailable ? 'text-gray-600' : 'text-green-600'
                   }`} />
                   <span className={`text-2xl font-black ${
-                    isAvailable ? 'text-gray-700' : timeInfo?.isOvertime ? 'text-red-700' : 'text-green-700'
+                    isAvailable ? 'text-gray-700' : 'text-green-700'
                   }`}>غرفة {room.id}</span>
                 </div>
                 <h3 className="text-base font-bold text-gray-700">{room.name}</h3>
@@ -266,12 +300,9 @@ export function PressingDisplayPage() {
                   </div>
 
                   {/* Time Information */}
-                  <div className={`rounded-xl p-4 text-center shadow-sm border-2 ${
-                    timeInfo.isOvertime ? 'bg-red-100 border-red-400' : 'bg-blue-100 border-blue-400'
-                  }`}>
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <Clock className={`h-5 w-5 ${timeInfo.isOvertime ? 'text-red-600' : 'text-blue-600'}`} />
-                      <span className={`font-bold ${timeInfo.isOvertime ? 'text-red-800' : 'text-blue-800'}`}>الوقت</span>
+                  <div className="rounded-xl p-4 text-center shadow-sm  ">
+                    <div className="flex items-center justify-center">
+                      <span className="font-bold">الوقت</span>
                     </div>
                     
                     <div className="space-y-2 text-sm">
@@ -279,32 +310,23 @@ export function PressingDisplayPage() {
                         <span className="text-gray-700 font-semibold">مضى:</span>
                         <span className="font-black text-gray-900 text-base">{formatTime(timeInfo.elapsed)}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className={`font-semibold ${timeInfo.isOvertime ? 'text-red-700' : 'text-gray-700'}`}>
+                      {/* <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-700">
                           {timeInfo.isOvertime ? 'تجاوز:' : 'متبقي:'}
                         </span>
-                        <span className={`font-black text-base ${timeInfo.isOvertime ? 'text-red-700' : 'text-gray-900'}`}>
+                        <span className="font-black text-base text-gray-900">
                           {timeInfo.isOvertime ? formatTime(timeInfo.elapsed - room.currentBatch.estimatedTime) : formatTime(timeInfo.remaining)}
                         </span>
-                      </div>
+                      </div> */}
                     </div>
                   </div>
 
                   {/* Status Indicator */}
-                  <div className={`text-center py-2 px-3 rounded-xl ${
-                    timeInfo.isOvertime ? 'bg-red-100' : 'bg-green-100'
-                  }`}>
-                    {timeInfo.isOvertime ? (
-                      <div className="flex items-center justify-center gap-2 text-red-700">
-                        <Timer className="h-5 w-5 animate-pulse" />
-                        <span className="font-black text-sm">⚠️ تجاوز الوقت</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2 text-green-700">
-                        <Play className="h-5 w-5" />
-                        <span className="font-black text-sm">▶ قيد التشغيل</span>
-                      </div>
-                    )}
+                  <div className="text-center py-2 px-3 rounded-xl bg-green-100">
+                    <div className="flex items-center justify-center gap-2 text-green-700">
+                      <Play className="h-5 w-5" />
+                      <span className="font-black text-sm">▶ قيد التشغيل</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -313,7 +335,7 @@ export function PressingDisplayPage() {
         })}
       </div>
 
-      {/* Queue Section - 3 Columns with 4 Cards Each */}
+      {/* Queue Section - Compact Multi-column Vertical Grid */}
       {queueItems.length > 0 && (
         <div className="mt-8">
           <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl p-3 mb-4 shadow-lg">
@@ -323,120 +345,48 @@ export function PressingDisplayPage() {
             </div>
           </div>
           
-          <div className="grid grid-cols-3 gap-6" dir="rtl">
-            {/* Column 1 */}
-            <div className="space-y-3">
-              {queueItems.slice(0, 4).map((queueItem, index) => (
-                <div
-                  key={queueItem.id}
-                  className="bg-white rounded-lg p-3 shadow-md border-2 border-orange-300 hover:shadow-lg transition-all duration-200"
-                >
-                  {/* Queue Position & Client Name */}
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-black shadow-md flex-shrink-0">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm text-gray-800 truncate">
-                        {queueItem.clientName}
+          <div className="flex flex-col gap-2 w-full" dir="rtl">
+            {organizeIntoColumns(queueItems).map((column, columnIndex) => (
+              <div key={columnIndex} className="grid grid-cols-4 gap-2">
+                {column.map((queueItem) => {
+                  const actualIndex = queueItems.findIndex(item => item.id === queueItem.id);
+                  return (
+                    <div
+                      key={queueItem.id}
+                      className="bg-white rounded-lg px-3 py-2 shadow-md border-2 border-orange-300 hover:shadow-lg transition-all duration-200 w-full flex  justify-around"
+                    >
+                      {/* Row 1: Position, Name & Ticket */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-black shadow-md flex-shrink-0">
+                          {actualIndex + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold  text-gray-800 truncate">
+                            {queueItem.clientName}
+                          </div>
+                          <div className="text-xs text-gray-500 font-semibold">
+                            #{queueItem.ticketNumber}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-gray-500 font-semibold">
-                        #{queueItem.ticketNumber}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Progress Info - Horizontal Layout */}
-                  <div className="flex items-center justify-between">
-                    <div className="text-gray-600 font-semibold text-sm">
-                      📦 {queueItem.boxesQueued}/{queueItem.totalBoxes}
-                    </div>
-                    <div className="text-gray-600 font-semibold text-sm">
-                      ⚖️ {queueItem.weightIn} كجم
-                    </div>
-                    <div className="text-base font-black text-blue-600">
-                      {queueItem.progress}%
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Column 2 */}
-            <div className="space-y-3">
-              {queueItems.slice(4, 8).map((queueItem, index) => (
-                <div
-                  key={queueItem.id}
-                  className="bg-white rounded-lg p-3 shadow-md border-2 border-orange-300 hover:shadow-lg transition-all duration-200"
-                >
-                  {/* Queue Position & Client Name */}
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-black shadow-md flex-shrink-0">
-                      {index + 5}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm text-gray-800 truncate">
-                        {queueItem.clientName}
-                      </div>
-                      <div className="text-[10px] text-gray-500 font-semibold">
-                        #{queueItem.ticketNumber}
+                      {/* Row 2: Progress Info */}
+                      <div className="flex items-center justify-around text-base flex-1">
+                        <div className="text-gray-600 font-semibold">
+                          📦 {queueItem.boxesQueued}/{queueItem.totalBoxes}
+                        </div>
+                        <div className="text-gray-600 font-semibold">
+                          {queueItem.weightIn}kg
+                        </div>
+                        <div className=" font-black text-blue-600">
+                          {queueItem.progress}%
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Progress Info - Horizontal Layout */}
-                  <div className="flex items-center justify-between">
-                    <div className="text-gray-600 font-semibold text-sm">
-                      📦 {queueItem.boxesQueued}/{queueItem.totalBoxes}
-                    </div>
-                    <div className="text-gray-600 font-semibold text-sm">
-                      ⚖️ {queueItem.weightIn} كجم
-                    </div>
-                    <div className="text-base font-black text-blue-600">
-                      {queueItem.progress}%
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Column 3 */}
-            <div className="space-y-3">
-              {queueItems.slice(8, 12).map((queueItem, index) => (
-                <div
-                  key={queueItem.id}
-                  className="bg-white rounded-lg p-3 shadow-md border-2 border-orange-300 hover:shadow-lg transition-all duration-200"
-                >
-                  {/* Queue Position & Client Name */}
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-black shadow-md flex-shrink-0">
-                      {index + 9}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm text-gray-800 truncate">
-                        {queueItem.clientName}
-                      </div>
-                      <div className="text-[10px] text-gray-500 font-semibold">
-                        #{queueItem.ticketNumber}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Progress Info - Horizontal Layout */}
-                  <div className="flex items-center justify-between">
-                    <div className="text-gray-600 font-semibold text-sm">
-                      📦 {queueItem.boxesQueued}/{queueItem.totalBoxes}
-                    </div>
-                    <div className="text-gray-600 font-semibold text-sm">
-                      ⚖️ {queueItem.weightIn} كجم
-                    </div>
-                    <div className="text-base font-black text-blue-600">
-                      {queueItem.progress}%
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       )}

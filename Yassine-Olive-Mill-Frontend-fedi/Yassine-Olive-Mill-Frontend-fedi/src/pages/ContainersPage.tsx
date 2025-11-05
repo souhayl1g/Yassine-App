@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { api } from '@/integrations/api/client';
@@ -41,6 +42,16 @@ interface OilTransactionForm {
   containerId: number;
 }
 
+interface SellOilForm {
+  sellingPrice: number;
+  payment_date: string;
+  payment_method: string;
+  buyer_name?: string;
+  buyer_contact?: string;
+  reference?: string;
+  notes?: string;
+}
+
 export default function ContainersPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -53,6 +64,16 @@ export default function ContainersPage() {
   const [newContainer, setNewContainer] = useState({ label: '', capacity: '' as unknown as number | string });
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<OilTransactionForm>();
+  const [isSellDialogOpen, setIsSellDialogOpen] = useState(false);
+  const [sellForm, setSellForm] = useState<SellOilForm>({
+    sellingPrice: 0,
+    payment_date: new Date().toISOString().slice(0, 10),
+    payment_method: 'cash',
+    buyer_name: '',
+    buyer_contact: '',
+    reference: '',
+    notes: ''
+  });
 
   const loadContainers = async () => {
     try {
@@ -114,6 +135,59 @@ export default function ContainersPage() {
       toast({
         title: t('common.error'),
         description: 'Failed to process transaction',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleSellOil = async () => {
+    try {
+      if (!selectedContainer) return;
+      
+      if (!sellForm.sellingPrice || sellForm.sellingPrice <= 0) {
+        toast({
+          title: t('common.error'),
+          description: 'Please enter a valid selling price',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Save to export_payment table
+      await api.post('/export-payments', {
+        containerId: selectedContainer.id,
+        amount: sellForm.sellingPrice,
+        payment_date: sellForm.payment_date,
+        payment_method: sellForm.payment_method,
+        buyer_name: sellForm.buyer_name || undefined,
+        buyer_contact: sellForm.buyer_contact || undefined,
+        reference: sellForm.reference || undefined,
+        notes: sellForm.notes || undefined
+      });
+
+      // Reload containers to reflect the sold status (container contents are now flagged as sold)
+      await loadContainers();
+
+      // Reset form
+      setSellForm({
+        sellingPrice: 0,
+        payment_date: new Date().toISOString().slice(0, 10),
+        payment_method: 'cash',
+        buyer_name: '',
+        buyer_contact: '',
+        reference: '',
+        notes: ''
+      });
+      setIsSellDialogOpen(false);
+      toast({ 
+        title: t('common.success'), 
+        description: 'Selling price saved successfully. Container contents have been marked as sold.' 
+      });
+    } catch (error: any) {
+      console.error('Error saving selling price:', error);
+      toast({
+        title: t('common.error'),
+        description: error?.message || 'Failed to save selling price',
         variant: 'destructive'
       });
     }
@@ -430,12 +504,28 @@ export default function ContainersPage() {
                   </DialogContent>
                 </Dialog>
 
-                <Dialog>
+                <Dialog open={isSellDialogOpen && selectedContainer?.id === container.id} onOpenChange={(open) => {
+                  setIsSellDialogOpen(open);
+                  if (!open) {
+                    setSellForm({
+                      sellingPrice: 0,
+                      payment_date: new Date().toISOString().slice(0, 10),
+                      payment_method: 'cash',
+                      buyer_name: '',
+                      buyer_contact: '',
+                      reference: '',
+                      notes: ''
+                    });
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <OliveButton 
                       size="sm" 
                       variant="outline"
-                      onClick={() => setSelectedContainer(container)}
+                      onClick={() => {
+                        setSelectedContainer(container);
+                        setIsSellDialogOpen(true);
+                      }}
                       disabled={container.currentWeight === 0}
                     >
                       <DollarSign className="h-4 w-4 mr-2" />
@@ -448,43 +538,104 @@ export default function ContainersPage() {
                         {t('containers.sellOil')} - {selectedContainer?.label}
                       </DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleSubmit((data) => handleOilTransaction({ ...data, type: 'sell', containerId: selectedContainer!.id }))}>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="sellWeight">{t('containers.oilWeight')} ({t('common.kg')})</Label>
-                          <Input
-                            id="sellWeight"
-                            type="number"
-                            step="0.01"
-                            max={selectedContainer?.currentWeight || 0}
-                            {...register('weight', { required: true, min: 0.01, max: selectedContainer?.currentWeight || 0 })}
-                          />
-                          {errors.weight && (
-                            <p className="text-sm text-error mt-1">{t('validation.required')}</p>
-                          )}
-                        </div>
-                        <div>
-                          <Label htmlFor="sellPricePerKg">{t('containers.pricePerKg')} ({t('common.currency')})</Label>
-                          <Input
-                            id="sellPricePerKg"
-                            type="number"
-                            step="0.01"
-                            {...register('pricePerKg', { required: true, min: 0.01 })}
-                          />
-                          {errors.pricePerKg && (
-                            <p className="text-sm text-error mt-1">{t('validation.required')}</p>
-                          )}
-                        </div>
-                        <div className="flex justify-end space-x-2">
-                          <OliveButton type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                            {t('actions.cancel')}
-                          </OliveButton>
-                          <OliveButton type="submit">
-                            {t('actions.save')}
-                          </OliveButton>
-                        </div>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="sellingPrice">سعر البيع (د.ت) *</Label>
+                        <Input
+                          id="sellingPrice"
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          value={sellForm.sellingPrice || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, sellingPrice: parseFloat(e.target.value) || 0 })}
+                          placeholder="0.000"
+                        />
                       </div>
-                    </form>
+                      <div>
+                        <Label htmlFor="sellPaymentDate">تاريخ البيع *</Label>
+                        <Input
+                          id="sellPaymentDate"
+                          type="date"
+                          value={sellForm.payment_date}
+                          onChange={(e) => setSellForm({ ...sellForm, payment_date: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sellPaymentMethod">طريقة الدفع</Label>
+                        <Select
+                          value={sellForm.payment_method}
+                          onValueChange={(value) => setSellForm({ ...sellForm, payment_method: value })}
+                        >
+                          <SelectTrigger id="sellPaymentMethod">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash">نقداً</SelectItem>
+                            <SelectItem value="transfer">تحويل</SelectItem>
+                            <SelectItem value="check">شيك</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="sellBuyerName">اسم المشتري</Label>
+                        <Input
+                          id="sellBuyerName"
+                          value={sellForm.buyer_name || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, buyer_name: e.target.value })}
+                          placeholder="اسم المشتري (اختياري)"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sellBuyerContact">معلومات التواصل</Label>
+                        <Input
+                          id="sellBuyerContact"
+                          value={sellForm.buyer_contact || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, buyer_contact: e.target.value })}
+                          placeholder="هاتف أو بريد إلكتروني (اختياري)"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sellReference">رقم المرجع</Label>
+                        <Input
+                          id="sellReference"
+                          value={sellForm.reference || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, reference: e.target.value })}
+                          placeholder="رقم المرجع (اختياري)"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sellNotes">ملاحظات</Label>
+                        <Input
+                          id="sellNotes"
+                          value={sellForm.notes || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, notes: e.target.value })}
+                          placeholder="ملاحظات إضافية (اختياري)"
+                        />
+                      </div>
+                      <div className="flex justify-end space-x-2">
+                        <OliveButton 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => {
+                            setIsSellDialogOpen(false);
+                            setSellForm({
+                              sellingPrice: 0,
+                              payment_date: new Date().toISOString().slice(0, 10),
+                              payment_method: 'cash',
+                              buyer_name: '',
+                              buyer_contact: '',
+                              reference: '',
+                              notes: ''
+                            });
+                          }}
+                        >
+                          {t('actions.cancel')}
+                        </OliveButton>
+                        <OliveButton onClick={handleSellOil}>
+                          {t('actions.save')}
+                        </OliveButton>
+                      </div>
+                    </div>
                   </DialogContent>
                 </Dialog>
               </div>
