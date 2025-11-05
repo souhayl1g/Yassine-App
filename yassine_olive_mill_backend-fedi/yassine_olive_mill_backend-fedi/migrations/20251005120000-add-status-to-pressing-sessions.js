@@ -1,10 +1,17 @@
 export async function up(queryInterface, Sequelize) {
-  // Add status column to pressing_sessions table
-  await queryInterface.addColumn('pressing_sessions', 'status', {
+
+  const tableDescription = await queryInterface.describeTable('pressing_sessions');
+
+  if (!tableDescription.status) {
+
+    await queryInterface.addColumn('pressing_sessions', 'status', {
     type: Sequelize.ENUM('waiting', 'done', 'active'),
     allowNull: false,
     defaultValue: 'waiting'
   });
+
+  }
+  // Add status column to pressing_sessions table
 }
 
 export async function down(queryInterface, Sequelize) {
