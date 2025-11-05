@@ -321,9 +321,9 @@ export function QueuerScannerPage() {
     setIsSaving(true);
     try {
       const payload = {
-        batchId: parseInt(scannedTicket.id),
-        numberOfBoxes: boxes,
-        queuerId: user?.id || 1,
+        batch_id: parseInt(scannedTicket.id),
+        number_of_boxes: boxes,
+        operator_id: user?.id || 1,
         notes: 'Added to queue by queuer'
       };
 
