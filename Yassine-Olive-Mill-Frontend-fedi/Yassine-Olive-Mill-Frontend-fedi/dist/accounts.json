@@ -18,12 +18,6 @@
         "role": "scanner"
     },
     {
-        "name": "Employee User",
-        "username": "Employee@gmail.com",
-        "password": "EmployeeEmployee",
-        "role": "employee"
-    },
-    {
         "name": "queuer User",
         "username": "queuer@gmail.com",
         "password": "queuerqueuer",
