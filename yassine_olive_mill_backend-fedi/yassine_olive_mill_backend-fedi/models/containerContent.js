@@ -31,10 +31,26 @@ export default (sequelize) => {
     currency: {
       type: DataTypes.STRING,
       allowNull: true
+    },
+    sold: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Flag to indicate if this container content has been sold'
+    },
+    sold_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Timestamp when the container content was sold'
     }
   }, {
     tableName: 'container_contents',
-    timestamps: true
+    timestamps: true,
+    indexes: [
+      {
+        fields: ['sold']
+      }
+    ]
   });
 
   ContainerContent.associate = (models) => {

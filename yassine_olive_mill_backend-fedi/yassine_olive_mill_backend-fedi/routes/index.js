@@ -21,6 +21,10 @@ import pressingQueueRoutes from "./pressingQueue.js"
 import operatorRoutes from "./operator.js"
 import employeeScannerRoutes from "./employee.js"
 import userRoutes from "./users.js"
+import ownerFundRoutes from "./ownerFunds.js"
+import workerRoutes from "./workers.js"
+import workerPaymentRoutes from "./workerPayments.js"
+import paymentExpenseRoutes from "./paymentExpenses.js"
 
 // Mount routes
 router.use('/clients', clientRoutes);
@@ -42,6 +46,10 @@ router.use('/pressing-queue', pressingQueueRoutes);
 router.use('/operator', operatorRoutes);
 router.use('/employee', employeeScannerRoutes);
 router.use('/users', userRoutes);
+router.use('/owner-funds', ownerFundRoutes);
+router.use('/workers', workerRoutes);
+router.use('/worker-payments', workerPaymentRoutes);
+router.use('/payment-expenses', paymentExpenseRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

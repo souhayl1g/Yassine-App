@@ -22,8 +22,12 @@ const containerController = {
       const containerIds = containers.map((c) => c.id);
       const latestByContainer = {};
       if (containerIds.length > 0) {
+        // Exclude sold contents when calculating current weight
         const contents = await ContainerContent.findAll({
-          where: { containerId: containerIds },
+          where: { 
+            containerId: containerIds,
+            sold: false  // Only consider unsold contents
+          },
           order: [["containerId", "ASC"], ["recorded_at", "DESC"]],
         });
         for (const c of contents) {
@@ -70,9 +74,12 @@ const containerController = {
       const container = await Container.findByPk(id);
       if (!container) return res.status(404).json({ error: 'Container not found' });
 
-      // find latest content
+      // find latest unsold content
       const latest = await ContainerContent.findOne({
-        where: { containerId: id },
+        where: { 
+          containerId: id,
+          sold: false  // Only consider unsold contents
+        },
         order: [["recorded_at", "DESC"]],
       });
       const currentWeight = latest ? latest.total_weight : 0;
@@ -108,8 +115,15 @@ const containerController = {
       const container = await Container.findByPk(id);
       if (!container) return res.status(404).json({ error: 'Container not found' });
 
+      // By default, exclude sold contents. Allow includeSold query param to show all
+      const includeSold = req.query.includeSold === 'true';
+      const whereClause = { containerId: id };
+      if (!includeSold) {
+        whereClause.sold = false;
+      }
+
       const contents = await ContainerContent.findAll({
-        where: { containerId: id },
+        where: whereClause,
         order: [['recorded_at', 'DESC']]
       });
 

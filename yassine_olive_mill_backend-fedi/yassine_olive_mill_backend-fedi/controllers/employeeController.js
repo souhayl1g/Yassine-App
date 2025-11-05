@@ -51,7 +51,10 @@ const employeeController = {
       const containersWithWeight = await Promise.all(
         containers.map(async (container) => {
           const latestContent = await ContainerContent.findOne({
-            where: { containerId: container.id },
+            where: { 
+              containerId: container.id,
+              sold: false  // Only consider unsold contents
+            },
             order: [['recorded_at', 'DESC']]
           });
 
@@ -328,7 +331,10 @@ const employeeController = {
 
         // Get the current total weight in the container
         const latestContent = await ContainerContent.findOne({
-          where: { containerId: containerId },
+          where: { 
+            containerId: containerId,
+            sold: false  // Only consider unsold contents
+          },
           order: [['recorded_at', 'DESC']],
           transaction
         });

@@ -1,7 +1,7 @@
 import db from '../models/index.js';
 import { Op, Sequelize } from 'sequelize';
 
-const { ExportPayment, Container, sequelize } = db;
+const { ExportPayment, Container, ContainerContent, sequelize } = db;
 
 // Get all export payments
 export const getExportPayments = async (req, res) => {
@@ -127,33 +127,63 @@ export const createExportPayment = async (req, res) => {
       });
     }
 
-    const payment = await ExportPayment.create({
-      containerId,
-      amount,
-      payment_date,
-      payment_method,
-      buyer_name,
-      buyer_contact,
-      reference,
-      notes
-    });
+    // Start transaction to ensure data consistency
+    const transaction = await sequelize.transaction();
 
-    // Fetch the created payment with associations
-    const createdPayment = await ExportPayment.findByPk(payment.id, {
-      include: [
+    try {
+      const payment = await ExportPayment.create({
+        containerId,
+        amount,
+        payment_date,
+        payment_method,
+        buyer_name,
+        buyer_contact,
+        reference,
+        notes
+      }, { transaction });
+
+      // Flag all unsold container contents for this container as sold
+      await ContainerContent.update(
         {
-          model: Container,
-          as: 'container',
-          required: false
+          sold: true,
+          sold_at: new Date()
+        },
+        {
+          where: {
+            containerId: containerId,
+            sold: false
+          },
+          transaction
         }
-      ]
-    });
+      );
 
-    res.status(201).json({
-      success: true,
-      data: createdPayment,
-      message: 'Export payment created successfully'
-    });
+      await transaction.commit();
+
+      // Fetch the created payment with associations
+      const createdPayment = await ExportPayment.findByPk(payment.id, {
+        include: [
+          {
+            model: Container,
+            as: 'container',
+            required: false
+          }
+        ]
+      });
+
+      res.status(201).json({
+        success: true,
+        data: createdPayment,
+        message: 'Export payment created successfully'
+      });
+    } catch (error) {
+      await transaction.rollback();
+      console.error('Error creating export payment:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error creating export payment',
+        error: error.message
+      });
+    }
   } catch (error) {
     console.error('Error creating export payment:', error);
     res.status(500).json({

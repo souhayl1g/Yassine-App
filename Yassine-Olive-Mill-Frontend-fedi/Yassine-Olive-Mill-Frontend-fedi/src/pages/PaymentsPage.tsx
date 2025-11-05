@@ -6,8 +6,10 @@ import {
   X, Plus, Edit3, Search, Filter, Calendar, 
   DollarSign, Users, Receipt, ArrowUpDown, 
   Save, XCircle, CheckCircle, TrendingUp, 
-  TrendingDown, Wallet, FileText, Download, Package, Trash2
+  TrendingDown, Wallet, FileText, Download, Package, Trash2, 
+  BarChart3, Eye, History
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -88,6 +90,31 @@ type ExportPayment = {
   updatedAt?: string;
 };
 
+type TicketPayment = {
+  id: number;
+  ticketId: number;
+  amount: number;
+  payment_date: string;
+  payment_method: string;
+  payment_type: 'incoming' | 'outgoing';
+  operation_type: 'sale' | 'pressing';
+  reference?: string;
+  notes?: string;
+  ticket?: {
+    id: number;
+    ticketNumber?: string;
+    client?: {
+      id: number;
+      firstname?: string;
+      lastname?: string;
+      name?: string;
+      phone?: string;
+    };
+  };
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 type SortConfig = {
   key: string;
   direction: 'asc' | 'desc';
@@ -98,7 +125,8 @@ export function PaymentsPage() {
   const { toast } = useToast();
   const isAdmin = user?.role === 'admin';
 
-  const [tab, setTab] = useState<'owner' | 'workers' | 'expenses' | 'sales'>('owner');
+  const [tab, setTab] = useState<'summary' | 'owner' | 'workers' | 'expenses' | 'sales' | 'ticketPayments'>('summary');
+  const [selectedWorkerForHistory, setSelectedWorkerForHistory] = useState<Worker | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Containers
@@ -142,19 +170,19 @@ export function PaymentsPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [expenseSort, setExpenseSort] = useState<SortConfig>({ key: 'date', direction: 'desc' });
 
-  // Export payments (Oil Sales) state
+  // Export payments (Oil Sales) state - READ ONLY
   const [exportPayments, setExportPayments] = useState<ExportPayment[]>([]);
-  const [showExportPaymentModal, setShowExportPaymentModal] = useState(false);
-  const [exportPaymentDraft, setExportPaymentDraft] = useState<Partial<ExportPayment>>({ 
-    payment_date: new Date().toISOString().slice(0,10), 
-    payment_method: 'cash',
-    payment_type: 'incoming'
-  });
   const [exportPaymentSearch, setExportPaymentSearch] = useState<string>('');
   const [exportPaymentDateFilter, setExportPaymentDateFilter] = useState<string>('');
   const [exportPaymentBuyerFilter, setExportPaymentBuyerFilter] = useState<string>('');
-  const [editingExportPayment, setEditingExportPayment] = useState<ExportPayment | null>(null);
   const [exportPaymentSort, setExportPaymentSort] = useState<SortConfig>({ key: 'payment_date', direction: 'desc' });
+
+  // Ticket payments state - READ ONLY
+  const [ticketPayments, setTicketPayments] = useState<TicketPayment[]>([]);
+  const [ticketPaymentSearch, setTicketPaymentSearch] = useState<string>('');
+  const [ticketPaymentDateFilter, setTicketPaymentDateFilter] = useState<string>('');
+  const [ticketPaymentTypeFilter, setTicketPaymentTypeFilter] = useState<string>('all');
+  const [ticketPaymentSort, setTicketPaymentSort] = useState<SortConfig>({ key: 'payment_date', direction: 'desc' });
 
   // Load containers
   useEffect(() => {
@@ -169,7 +197,7 @@ export function PaymentsPage() {
     loadContainers();
   }, []);
 
-  // Load export payments (Oil Sales)
+  // Load export payments (Oil Sales) - READ ONLY
   useEffect(() => {
     const loadExportPayments = async () => {
       if (!isAdmin) return;
@@ -198,6 +226,35 @@ export function PaymentsPage() {
     loadExportPayments();
   }, [isAdmin, toast]);
 
+  // Load ticket payments - READ ONLY
+  useEffect(() => {
+    const loadTicketPayments = async () => {
+      if (!isAdmin) return;
+      try {
+        setLoading(true);
+        const response = await api.get<any>('/ticket-payments');
+        // Handle response format: { success: true, data: { payments: [...] } }
+        if (response?.success && response?.data?.payments) {
+          setTicketPayments(response.data.payments);
+        } else if (response?.success && response?.data && Array.isArray(response.data)) {
+          setTicketPayments(response.data);
+        } else if (Array.isArray(response)) {
+          setTicketPayments(response);
+        }
+      } catch (error: any) {
+        console.error('Error loading ticket payments:', error);
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: error?.message || 'فشل تحميل مدفوعات التذاكر' 
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTicketPayments();
+  }, [isAdmin, toast]);
+
   // Check if today's session exists when switching to owner tab
   useEffect(() => {
     if (tab === 'owner' && isAdmin) {
@@ -210,47 +267,117 @@ export function PaymentsPage() {
     }
   }, [tab, ownerFunds, isAdmin]);
 
-  // Load owner funds (mock for now - replace with API)
+  // Load owner funds
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // const loadOwnerFunds = async () => {
-    //   try {
-    //     const data = await api.get<OwnerFund[]>('/owner-funds');
-    //     setOwnerFunds(data || []);
-    //   } catch (error) {
-    //     console.error('Error loading owner funds:', error);
-    //   }
-    // };
-    // loadOwnerFunds();
-  }, []);
+    const loadOwnerFunds = async () => {
+      if (!isAdmin) return;
+      try {
+        setLoading(true);
+        const response = await api.get<any>('/owner-funds');
+        if (response?.success && response?.data?.funds) {
+          setOwnerFunds(response.data.funds);
+        } else if (response?.success && response?.data && Array.isArray(response.data)) {
+          setOwnerFunds(response.data);
+        } else if (Array.isArray(response)) {
+          setOwnerFunds(response);
+        }
+      } catch (error: any) {
+        console.error('Error loading owner funds:', error);
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: error?.message || 'فشل تحميل أموال المالك' 
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadOwnerFunds();
+  }, [isAdmin, toast]);
 
-  // Load workers (mock for now - replace with API)
+  // Load workers
   useEffect(() => {
-    // TODO: Replace with actual API call using Employee model
-    // const loadWorkers = async () => {
-    //   try {
-    //     const data = await api.get<Worker[]>('/employees');
-    //     setWorkers(data || []);
-    //   } catch (error) {
-    //     console.error('Error loading workers:', error);
-    //   }
-    // };
-    // loadWorkers();
-  }, []);
+    const loadWorkers = async () => {
+      if (!isAdmin) return;
+      try {
+        setLoading(true);
+        const response = await api.get<any>('/workers');
+        if (response?.success && response?.data?.workers) {
+          setWorkers(response.data.workers);
+        } else if (response?.success && response?.data && Array.isArray(response.data)) {
+          setWorkers(response.data);
+        } else if (Array.isArray(response)) {
+          setWorkers(response);
+        }
+      } catch (error: any) {
+        console.error('Error loading workers:', error);
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: error?.message || 'فشل تحميل العمال' 
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadWorkers();
+  }, [isAdmin, toast]);
 
-  // Load expenses (mock for now - replace with API)
+  // Load worker payments
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // const loadExpenses = async () => {
-    //   try {
-    //     const data = await api.get<Expense[]>('/expenses');
-    //     setExpenses(data || []);
-    //   } catch (error) {
-    //     console.error('Error loading expenses:', error);
-    //   }
-    // };
-    // loadExpenses();
-  }, []);
+    const loadWorkerPayments = async () => {
+      if (!isAdmin) return;
+      try {
+        setLoading(true);
+        const response = await api.get<any>('/worker-payments');
+        if (response?.success && response?.data?.payments) {
+          setWorkerPayments(response.data.payments);
+        } else if (response?.success && response?.data && Array.isArray(response.data)) {
+          setWorkerPayments(response.data);
+        } else if (Array.isArray(response)) {
+          setWorkerPayments(response);
+        }
+      } catch (error: any) {
+        console.error('Error loading worker payments:', error);
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: error?.message || 'فشل تحميل مدفوعات العمال' 
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadWorkerPayments();
+  }, [isAdmin, toast]);
+
+  // Load expenses
+  useEffect(() => {
+    const loadExpenses = async () => {
+      if (!isAdmin) return;
+      try {
+        setLoading(true);
+        const response = await api.get<any>('/payment-expenses');
+        if (response?.success && response?.data?.expenses) {
+          setExpenses(response.data.expenses);
+        } else if (response?.success && response?.data && Array.isArray(response.data)) {
+          setExpenses(response.data);
+        } else if (Array.isArray(response)) {
+          setExpenses(response);
+        }
+      } catch (error: any) {
+        console.error('Error loading expenses:', error);
+        toast({ 
+          variant: 'destructive', 
+          title: 'خطأ', 
+          description: error?.message || 'فشل تحميل المصروفات' 
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadExpenses();
+  }, [isAdmin, toast]);
 
   // Derived totals and summaries
   const ownerTotals = useMemo(() => {
@@ -269,6 +396,7 @@ export function PaymentsPage() {
     
     if (todaySession) {
       const totalSales = todaySales;
+      // amountSpent is already calculated from outgoing ticket payments
       const totalSpent = todayExpenses + (todaySession.amountSpent || 0);
       const balance = (todaySession.startingFunds || 0) + totalSales - totalSpent;
       
@@ -305,9 +433,9 @@ export function PaymentsPage() {
     return workers.map(worker => {
       const totalPaid = workerPayments
         .filter(p => p.workerId === worker.id)
-        .reduce((sum, p) => sum + (p.amount || 0), 0);
-      // TODO: Calculate from salary/advance logic
-      const outstandingBalance = 0; // Placeholder
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      // Outstanding balance calculation - can be enhanced based on salary logic
+      const outstandingBalance = 0; // Placeholder for future salary calculation
       return { ...worker, totalPaid, outstandingBalance };
     });
   }, [workers, workerPayments]);
@@ -320,6 +448,65 @@ export function PaymentsPage() {
   const exportPaymentsTotal = useMemo(() => {
     return exportPayments.reduce((sum, ep) => sum + Number(ep.amount || 0), 0);
   }, [exportPayments]);
+
+  // Ticket payments calculation - outgoing (negative), incoming (positive)
+  const ticketPaymentsCalculated = useMemo(() => {
+    const incoming = ticketPayments
+      .filter(tp => tp.payment_type === 'incoming')
+      .reduce((sum, tp) => sum + Number(tp.amount || 0), 0);
+    
+    const outgoing = ticketPayments
+      .filter(tp => tp.payment_type === 'outgoing')
+      .reduce((sum, tp) => sum + Number(tp.amount || 0), 0);
+    
+    // Outgoing are negative, incoming are positive
+    const netBalance = incoming - outgoing;
+    
+    return {
+      incoming,
+      outgoing,
+      netBalance,
+      incomingCount: ticketPayments.filter(tp => tp.payment_type === 'incoming').length,
+      outgoingCount: ticketPayments.filter(tp => tp.payment_type === 'outgoing').length,
+      totalCount: ticketPayments.length
+    };
+  }, [ticketPayments]);
+
+  // Filtered ticket payments
+  const filteredTicketPayments = useMemo(() => {
+    let filtered = [...ticketPayments];
+    
+    if (ticketPaymentDateFilter) {
+      filtered = filtered.filter(tp => tp.payment_date === ticketPaymentDateFilter);
+    }
+    
+    if (ticketPaymentTypeFilter !== 'all') {
+      filtered = filtered.filter(tp => tp.payment_type === ticketPaymentTypeFilter);
+    }
+    
+    if (ticketPaymentSearch) {
+      const search = ticketPaymentSearch.toLowerCase();
+      filtered = filtered.filter(tp => 
+        tp.ticket?.ticketNumber?.toLowerCase().includes(search) ||
+        tp.ticket?.client?.firstname?.toLowerCase().includes(search) ||
+        tp.ticket?.client?.lastname?.toLowerCase().includes(search) ||
+        tp.ticket?.client?.name?.toLowerCase().includes(search) ||
+        tp.reference?.toLowerCase().includes(search) ||
+        tp.notes?.toLowerCase().includes(search)
+      );
+    }
+
+    filtered.sort((a, b) => {
+      const aVal = a[ticketPaymentSort.key as keyof TicketPayment];
+      const bVal = b[ticketPaymentSort.key as keyof TicketPayment];
+      if (ticketPaymentSort.direction === 'asc') {
+        return aVal > bVal ? 1 : -1;
+      }
+      return aVal < bVal ? 1 : -1;
+    });
+
+    return filtered;
+  }, [ticketPayments, ticketPaymentDateFilter, ticketPaymentTypeFilter, ticketPaymentSearch, ticketPaymentSort]);
 
   // Filtered export payments
   const filteredExportPayments = useMemo(() => {
@@ -444,145 +631,278 @@ export function PaymentsPage() {
       return;
     }
 
-    const today = new Date().toISOString().slice(0,10);
-    const newSession: OwnerFund = {
-      id: Date.now(),
-      date: today,
-      startingFunds: startingAmount,
-      allocatedContainers: [],
-      relatedSales: [],
-      amountSpent: 0,
-      balance: startingAmount,
-      notes: ''
-    };
-
-    setOwnerFunds(prev => [newSession, ...prev]);
-    setShowStartingAmountModal(false);
-    setStartingAmount(0);
-    toast({ title: 'تم بنجاح', description: 'تم إنشاء جلسة اليوم' });
-  };
-
-  const handleSaveOwnerFund = (fund: OwnerFund) => {
-    setOwnerFunds(prev => prev.map(f => f.id === fund.id ? fund : f));
-    setEditingOwnerFund(null);
-    toast({ title: 'تم بنجاح', description: 'تم تحديث الجلسة' });
-  };
-
-  const handleSaveWorker = (worker: Worker) => {
-    if (editingWorker) {
-      setWorkers(prev => prev.map(w => w.id === worker.id ? worker : w));
-      setEditingWorker(null);
-    } else {
-      setWorkers(prev => [...prev, { ...worker, id: Date.now(), createdOn: new Date().toISOString().slice(0,10) }]);
-      setShowWorkerModal(false);
-    }
-    setWorkerDraft({ firstName: '', lastName: '', status: 'active' });
-    toast({ title: 'تم بنجاح', description: editingWorker ? 'تم تحديث العامل' : 'تم إضافة العامل' });
-  };
-
-  const handleSavePayment = (payment: WorkerPayment) => {
-    if (editingPayment) {
-      setWorkerPayments(prev => prev.map(p => p.id === payment.id ? payment : p));
-      setEditingPayment(null);
-    } else {
-      setWorkerPayments(prev => [...prev, { ...payment, id: Date.now() }]);
-      setShowPayModal(false);
-    }
-    setPaymentDraft({ date: new Date().toISOString().slice(0,10), type: 'advance', method: 'cash' });
-    toast({ title: 'تم بنجاح', description: editingPayment ? 'تم تحديث الدفع' : 'تم تسجيل الدفع' });
-  };
-
-  const handleSaveExpense = (expense: Expense) => {
-    if (editingExpense) {
-      setExpenses(prev => prev.map(e => e.id === expense.id ? expense : e));
-      setEditingExpense(null);
-    } else {
-      setExpenses(prev => [...prev, { ...expense, id: Date.now() }]);
-      setShowExpenseModal(false);
-    }
-    setExpenseDraft({ date: new Date().toISOString().slice(0,10), category: 'other' });
-    toast({ title: 'تم بنجاح', description: editingExpense ? 'تم تحديث المصروف' : 'تم إضافة المصروف' });
-  };
-
-  // Export Payment handlers
-  const handleSaveExportPayment = async (payment: ExportPayment) => {
     try {
       setLoading(true);
-      if (editingExportPayment) {
-        // Update existing payment
-        const response = await api.put<{ success: boolean; data: ExportPayment }>(`/export-payments/${payment.id}`, {
-          amount: payment.amount,
-          payment_date: payment.payment_date,
-          payment_method: payment.payment_method,
-          buyer_name: payment.buyer_name,
-          buyer_contact: payment.buyer_contact,
-          reference: payment.reference,
-          notes: payment.notes
-        });
-        if (response.success) {
-          setExportPayments(prev => prev.map(ep => ep.id === payment.id ? response.data : ep));
-          setEditingExportPayment(null);
-          toast({ title: 'تم بنجاح', description: 'تم تحديث عملية البيع' });
-        }
-      } else {
-        // Create new payment
-        const response = await api.post<{ success: boolean; data: ExportPayment }>('/export-payments', {
-          containerId: payment.containerId,
-          amount: payment.amount,
-          payment_date: payment.payment_date,
-          payment_method: payment.payment_method,
-          buyer_name: payment.buyer_name,
-          buyer_contact: payment.buyer_contact,
-          reference: payment.reference,
-          notes: payment.notes
-        });
-        if (response.success) {
-          setExportPayments(prev => [response.data, ...prev]);
-          setShowExportPaymentModal(false);
-          
-          // Link to today's owner fund session
-          const today = new Date().toISOString().slice(0,10);
-          const todaySession = ownerFunds.find(f => f.date === today);
-          if (todaySession) {
-            setOwnerFunds(prev => prev.map(f => 
-              f.date === today 
-                ? { ...f, relatedSales: [...f.relatedSales, response.data.id] }
-                : f
-            ));
-          }
-          
-          toast({ title: 'تم بنجاح', description: 'تم تسجيل عملية البيع' });
-        }
+      const today = new Date().toISOString().slice(0,10);
+      const response = await api.post<{ success: boolean; data: OwnerFund }>('/owner-funds', {
+        date: today,
+        startingFunds: startingAmount,
+        amountSpent: 0,
+        notes: ''
+      });
+      
+      if (response.success) {
+        setOwnerFunds(prev => [response.data, ...prev]);
+        setShowStartingAmountModal(false);
+        setStartingAmount(0);
+        toast({ title: 'تم بنجاح', description: 'تم إنشاء جلسة اليوم' });
       }
     } catch (error: any) {
-      console.error('Error saving export payment:', error);
+      console.error('Error creating owner fund:', error);
       toast({ 
         variant: 'destructive', 
         title: 'خطأ', 
-        description: error?.message || 'فشل حفظ عملية البيع' 
+        description: error?.message || 'فشل إنشاء الجلسة' 
       });
     } finally {
       setLoading(false);
-      setExportPaymentDraft({ payment_date: new Date().toISOString().slice(0,10), payment_method: 'cash', payment_type: 'incoming' });
     }
   };
 
-  const handleDeleteExportPayment = async (id: number) => {
-    if (!confirm('هل أنت متأكد من حذف هذه العملية؟')) return;
-    
+  const handleSaveOwnerFund = async (fund: OwnerFund) => {
     try {
       setLoading(true);
-      const response = await api.delete<{ success: boolean }>(`/export-payments/${id}`);
+      // Note: amountSpent is calculated automatically from outgoing ticket payments
+      const response = await api.put<{ success: boolean; data: OwnerFund }>(`/owner-funds/${fund.id}`, {
+        startingFunds: fund.startingFunds,
+        notes: fund.notes,
+        allocatedContainers: fund.allocatedContainers.map(c => c.id)
+      });
+      
       if (response.success) {
-        setExportPayments(prev => prev.filter(ep => ep.id !== id));
-        toast({ title: 'تم بنجاح', description: 'تم حذف عملية البيع' });
+        setOwnerFunds(prev => prev.map(f => f.id === fund.id ? response.data : f));
+        setEditingOwnerFund(null);
+        toast({ title: 'تم بنجاح', description: 'تم تحديث الجلسة' });
       }
     } catch (error: any) {
-      console.error('Error deleting export payment:', error);
+      console.error('Error updating owner fund:', error);
       toast({ 
         variant: 'destructive', 
         title: 'خطأ', 
-        description: error?.message || 'فشل حذف عملية البيع' 
+        description: error?.message || 'فشل تحديث الجلسة' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveWorker = async (worker: Worker) => {
+    try {
+      setLoading(true);
+      if (editingWorker) {
+        const response = await api.put<{ success: boolean; data: Worker }>(`/workers/${worker.id}`, {
+          firstName: worker.firstName,
+          lastName: worker.lastName,
+          phone: worker.phone,
+          status: worker.status
+        });
+        if (response.success) {
+          setWorkers(prev => prev.map(w => w.id === worker.id ? response.data : w));
+          setEditingWorker(null);
+          toast({ title: 'تم بنجاح', description: 'تم تحديث العامل' });
+        }
+      } else {
+        const response = await api.post<{ success: boolean; data: Worker }>('/workers', {
+          firstName: worker.firstName,
+          lastName: worker.lastName,
+          phone: worker.phone,
+          status: worker.status
+        });
+        if (response.success) {
+          setWorkers(prev => [...prev, response.data]);
+          setShowWorkerModal(false);
+          toast({ title: 'تم بنجاح', description: 'تم إضافة العامل' });
+        }
+      }
+      setWorkerDraft({ firstName: '', lastName: '', status: 'active' });
+    } catch (error: any) {
+      console.error('Error saving worker:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error?.message || 'فشل حفظ العامل' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSavePayment = async (payment: WorkerPayment) => {
+    try {
+      setLoading(true);
+      if (editingPayment) {
+        const response = await api.put<{ success: boolean; data: WorkerPayment }>(`/worker-payments/${payment.id}`, {
+          date: payment.date,
+          amount: payment.amount,
+          type: payment.type,
+          method: payment.method,
+          notes: payment.notes
+        });
+        if (response.success) {
+          setWorkerPayments(prev => prev.map(p => p.id === payment.id ? response.data : p));
+          setEditingPayment(null);
+          toast({ title: 'تم بنجاح', description: 'تم تحديث الدفع' });
+        }
+      } else {
+        const response = await api.post<{ success: boolean; data: WorkerPayment }>('/worker-payments', {
+          workerId: payment.workerId,
+          date: payment.date,
+          amount: payment.amount,
+          type: payment.type,
+          method: payment.method,
+          notes: payment.notes
+        });
+        if (response.success) {
+          setWorkerPayments(prev => [...prev, response.data]);
+          setShowPayModal(false);
+          toast({ title: 'تم بنجاح', description: 'تم تسجيل الدفع' });
+        }
+      }
+      setPaymentDraft({ date: new Date().toISOString().slice(0,10), type: 'advance', method: 'cash' });
+    } catch (error: any) {
+      console.error('Error saving worker payment:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error?.message || 'فشل حفظ الدفع' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveExpense = async (expense: Expense) => {
+    try {
+      setLoading(true);
+      if (editingExpense) {
+        const response = await api.put<{ success: boolean; data: Expense }>(`/payment-expenses/${expense.id}`, {
+          date: expense.date,
+          category: expense.category,
+          item: expense.item,
+          amount: expense.amount,
+          vendor: expense.vendor,
+          notes: expense.notes,
+          receipt_reference: expense.receipt_reference
+        });
+        if (response.success) {
+          setExpenses(prev => prev.map(e => e.id === expense.id ? response.data : e));
+          setEditingExpense(null);
+          toast({ title: 'تم بنجاح', description: 'تم تحديث المصروف' });
+        }
+      } else {
+        const response = await api.post<{ success: boolean; data: Expense }>('/payment-expenses', {
+          date: expense.date,
+          category: expense.category,
+          item: expense.item,
+          amount: expense.amount,
+          vendor: expense.vendor,
+          notes: expense.notes,
+          receipt_reference: expense.receipt_reference
+        });
+        if (response.success) {
+          setExpenses(prev => [...prev, response.data]);
+          setShowExpenseModal(false);
+          toast({ title: 'تم بنجاح', description: 'تم إضافة المصروف' });
+        }
+      }
+      setExpenseDraft({ date: new Date().toISOString().slice(0,10), category: 'other' });
+    } catch (error: any) {
+      console.error('Error saving expense:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error?.message || 'فشل حفظ المصروف' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Export Payment handlers - REMOVED (read-only)
+
+  // Delete handlers
+  const handleDeleteWorker = async (id: number) => {
+    if (!confirm('هل أنت متأكد من حذف هذا العامل؟')) return;
+    
+    try {
+      setLoading(true);
+      const response = await api.delete<{ success: boolean }>(`/workers/${id}`);
+      if (response.success) {
+        setWorkers(prev => prev.filter(w => w.id !== id));
+        toast({ title: 'تم بنجاح', description: 'تم حذف العامل' });
+      }
+    } catch (error: any) {
+      console.error('Error deleting worker:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error?.message || 'فشل حذف العامل' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteWorkerPayment = async (id: number) => {
+    if (!confirm('هل أنت متأكد من حذف هذا الدفع؟')) return;
+    
+    try {
+      setLoading(true);
+      const response = await api.delete<{ success: boolean }>(`/worker-payments/${id}`);
+      if (response.success) {
+        setWorkerPayments(prev => prev.filter(p => p.id !== id));
+        toast({ title: 'تم بنجاح', description: 'تم حذف الدفع' });
+      }
+    } catch (error: any) {
+      console.error('Error deleting worker payment:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error?.message || 'فشل حذف الدفع' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteExpense = async (id: number) => {
+    if (!confirm('هل أنت متأكد من حذف هذا المصروف؟')) return;
+    
+    try {
+      setLoading(true);
+      const response = await api.delete<{ success: boolean }>(`/payment-expenses/${id}`);
+      if (response.success) {
+        setExpenses(prev => prev.filter(e => e.id !== id));
+        toast({ title: 'تم بنجاح', description: 'تم حذف المصروف' });
+      }
+    } catch (error: any) {
+      console.error('Error deleting expense:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error?.message || 'فشل حذف المصروف' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteOwnerFund = async (id: number) => {
+    if (!confirm('هل أنت متأكد من حذف هذه الجلسة؟')) return;
+    
+    try {
+      setLoading(true);
+      const response = await api.delete<{ success: boolean }>(`/owner-funds/${id}`);
+      if (response.success) {
+        setOwnerFunds(prev => prev.filter(f => f.id !== id));
+        toast({ title: 'تم بنجاح', description: 'تم حذف الجلسة' });
+      }
+    } catch (error: any) {
+      console.error('Error deleting owner fund:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'خطأ', 
+        description: error?.message || 'فشل حذف الجلسة' 
       });
     } finally {
       setLoading(false);
@@ -594,6 +914,47 @@ export function PaymentsPage() {
       key,
       direction: currentSort.key === key && currentSort.direction === 'asc' ? 'desc' : 'asc'
     });
+  };
+
+  // Excel export for Oil Sales
+  const handleExportToExcel = () => {
+    try {
+      const dataToExport = filteredExportPayments.map(payment => ({
+        'التاريخ': payment.payment_date,
+        'الحاوية': payment.container?.label || `حاوية #${payment.containerId}`,
+        'المبلغ (د.ت)': Number(payment.amount),
+        'المشتري': payment.buyer_name || '',
+        'معلومات التواصل': payment.buyer_contact || '',
+        'طريقة الدفع': payment.payment_method === 'cash' ? 'نقداً' : 
+                      payment.payment_method === 'transfer' ? 'تحويل' : 
+                      payment.payment_method === 'check' ? 'شيك' : payment.payment_method,
+        'المرجع': payment.reference || '',
+        'ملاحظات': payment.notes || ''
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'مبيعات الزيت');
+      
+      // Set column widths
+      const maxWidth = 20;
+      worksheet['!cols'] = Object.keys(dataToExport[0] || {}).map(() => ({ wch: maxWidth }));
+      
+      const fileName = `مبيعات_الزيت_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+      
+      toast({
+        title: 'تم بنجاح',
+        description: `تم تصدير ${filteredExportPayments.length} عملية بيع إلى Excel`
+      });
+    } catch (error: any) {
+      console.error('Error exporting to Excel:', error);
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: error?.message || 'فشل تصدير البيانات'
+      });
+    }
   };
 
   if (!isAdmin) {
@@ -621,7 +982,11 @@ export function PaymentsPage() {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="summary" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            الملخص
+          </TabsTrigger>
           <TabsTrigger value="owner" className="flex items-center gap-2">
             <Wallet className="h-4 w-4" />
             أموال المالك
@@ -629,6 +994,10 @@ export function PaymentsPage() {
           <TabsTrigger value="sales" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             مبيعات الزيت
+          </TabsTrigger>
+          <TabsTrigger value="ticketPayments" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            مدفوعات التذاكر
           </TabsTrigger>
           <TabsTrigger value="workers" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -639,6 +1008,197 @@ export function PaymentsPage() {
             مصروفات المعصرة
           </TabsTrigger>
         </TabsList>
+
+        {/* Summary Tab */}
+        <TabsContent value="summary" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Income Summary */}
+            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                  <TrendingUp className="h-5 w-5" />
+                  الدخل (الإيرادات)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">مبيعات الزيت:</span>
+                    <strong className="text-lg text-green-700 dark:text-green-400">
+                      {exportPaymentsTotal.toLocaleString()} د.ت
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">مدفوعات التذاكر الواردة:</span>
+                    <strong className="text-lg text-green-700 dark:text-green-400">
+                      {ticketPaymentsCalculated.incoming.toLocaleString()} د.ت
+                    </strong>
+                  </div>
+                  <div className="border-t pt-2 mt-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold">إجمالي الدخل:</span>
+                      <strong className="text-xl text-green-700 dark:text-green-400">
+                        {(exportPaymentsTotal + ticketPaymentsCalculated.incoming).toLocaleString()} د.ت
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Expenses Summary */}
+            <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                  <TrendingDown className="h-5 w-5" />
+                  المصروفات
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">مدفوعات التذاكر الصادرة:</span>
+                    <strong className="text-lg text-red-700 dark:text-red-400">
+                      {ticketPaymentsCalculated.outgoing.toLocaleString()} د.ت
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">مدفوعات العمال:</span>
+                    <strong className="text-lg text-red-700 dark:text-red-400">
+                      {workersSummary.totalPaid.toLocaleString()} د.ت
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">مصروفات المعصرة:</span>
+                    <strong className="text-lg text-red-700 dark:text-red-400">
+                      {expensesTotal.toLocaleString()} د.ت
+                    </strong>
+                  </div>
+                  <div className="border-t pt-2 mt-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold">إجمالي المصروفات:</span>
+                      <strong className="text-xl text-red-700 dark:text-red-400">
+                        {(ticketPaymentsCalculated.outgoing + workersSummary.totalPaid + expensesTotal).toLocaleString()} د.ت
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Net Balance */}
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                  <Wallet className="h-5 w-5" />
+                  الرصيد الصافي
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-4">
+                  <div className="text-4xl font-bold mb-2">
+                    <span className={(() => {
+                      const net = (exportPaymentsTotal + ticketPaymentsCalculated.incoming) - 
+                                  (ticketPaymentsCalculated.outgoing + workersSummary.totalPaid + expensesTotal);
+                      return net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+                    })()}>
+                      {((exportPaymentsTotal + ticketPaymentsCalculated.incoming) - 
+                        (ticketPaymentsCalculated.outgoing + workersSummary.totalPaid + expensesTotal)).toLocaleString()}
+                    </span>
+                    <span className="text-lg text-muted-foreground mr-2">د.ت</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    إجمالي الدخل - إجمالي المصروفات
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Detailed Breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle>التفاصيل الكاملة</CardTitle>
+              <CardDescription>تفصيل جميع الإيرادات والمصروفات</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Income Details */}
+                <div>
+                  <h3 className="font-semibold text-lg mb-4 text-green-700 dark:text-green-400">
+                    مصادر الدخل
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/10 rounded-lg">
+                      <div>
+                        <div className="font-medium">مبيعات الزيت</div>
+                        <div className="text-sm text-muted-foreground">
+                          {exportPayments.length} عملية بيع
+                        </div>
+                      </div>
+                      <strong className="text-green-700 dark:text-green-400">
+                        {exportPaymentsTotal.toLocaleString()} د.ت
+                      </strong>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/10 rounded-lg">
+                      <div>
+                        <div className="font-medium">مدفوعات التذاكر الواردة</div>
+                        <div className="text-sm text-muted-foreground">
+                          {ticketPaymentsCalculated.incomingCount} عملية
+                        </div>
+                      </div>
+                      <strong className="text-green-700 dark:text-green-400">
+                        {ticketPaymentsCalculated.incoming.toLocaleString()} د.ت
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expense Details */}
+                <div>
+                  <h3 className="font-semibold text-lg mb-4 text-red-700 dark:text-red-400">
+                    المصروفات
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/10 rounded-lg">
+                      <div>
+                        <div className="font-medium">مدفوعات التذاكر الصادرة</div>
+                        <div className="text-sm text-muted-foreground">
+                          {ticketPaymentsCalculated.outgoingCount} عملية
+                        </div>
+                      </div>
+                      <strong className="text-red-700 dark:text-red-400">
+                        {ticketPaymentsCalculated.outgoing.toLocaleString()} د.ت
+                      </strong>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/10 rounded-lg">
+                      <div>
+                        <div className="font-medium">مدفوعات العمال</div>
+                        <div className="text-sm text-muted-foreground">
+                          {workerPayments.length} دفعة
+                        </div>
+                      </div>
+                      <strong className="text-red-700 dark:text-red-400">
+                        {workersSummary.totalPaid.toLocaleString()} د.ت
+                      </strong>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/10 rounded-lg">
+                      <div>
+                        <div className="font-medium">مصروفات المعصرة</div>
+                        <div className="text-sm text-muted-foreground">
+                          {expenses.length} مصروف
+                        </div>
+                      </div>
+                      <strong className="text-red-700 dark:text-red-400">
+                        {expensesTotal.toLocaleString()} د.ت
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Owner's Daily Funds Tab */}
         <TabsContent value="owner" className="space-y-4">
@@ -766,13 +1326,22 @@ export function PaymentsPage() {
                           <TableCell>{fund.relatedSales.length}</TableCell>
                           <TableCell className="max-w-[200px] truncate">{fund.notes || '—'}</TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setEditingOwnerFund(fund)}
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setEditingOwnerFund(fund)}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteOwnerFund(fund.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -795,19 +1364,15 @@ export function PaymentsPage() {
                     إجمالي المبيعات: <strong className="text-foreground">{exportPaymentsTotal.toLocaleString()}</strong> د.ت
                     {' • '}
                     عدد العمليات: <strong>{exportPayments.length}</strong>
+                    {' • '}
+                    نقداً: <strong className="text-green-600">
+                      {exportPayments.filter(ep => ep.payment_method === 'cash').reduce((sum, ep) => sum + Number(ep.amount || 0), 0).toLocaleString()}
+                    </strong> د.ت
                   </CardDescription>
                 </div>
-                <Button onClick={() => {
-                  setExportPaymentDraft({ 
-                    payment_date: new Date().toISOString().slice(0,10), 
-                    payment_method: 'cash',
-                    payment_type: 'incoming'
-                  });
-                  setEditingExportPayment(null);
-                  setShowExportPaymentModal(true);
-                }}>
-                    <Plus className="h-4 w-4 mr-2" />
-                  عملية بيع جديدة
+                <Button onClick={handleExportToExcel} variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  تصدير Excel
                 </Button>
               </div>
             </CardHeader>
@@ -911,38 +1476,186 @@ export function PaymentsPage() {
                           <TableCell>{payment.buyer_name || '—'}</TableCell>
                           <TableCell>{payment.buyer_contact || '—'}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">
-                              {payment.payment_method === 'cash' ? 'نقداً' : 
-                               payment.payment_method === 'transfer' ? 'تحويل' : 
-                               payment.payment_method === 'check' ? 'شيك' : payment.payment_method}
+                            <Badge variant={payment.payment_method === 'cash' ? 'default' : 'outline'} className={payment.payment_method === 'cash' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}>
+                              {payment.payment_method === 'cash' ? '💰 نقداً' : 
+                               payment.payment_method === 'transfer' ? '🏦 تحويل' : 
+                               payment.payment_method === 'check' ? '📝 شيك' : payment.payment_method}
                             </Badge>
                           </TableCell>
                           <TableCell>{payment.reference || '—'}</TableCell>
                           <TableCell className="max-w-[200px] truncate">{payment.notes || '—'}</TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setExportPaymentDraft(payment);
-                                  setEditingExportPayment(payment);
-                                  setShowExportPaymentModal(true);
-                                }}
-                              >
-                                <Edit3 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteExportPayment(payment.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
+                            {/* READ ONLY - No edit/delete */}
+                            <span className="text-muted-foreground text-sm">عرض فقط</span>
                           </TableCell>
                         </TableRow>
                       ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Ticket Payments Tab - READ ONLY */}
+        <TabsContent value="ticketPayments" className="space-y-4">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>مدفوعات التذاكر</CardTitle>
+                  <CardDescription className="mt-2">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <span>إجمالي الواردات: <strong className="text-success">{ticketPaymentsCalculated.incoming.toLocaleString()}</strong> د.ت</span>
+                      <span>إجمالي الصادرات: <strong className="text-destructive">{ticketPaymentsCalculated.outgoing.toLocaleString()}</strong> د.ت</span>
+                      <span>الرصيد الصافي: <strong className={ticketPaymentsCalculated.netBalance >= 0 ? 'text-success' : 'text-destructive'}>{ticketPaymentsCalculated.netBalance.toLocaleString()}</strong> د.ت</span>
+                      <span>عدد العمليات: <strong>{ticketPaymentsCalculated.totalCount}</strong></span>
+                    </div>
+                  </CardDescription>
+                </div>
+                {/* READ ONLY - No add/edit/delete buttons */}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filters */}
+              <div className="flex flex-wrap gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="بحث في رقم التذكرة أو العميل..."
+                      value={ticketPaymentSearch}
+                      onChange={(e) => setTicketPaymentSearch(e.target.value)}
+                      className="pr-9"
+                    />
+                  </div>
+                </div>
+                <Input
+                  type="date"
+                  value={ticketPaymentDateFilter}
+                  onChange={(e) => setTicketPaymentDateFilter(e.target.value)}
+                  className="w-[180px]"
+                />
+                <Select value={ticketPaymentTypeFilter} onValueChange={setTicketPaymentTypeFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="نوع الدفع" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع الأنواع</SelectItem>
+                    <SelectItem value="incoming">وارد</SelectItem>
+                    <SelectItem value="outgoing">صادر</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTicketPaymentSearch('');
+                    setTicketPaymentDateFilter('');
+                    setTicketPaymentTypeFilter('all');
+                  }}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  إعادة تعيين
+                </Button>
+              </div>
+
+              {/* Table */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="cursor-pointer" onClick={() => handleSort('payment_date', ticketPaymentSort, setTicketPaymentSort)}>
+                        <div className="flex items-center gap-2">
+                          التاريخ
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead>رقم التذكرة</TableHead>
+                      <TableHead>العميل</TableHead>
+                      <TableHead className="cursor-pointer" onClick={() => handleSort('payment_type', ticketPaymentSort, setTicketPaymentSort)}>
+                        <div className="flex items-center gap-2">
+                          نوع الدفع
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer" onClick={() => handleSort('operation_type', ticketPaymentSort, setTicketPaymentSort)}>
+                        <div className="flex items-center gap-2">
+                          نوع العملية
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead className="cursor-pointer" onClick={() => handleSort('amount', ticketPaymentSort, setTicketPaymentSort)}>
+                        <div className="flex items-center gap-2">
+                          المبلغ
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead>طريقة الدفع</TableHead>
+                      <TableHead>المرجع</TableHead>
+                      <TableHead>ملاحظات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          جاري التحميل...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredTicketPayments.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          لا توجد مدفوعات
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredTicketPayments.map(payment => {
+                        const clientName = payment.ticket?.client 
+                          ? (payment.ticket.client.firstname && payment.ticket.client.lastname
+                              ? `${payment.ticket.client.firstname} ${payment.ticket.client.lastname}`
+                              : payment.ticket.client.name || '—')
+                          : '—';
+                        const displayAmount = payment.payment_type === 'outgoing' 
+                          ? -Number(payment.amount) 
+                          : Number(payment.amount);
+                        
+                        return (
+                          <TableRow key={payment.id}>
+                            <TableCell>{payment.payment_date}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {payment.ticket?.ticketNumber || `#${payment.ticketId}`}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{clientName}</TableCell>
+                            <TableCell>
+                              <Badge variant={payment.payment_type === 'incoming' ? 'default' : 'destructive'}>
+                                {payment.payment_type === 'incoming' ? 'وارد' : 'صادر'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {payment.operation_type === 'pressing' ? 'عصر' : 'بيع'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <strong className={payment.payment_type === 'incoming' ? 'text-success' : 'text-destructive'}>
+                                {displayAmount >= 0 ? '+' : ''}{displayAmount.toLocaleString()} د.ت
+                              </strong>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {payment.payment_method === 'cash' ? 'نقداً' : 
+                                 payment.payment_method === 'transfer' ? 'تحويل' : 
+                                 payment.payment_method === 'check' ? 'شيك' : payment.payment_method}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{payment.reference || '—'}</TableCell>
+                            <TableCell className="max-w-[200px] truncate">{payment.notes || '—'}</TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -1041,33 +1754,60 @@ export function PaymentsPage() {
                       </TableRow>
                     ) : (
                       filteredWorkers.map(worker => (
-                        <TableRow key={worker.id}>
-                          <TableCell>{worker.firstName}</TableCell>
-                          <TableCell>{worker.lastName}</TableCell>
+                        <TableRow 
+                          key={worker.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => setSelectedWorkerForHistory(worker)}
+                        >
+                          <TableCell className="font-medium">{worker.firstName}</TableCell>
+                          <TableCell className="font-medium">{worker.lastName}</TableCell>
                           <TableCell>{worker.phone || '—'}</TableCell>
                           <TableCell>
                             <Badge variant={worker.status === 'active' ? 'default' : 'secondary'}>
                               {worker.status === 'active' ? 'نشط' : 'غير نشط'}
                             </Badge>
                           </TableCell>
-                          <TableCell>{worker.totalPaid?.toLocaleString() || 0} د.ت</TableCell>
+                          <TableCell>
+                            <strong className="text-destructive">
+                              {worker.totalPaid?.toLocaleString() || 0} د.ت
+                            </strong>
+                          </TableCell>
                           <TableCell>
                             <Badge variant={worker.outstandingBalance && worker.outstandingBalance > 0 ? 'destructive' : 'default'}>
                               {worker.outstandingBalance?.toLocaleString() || 0} د.ت
                             </Badge>
                           </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setWorkerDraft(worker);
-                                setEditingWorker(worker);
-                                setShowWorkerModal(true);
-                              }}
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </Button>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setWorkerDraft(worker);
+                                  setEditingWorker(worker);
+                                  setShowWorkerModal(true);
+                                }}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedWorkerForHistory(worker);
+                                }}
+                                title="عرض سجل المدفوعات"
+                              >
+                                <History className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteWorker(worker.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -1114,20 +1854,33 @@ export function PaymentsPage() {
                                     {payment.type === 'advance' ? 'سلفة' : payment.type === 'salary' ? 'راتب' : 'أخرى'}
                                   </Badge>
                                 </TableCell>
-                                <TableCell>{payment.method === 'cash' ? 'نقداً' : payment.method === 'transfer' ? 'تحويل' : 'شيك'}</TableCell>
+                                <TableCell>
+                                  <Badge variant={payment.method === 'cash' ? 'default' : 'outline'} className={payment.method === 'cash' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}>
+                                    {payment.method === 'cash' ? '💰 نقداً' : payment.method === 'transfer' ? '🏦 تحويل' : '📝 شيك'}
+                                  </Badge>
+                                </TableCell>
                                 <TableCell className="max-w-[200px] truncate">{payment.notes || '—'}</TableCell>
                                 <TableCell>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setPaymentDraft(payment);
-                                      setEditingPayment(payment);
-                                      setShowPayModal(true);
-                                    }}
-                                  >
-                                    <Edit3 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setPaymentDraft(payment);
+                                        setEditingPayment(payment);
+                                        setShowPayModal(true);
+                                      }}
+                                    >
+                                      <Edit3 className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteWorkerPayment(payment.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             );
@@ -1279,17 +2032,26 @@ export function PaymentsPage() {
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate">{expense.notes || '—'}</TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setExpenseDraft(expense);
-                                setEditingExpense(expense);
-                                setShowExpenseModal(true);
-                              }}
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setExpenseDraft(expense);
+                                  setEditingExpense(expense);
+                                  setShowExpenseModal(true);
+                                }}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteExpense(expense.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -1363,36 +2125,35 @@ export function PaymentsPage() {
                     value={editingOwnerFund.startingFunds || ''}
                     onChange={(e) => {
                       const newAmount = Number(e.target.value);
+                      // Balance will be recalculated on the backend from ticket payments
                       setEditingOwnerFund({
                         ...editingOwnerFund,
-                        startingFunds: newAmount,
-                        balance: newAmount - (editingOwnerFund.amountSpent || 0)
+                        startingFunds: newAmount
                       });
                     }}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="ownerSpent">المصروف</Label>
+                  <Label htmlFor="ownerSpent">المصروف (محسوب تلقائياً من الصادرات)</Label>
                   <Input
                     id="ownerSpent"
                     type="number"
                     value={editingOwnerFund.amountSpent || ''}
-                    onChange={(e) => {
-                      const newSpent = Number(e.target.value);
-                      setEditingOwnerFund({
-                        ...editingOwnerFund,
-                        amountSpent: newSpent,
-                        balance: (editingOwnerFund.startingFunds || 0) - newSpent
-                      });
-                    }}
+                    disabled
+                    className="bg-muted"
+                    readOnly
                   />
+                  <p className="text-xs text-muted-foreground">
+                    يتم حساب المصروف تلقائياً من مدفوعات التذاكر الصادرة لهذا التاريخ
+                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>المتبقي</Label>
+                  <Label>المتبقي (محسوب تلقائياً)</Label>
                   <Input
                     value={editingOwnerFund.balance.toLocaleString()}
                     disabled
                     className="bg-muted"
+                    readOnly
                   />
                 </div>
                 <div className="col-span-2 space-y-2">
@@ -1624,128 +2385,7 @@ export function PaymentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Export Payment Modal */}
-      <Dialog open={showExportPaymentModal} onOpenChange={setShowExportPaymentModal}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>{editingExportPayment ? 'تعديل عملية بيع' : 'عملية بيع جديدة'}</DialogTitle>
-            <DialogDescription>
-              تسجيل عملية بيع زيت من حاوية
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="exportDate">تاريخ البيع</Label>
-                <Input
-                  id="exportDate"
-                  type="date"
-                  value={exportPaymentDraft.payment_date?.slice(0,10) || new Date().toISOString().slice(0,10)}
-                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, payment_date: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="exportContainer">الحاوية *</Label>
-                <Select
-                  value={exportPaymentDraft.containerId?.toString() || ''}
-                  onValueChange={(value) => setExportPaymentDraft({ ...exportPaymentDraft, containerId: Number(value) })}
-                >
-                  <SelectTrigger id="exportContainer">
-                    <SelectValue placeholder="اختر الحاوية" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {containers.map(c => (
-                      <SelectItem key={c.id} value={c.id.toString()}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="exportAmount">المبلغ (د.ت) *</Label>
-                <Input
-                  id="exportAmount"
-                  type="number"
-                  value={exportPaymentDraft.amount || ''}
-                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, amount: Number(e.target.value) })}
-                  placeholder="0"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="exportMethod">طريقة الدفع</Label>
-                <Select
-                  value={exportPaymentDraft.payment_method || 'cash'}
-                  onValueChange={(value) => setExportPaymentDraft({ ...exportPaymentDraft, payment_method: value })}
-                >
-                  <SelectTrigger id="exportMethod">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">نقداً</SelectItem>
-                    <SelectItem value="transfer">تحويل</SelectItem>
-                    <SelectItem value="check">شيك</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="exportBuyer">اسم المشتري</Label>
-                <Input
-                  id="exportBuyer"
-                  value={exportPaymentDraft.buyer_name || ''}
-                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, buyer_name: e.target.value })}
-                  placeholder="اسم المشتري"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="exportContact">معلومات التواصل</Label>
-                <Input
-                  id="exportContact"
-                  value={exportPaymentDraft.buyer_contact || ''}
-                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, buyer_contact: e.target.value })}
-                  placeholder="هاتف أو بريد إلكتروني"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="exportReference">رقم المرجع</Label>
-                <Input
-                  id="exportReference"
-                  value={exportPaymentDraft.reference || ''}
-                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, reference: e.target.value })}
-                  placeholder="رقم المرجع أو الفاتورة"
-                />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="exportNotes">ملاحظات</Label>
-                <Input
-                  id="exportNotes"
-                  value={exportPaymentDraft.notes || ''}
-                  onChange={(e) => setExportPaymentDraft({ ...exportPaymentDraft, notes: e.target.value })}
-                  placeholder="ملاحظات إضافية"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => {
-                setShowExportPaymentModal(false);
-                setEditingExportPayment(null);
-                setExportPaymentDraft({ payment_date: new Date().toISOString().slice(0,10), payment_method: 'cash', payment_type: 'incoming' });
-              }}>
-                إلغاء
-              </Button>
-              <Button 
-                onClick={() => handleSaveExportPayment(exportPaymentDraft as ExportPayment)}
-                disabled={!exportPaymentDraft.containerId || !exportPaymentDraft.amount || loading}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {loading ? 'جاري الحفظ...' : editingExportPayment ? 'تحديث' : 'حفظ'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Export Payment Modal - REMOVED (read-only) */}
 
       {/* Expense Modal */}
       <Dialog open={showExpenseModal} onOpenChange={setShowExpenseModal}>
@@ -1844,6 +2484,109 @@ export function PaymentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Worker Payment History Modal */}
+      <Dialog open={!!selectedWorkerForHistory} onOpenChange={(open) => !open && setSelectedWorkerForHistory(null)}>
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              سجل المدفوعات - {selectedWorkerForHistory?.firstName} {selectedWorkerForHistory?.lastName}
+            </DialogTitle>
+            <DialogDescription>
+              جميع المدفوعات المسجلة لهذا العامل
+            </DialogDescription>
+          </DialogHeader>
+          {selectedWorkerForHistory && (
+            <div className="space-y-4">
+              {/* Worker Info Summary */}
+              <Card className="bg-muted/50">
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <div className="text-sm text-muted-foreground">إجمالي المدفوع</div>
+                      <div className="text-2xl font-bold text-destructive">
+                        {workerPayments
+                          .filter(p => p.workerId === selectedWorkerForHistory.id)
+                          .reduce((sum, p) => sum + Number(p.amount || 0), 0)
+                          .toLocaleString()} د.ت
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">عدد الدفعات</div>
+                      <div className="text-2xl font-bold">
+                        {workerPayments.filter(p => p.workerId === selectedWorkerForHistory.id).length}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">نقداً</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {workerPayments
+                          .filter(p => p.workerId === selectedWorkerForHistory.id && p.method === 'cash')
+                          .reduce((sum, p) => sum + Number(p.amount || 0), 0)
+                          .toLocaleString()} د.ت
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Payment History Table */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>التاريخ</TableHead>
+                      <TableHead>المبلغ</TableHead>
+                      <TableHead>النوع</TableHead>
+                      <TableHead>طريقة الدفع</TableHead>
+                      <TableHead>ملاحظات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {workerPayments
+                      .filter(p => p.workerId === selectedWorkerForHistory.id)
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          لا توجد دفعات مسجلة
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      workerPayments
+                        .filter(p => p.workerId === selectedWorkerForHistory.id)
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map(payment => (
+                          <TableRow key={payment.id}>
+                            <TableCell>{payment.date}</TableCell>
+                            <TableCell>
+                              <strong className="text-destructive">
+                                {Number(payment.amount).toLocaleString()} د.ت
+                              </strong>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {payment.type === 'advance' ? 'سلفة' : payment.type === 'salary' ? 'راتب' : 'أخرى'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={payment.method === 'cash' ? 'default' : 'outline'} className={payment.method === 'cash' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}>
+                                {payment.method === 'cash' ? '💰 نقداً' : payment.method === 'transfer' ? '🏦 تحويل' : '📝 شيك'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate">{payment.notes || '—'}</TableCell>
+                          </TableRow>
+                        ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
