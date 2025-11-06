@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { FullscreenProvider } from "@/contexts/FullscreenContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { MainLayout } from "./components/layout/MainLayout";
 import { AuthPage } from "@/pages/auth/AuthPage";
 import { DashboardPage } from "@/pages/DashboardPage";
@@ -41,19 +42,20 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <FullscreenProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true
-            }}
-          >
-            <Routes>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <FullscreenProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true
+              }}
+            >
+              <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
                 <Route path="/" element={<DailyWorkPage />} />
@@ -75,11 +77,12 @@ const App = () => {
                 <Route path="/batch-loading-test" element={<ProtectedRoute roles={['admin']}><BatchLoadingTestPage /></ProtectedRoute>} />
               </Route>
             </Routes>
-          </BrowserRouter>
-          </TooltipProvider>
-        </FullscreenProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+            </BrowserRouter>
+            </TooltipProvider>
+          </FullscreenProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 

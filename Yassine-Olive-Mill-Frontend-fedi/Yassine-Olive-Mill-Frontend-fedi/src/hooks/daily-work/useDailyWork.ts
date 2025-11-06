@@ -978,8 +978,33 @@ export const useDailyWork = () => {
 
   // Print ticket function
   const printTicket = () => {
-    const printWindow = window.open('', '_blank');
+    // Guard: Only print if we have a valid ticket
+    if (!ticketToPrint) {
+      console.warn('printTicket called but no ticket to print');
+      return;
+    }
+
+    // Store print window reference to manage it properly
+    if ((window as any).__olivePrintWindow) {
+      try {
+        const existingWindow = (window as any).__olivePrintWindow;
+        if (existingWindow && !existingWindow.closed) {
+          existingWindow.close();
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+      (window as any).__olivePrintWindow = null;
+    }
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
     if (printWindow && ticketToPrint) {
+      // Store reference to manage this window
+      (window as any).__olivePrintWindow = printWindow;
+      
+      // Add a flag to prevent multiple prints
+      let hasPrinted = false;
+      
       printWindow.document.write(`
         <html>
           <head>
@@ -1104,15 +1129,106 @@ export const useDailyWork = () => {
             </div>
             
             <script>
-              window.onload = function() {
-                window.print();
-                setTimeout(() => window.close(), 1000);
-              }
+              (function() {
+                var hasPrinted = false;
+                var printTriggered = false;
+                var windowClosed = false;
+                
+                // Close window when print dialog is dismissed (canceled or printed)
+                window.onafterprint = function() {
+                  if (!windowClosed) {
+                    windowClosed = true;
+                    setTimeout(function() {
+                      try {
+                        if (window && !window.closed) {
+                          window.close();
+                        }
+                      } catch (e) {
+                        // Ignore errors
+                      }
+                    }, 100);
+                  }
+                };
+                
+                // Also use matchMedia for better browser support
+                if (window.matchMedia) {
+                  var mediaQueryList = window.matchMedia('print');
+                  mediaQueryList.addEventListener('change', function(mql) {
+                    if (!mql.matches && !windowClosed) {
+                      // Print dialog closed
+                      windowClosed = true;
+                      setTimeout(function() {
+                        try {
+                          if (window && !window.closed) {
+                            window.close();
+                          }
+                        } catch (e) {
+                          // Ignore errors
+                        }
+                      }, 100);
+                    }
+                  });
+                }
+                
+                window.onload = function() {
+                  // Only print once
+                  if (!printTriggered && !hasPrinted) {
+                    printTriggered = true;
+                    hasPrinted = true;
+                    
+                    // Small delay to ensure content is fully rendered
+                    setTimeout(function() {
+                      try {
+                        window.print();
+                      } catch (e) {
+                        console.error('Print error:', e);
+                        // Close window if print fails
+                        if (!windowClosed) {
+                          windowClosed = true;
+                          setTimeout(function() {
+                            try {
+                              if (window && !window.closed) {
+                                window.close();
+                              }
+                            } catch (e2) {
+                              // Ignore errors
+                            }
+                          }, 100);
+                        }
+                      }
+                    }, 100);
+                  }
+                };
+                
+                // Also handle case where onload might have already fired
+                if (document.readyState === 'complete') {
+                  window.onload();
+                }
+              })();
             </script>
           </body>
         </html>
       `);
       printWindow.document.close();
+      
+      // Fallback: Ensure window closes after a reasonable time if events don't fire
+      setTimeout(() => {
+        try {
+          if (printWindow && !printWindow.closed) {
+            printWindow.close();
+            (window as any).__olivePrintWindow = null;
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      }, 10000); // Fallback: Close after 10 seconds if still open (should be closed by events)
+      
+      // Also close on beforeunload to prevent orphaned windows
+      printWindow.addEventListener('beforeunload', () => {
+        (window as any).__olivePrintWindow = null;
+      });
+    } else {
+      console.warn('Failed to open print window');
     }
   };
 

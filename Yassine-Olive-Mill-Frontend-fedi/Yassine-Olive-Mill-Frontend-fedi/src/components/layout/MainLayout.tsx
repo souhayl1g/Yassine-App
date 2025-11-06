@@ -165,7 +165,7 @@ export function MainLayout() {
         {/* Page content */}
         <main className={cn(
           'flex-1 overflow-auto',
-          isFullscreen ? 'p-0' : 'p-6'
+          isFullscreen ? 'p-0' : 'p-3 sm:p-4 lg:p-6'
         )}>
           <Outlet />
         </main>

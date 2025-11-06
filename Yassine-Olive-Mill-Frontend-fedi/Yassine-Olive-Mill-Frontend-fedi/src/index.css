@@ -162,6 +162,23 @@ All colors MUST be HSL for proper theming support.
   body {
     @apply bg-background text-foreground transition-colors duration-300;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    /* Improve touch scrolling on mobile */
+    -webkit-overflow-scrolling: touch;
+    /* Prevent text size adjustment on mobile */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  
+  /* Improve touch targets for mobile */
+  button, a, input, select {
+    touch-action: manipulation;
+  }
+  
+  /* Prevent zoom on double tap for iOS */
+  @media screen and (max-width: 768px) {
+    button, a {
+      -webkit-tap-highlight-color: transparent;
+    }
   }
 }
 

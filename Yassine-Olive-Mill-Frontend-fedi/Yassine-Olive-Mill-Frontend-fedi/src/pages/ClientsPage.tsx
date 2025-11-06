@@ -91,6 +91,14 @@ export function ClientsPage() {
       params.set('limit', '10');
       if (searchQuery.trim()) params.set('search', searchQuery.trim());
       const resp = await api.get<ClientsResponse>(`/clients?${params.toString()}`);
+      
+      // Defensive null checks
+      if (!resp) {
+        setClients([]);
+        setPages(1);
+        return;
+      }
+      
       const list = (resp.clients || []).map((c) => ({
         ...c,
         // fallback pour type si l'API ne le retourne pas
@@ -99,7 +107,14 @@ export function ClientsPage() {
       setClients(list);
       setPages(resp.pagination?.pages || 1);
     } catch (e: any) {
-      toast({ variant: 'destructive', title: t('common.error'), description: e?.message || 'Failed to load clients' });
+      console.error('Error loading clients:', e);
+      toast({ 
+        variant: 'destructive', 
+        title: t('common.error'), 
+        description: e?.message || 'فشل تحميل العملاء. يرجى المحاولة مرة أخرى.' 
+      });
+      setClients([]);
+      setPages(1);
     } finally {
       setIsLoading(false);
     }
@@ -144,6 +159,41 @@ export function ClientsPage() {
     }
   };
 
+  // Prevent any accidental print triggers when dialogs close
+  useEffect(() => {
+    // Close any lingering print windows when dialogs close
+    const cleanupPrintWindows = () => {
+      try {
+        // Check if there's a print window reference from DailyWork
+        if ((window as any).__olivePrintWindow) {
+          const printWindow = (window as any).__olivePrintWindow;
+          if (printWindow && !printWindow.closed) {
+            // Only close if it's been open for more than 5 seconds (user likely cancelled)
+            setTimeout(() => {
+              try {
+                if (printWindow && !printWindow.closed) {
+                  printWindow.close();
+                  (window as any).__olivePrintWindow = null;
+                }
+              } catch (e) {
+                // Ignore errors
+              }
+            }, 100);
+          } else {
+            (window as any).__olivePrintWindow = null;
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    };
+    
+    // Only run cleanup when dialogs close (not when they open)
+    if (!isAddDialogOpen && !editingClient) {
+      cleanupPrintWindows();
+    }
+  }, [isAddDialogOpen, editingClient]);
+
   const handleEditClient = async () => {
     if (!editingClient || !formData.firstname || !formData.lastname || !formData.phone) {
       toast({
@@ -154,15 +204,12 @@ export function ClientsPage() {
       return;
     }
     try {
-      await api.put(`/clients/${editingClient.id}`,[
-        {
-          firstname: formData.firstname,
-          lastname: formData.lastname,
-          phone: formData.phone,
-          address: formData.address,
-        }
-      ] as any);
-      // Certaines API acceptent un objet; si votre backend n'accepte pas un tableau, remplacez ci-dessus par un objet.
+      await api.put(`/clients/${editingClient.id}`, {
+        firstname: formData.firstname,
+        lastname: formData.lastname,
+        phone: formData.phone,
+        address: formData.address,
+      });
       await loadClients();
       setEditingClient(null);
       resetForm();
@@ -194,16 +241,33 @@ export function ClientsPage() {
   };
 
   const handleViewClient = async (client: Client) => {
+    if (!client || !client.id) {
+      toast({
+        variant: 'destructive',
+        title: t('common.error'),
+        description: 'بيانات العميل غير صحيحة',
+      });
+      return;
+    }
+    
     setViewingClient(client);
     setLoadingClientDetails(true);
     try {
       const response = await api.get(`/clients/${client.id}`);
+      
+      // Defensive null checks
+      if (!response) {
+        setClientTickets([]);
+        return;
+      }
+      
       const clientData = response as any;
       
       // Extract tickets/batches from the client data
-      const tickets = clientData?.batches || [];
+      const tickets = Array.isArray(clientData?.batches) ? clientData.batches : [];
       setClientTickets(tickets);
     } catch (error: any) {
+      console.error('Error loading client details:', error);
       toast({
         variant: 'destructive',
         title: t('common.error'),
@@ -223,7 +287,8 @@ export function ClientsPage() {
     if (!videoRef.current) return;
 
     // Check if we're on HTTPS or localhost
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (!isSecure) {
       toast({
         variant: 'destructive',
         title: 'خطأ في الأمان',
@@ -233,12 +298,25 @@ export function ClientsPage() {
       return;
     }
 
+    // Check if getUserMedia is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast({
+        variant: 'destructive',
+        title: 'خطأ في الكاميرا',
+        description: 'المتصفح لا يدعم الوصول إلى الكاميرا',
+      });
+      setIsCameraActive(false);
+      return;
+    }
+
     try {
+      // Mobile-optimized camera settings
+      const isMobile = window.innerWidth < 768;
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: isMobile ? 640 : 1280 },
+          height: { ideal: isMobile ? 480 : 720 }
         } 
       });
       
@@ -249,13 +327,15 @@ export function ClientsPage() {
       qrScannerRef.current = new QrScanner(
         videoRef.current,
         (result) => {
-          handleQRResult(result.data);
+          if (result && result.data) {
+            handleQRResult(result.data);
+          }
         },
         {
           highlightScanRegion: true,
           highlightCodeOutline: true,
           preferredCamera: 'environment',
-          maxScansPerSecond: 5,
+          maxScansPerSecond: 3, // Reduced for mobile performance
         }
       );
 
@@ -338,19 +418,32 @@ export function ClientsPage() {
 
   // Fetch batch by ID from API
   const fetchBatchById = async (batchId: string | number) => {
+    if (!batchId) {
+      throw new Error('معرف التذكرة مطلوب');
+    }
+
     let idOrCode: string;
     
     if (typeof batchId === 'number') {
       idOrCode = String(batchId);
-    } else if (typeof batchId === 'string') {
+    } else if (typeof batchId === 'string' && batchId.trim()) {
       const num = parseInt(batchId.replace(/\D+/g, ''), 10);
-      idOrCode = isNaN(num) ? batchId : String(num);
+      idOrCode = isNaN(num) ? batchId.trim() : String(num);
     } else {
       throw new Error('معرف التذكرة غير صالح');
     }
 
+    if (!idOrCode) {
+      throw new Error('معرف التذكرة مطلوب');
+    }
+
     try {
       const res = await api.get<any>(`/batches/${idOrCode}`);
+      
+      if (!res) {
+        throw new Error('فشل جلب بيانات التذكرة');
+      }
+
       const data = getPayload<any>(res);
 
       if (!data || !data.id) {
@@ -359,6 +452,7 @@ export function ClientsPage() {
 
       return data;
     } catch (e: any) {
+      console.error('Error fetching batch:', e);
       const errorMessage = e?.response?.status === 404 
         ? 'التذكرة غير موجودة في النظام'
         : e?.message || 'فشل جلب بيانات التذكرة';
@@ -370,18 +464,26 @@ export function ClientsPage() {
   // Find client from batch data
   const findClientFromBatch = async (batch: any): Promise<Client> => {
     try {
+      if (!batch) {
+        throw new Error('بيانات التذكرة غير صحيحة');
+      }
+
       if (!batch.clientId && !batch.client?.id) {
         throw new Error('لا يوجد معرف عميل في هذه التذكرة');
       }
 
       const clientId = batch.clientId || batch.client?.id;
       
+      if (!clientId) {
+        throw new Error('لا يوجد معرف عميل صحيح');
+      }
+      
       // If we already have client data in the batch, use it
       if (batch.client && batch.client.firstname && batch.client.lastname) {
         return {
           id: clientId,
-          firstname: batch.client.firstname,
-          lastname: batch.client.lastname,
+          firstname: batch.client.firstname || '',
+          lastname: batch.client.lastname || '',
           phone: batch.client.phone || '',
           address: batch.client.address || '',
           type: batch.client.type || 'grower',
@@ -393,8 +495,12 @@ export function ClientsPage() {
       const clientResponse = await api.get(`/clients/${clientId}`);
       const clientData = getPayload<any>(clientResponse);
       
-      if (!clientData) {
+      if (!clientData || !clientData.id) {
         throw new Error('لم يتم العثور على بيانات العميل');
+      }
+
+      if (!clientData.firstname || !clientData.lastname) {
+        throw new Error('بيانات العميل غير مكتملة');
       }
 
       return {
@@ -452,37 +558,37 @@ export function ClientsPage() {
   });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-foreground">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground">
             {t('clients.title')}
           </h1>
-          <p className="text-lg text-muted-foreground mt-2">
+          <p className="text-sm sm:text-base lg:text-lg text-muted-foreground mt-1 sm:mt-2">
             إدارة عملاء المعصرة وبياناتهم
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
           <OliveButton 
             size="lg" 
             variant="outline" 
-            className="gap-2"
+            className="gap-2 w-full sm:w-auto min-h-[44px]"
             onClick={handleOpenQrScanner}
           >
-            <Camera className="h-5 w-5" />
-            مسح QR للعميل
+            <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="text-sm sm:text-base">مسح QR للعميل</span>
           </OliveButton>
           
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <OliveButton size="lg" className="gap-2">
-                <Plus className="h-5 w-5" />
-                {t('clients.addClient')}
+              <OliveButton size="lg" className="gap-2 w-full sm:w-auto min-h-[44px]">
+                <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-sm sm:text-base">{t('clients.addClient')}</span>
               </OliveButton>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[95vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{t('clients.addClient')}</DialogTitle>
               </DialogHeader>
@@ -502,19 +608,19 @@ export function ClientsPage() {
 
       {/* Filters */}
       <OliveCard>
-        <OliveCardContent className="p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <OliveCardContent className="p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center">
             <div className="flex-1 relative">
-              <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="البحث بالاسم أو رقم الهاتف..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="olive-input pr-10"
+                className="olive-input pr-10 min-h-[44px]"
               />
             </div>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-full md:w-48">
+              <SelectTrigger className="w-full md:w-48 min-h-[44px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -550,11 +656,11 @@ export function ClientsPage() {
           </OliveCardContent>
         </OliveCard>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredClients.map((client) => (
             <OliveCard 
               key={client.id} 
-              className="hover:shadow-lg transition-shadow cursor-pointer"
+              className="hover:shadow-lg transition-shadow cursor-pointer active:scale-[0.98]"
               onClick={() => handleViewClient(client)}
             >
               <OliveCardHeader>
@@ -577,6 +683,7 @@ export function ClientsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => openEditDialog(client)}
+                      className="min-w-[44px] min-h-[44px] touch-manipulation"
                     >
                       <Edit2 className="h-4 w-4" />
                     </OliveButton>
@@ -584,7 +691,7 @@ export function ClientsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeleteClient(client.id)}
-                      className="text-destructive hover:text-destructive"
+                      className="text-destructive hover:text-destructive min-w-[44px] min-h-[44px] touch-manipulation"
                     >
                       <Trash2 className="h-4 w-4" />
                     </OliveButton>
@@ -619,21 +726,31 @@ export function ClientsPage() {
       )}
 
       {/* Pagination */}
-      <div className="flex justify-center items-center gap-3">
-        <OliveButton variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+      <div className="flex justify-center items-center gap-3 flex-wrap">
+        <OliveButton 
+          variant="outline" 
+          disabled={page <= 1} 
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          className="min-h-[44px] min-w-[100px] touch-manipulation"
+        >
           {t('pagination.previous')}
         </OliveButton>
-        <span className="text-sm text-muted-foreground">{page} / {pages}</span>
-        <OliveButton variant="outline" disabled={page >= pages} onClick={() => setPage((p) => Math.min(pages, p + 1))}>
+        <span className="text-sm sm:text-base text-muted-foreground px-2">{page} / {pages}</span>
+        <OliveButton 
+          variant="outline" 
+          disabled={page >= pages} 
+          onClick={() => setPage((p) => Math.min(pages, p + 1))}
+          className="min-h-[44px] min-w-[100px] touch-manipulation"
+        >
           {t('pagination.next')}
         </OliveButton>
       </div>
 
       {/* Edit Dialog */}
       <Dialog open={!!editingClient} onOpenChange={(open) => !open && setEditingClient(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[95vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t('clients.editClient')}</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">{t('clients.editClient')}</DialogTitle>
           </DialogHeader>
           <ClientForm
             formData={formData}
@@ -649,17 +766,17 @@ export function ClientsPage() {
 
       {/* Client Details Modal */}
       <Dialog open={!!viewingClient} onOpenChange={(open) => !open && setViewingClient(null)}>
-        <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader className="pb-6">
-            <DialogTitle className="text-2xl font-bold text-center">
+        <DialogContent className="sm:max-w-5xl max-w-[95vw] max-h-[95vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="pb-4 sm:pb-6">
+            <DialogTitle className="text-lg sm:text-xl lg:text-2xl font-bold text-center">
               تفاصيل العميل: {viewingClient?.firstname} {viewingClient?.lastname}
             </DialogTitle>
           </DialogHeader>
           
           {viewingClient && (
-            <div className="space-y-8">
+            <div className="space-y-4 sm:space-y-6 lg:space-y-8">
               {/* Client Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
                 <OliveCard className="border-2">
                   <OliveCardHeader className="pb-4">
                     <OliveCardTitle className="flex items-center gap-3 text-lg">
@@ -786,7 +903,7 @@ export function ClientsPage() {
                             </Badge>
                           </div>
                           
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                             <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
                               <span className="text-muted-foreground text-sm block mb-1">الوزن</span>
                               <div className="font-bold text-blue-600 text-lg">{ticket.weight_in || 0} كغ</div>
@@ -828,9 +945,9 @@ export function ClientsPage() {
 
       {/* QR Scanner Dialog */}
       <Dialog open={isQrScannerOpen} onOpenChange={(open) => !open && handleCloseQrScanner()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[95vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle className="text-center">مسح QR للعثور على العميل</DialogTitle>
+            <DialogTitle className="text-center text-base sm:text-lg">مسح QR للعثور على العميل</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4">
@@ -877,23 +994,23 @@ export function ClientsPage() {
             </div>
 
             {/* Control Buttons */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <OliveButton
                 variant="outline"
                 onClick={handleCloseQrScanner}
-                className="flex-1"
+                className="flex-1 min-h-[44px] touch-manipulation"
               >
                 <X className="h-4 w-4 mr-2" />
-                إلغاء
+                <span className="text-sm sm:text-base">إلغاء</span>
               </OliveButton>
               
               {!isCameraActive ? (
                 <OliveButton
                   onClick={initializeCamera}
-                  className="flex-1"
+                  className="flex-1 min-h-[44px] touch-manipulation"
                 >
                   <Camera className="h-4 w-4 mr-2" />
-                  تشغيل الكاميرا
+                  <span className="text-sm sm:text-base">تشغيل الكاميرا</span>
                 </OliveButton>
               ) : (
                 <OliveButton
@@ -902,10 +1019,10 @@ export function ClientsPage() {
                     setTimeout(initializeCamera, 500);
                   }}
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 min-h-[44px] touch-manipulation"
                 >
                   <RotateCcw className="h-4 w-4 mr-2" />
-                  إعادة تشغيل
+                  <span className="text-sm sm:text-base">إعادة تشغيل</span>
                 </OliveButton>
               )}
             </div>
@@ -927,8 +1044,8 @@ function ClientForm({ formData, setFormData, onSubmit, onCancel }: ClientFormPro
   const { t } = useTranslation();
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div className="space-y-2">
           <Label htmlFor="firstname">{t('clients.firstname')}</Label>
           <Input
@@ -986,12 +1103,12 @@ function ClientForm({ formData, setFormData, onSubmit, onCancel }: ClientFormPro
         />
       </div>
 
-      <div className="flex gap-2 pt-4">
-        <OliveButton onClick={onSubmit} className="flex-1">
-          {t('actions.save')}
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4">
+        <OliveButton onClick={onSubmit} className="flex-1 min-h-[44px] touch-manipulation">
+          <span className="text-sm sm:text-base">{t('actions.save')}</span>
         </OliveButton>
-        <OliveButton variant="outline" onClick={onCancel} className="flex-1">
-          {t('actions.cancel')}
+        <OliveButton variant="outline" onClick={onCancel} className="flex-1 min-h-[44px] touch-manipulation">
+          <span className="text-sm sm:text-base">{t('actions.cancel')}</span>
         </OliveButton>
       </div>
     </div>
