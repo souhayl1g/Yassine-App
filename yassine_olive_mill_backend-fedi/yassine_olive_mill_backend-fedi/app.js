@@ -19,19 +19,39 @@ const { sequelize } = db;
 
 const app = express();
 
-// CORS configuration - SINGLE CONFIGURATION
-app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'http://localhost:5173',
-    'http://192.168.1.22:5173',  // Add your actual frontend IP
-    'http://127.0.0.1:5173'
-  ],
+// CORS configuration - robust local/LAN support
+const allowedLocalOriginsRegex = new RegExp(
+  // Allow localhost/127.0.0.1 and private LAN ranges (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+  '^(http:\\/\\/(localhost|127\\.0\\.0\\.1|192\\.168\\.\\d{1,3}\\.\\d{1,3}|10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|172\\.(1[6-9]|2[0-9]|3[0-1])\\.\\d{1,3}\\.\\d{1,3}))(::?\\d+)?$'
+);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser clients or same-origin requests without Origin header
+    if (!origin) return callback(null, true);
+    // Quick allows for common dev hosts
+    const staticAllow = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000',
+      'http://192.168.56.1:5173',
+      'http://192.168.33.1:5173',
+    ];
+    if (staticAllow.includes(origin) || allowedLocalOriginsRegex.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200
-}));
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+// Ensure preflight requests are handled for all routes
+app.options('*', cors(corsOptions));
 
 // Security middleware
 app.use(helmet({
@@ -90,7 +110,8 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-const HOST = 'localhost';
+// Bind to 0.0.0.0 so the API is reachable from LAN IPs when needed
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Database connection and server start
 const startServer = async () => {
@@ -105,9 +126,9 @@ const startServer = async () => {
     
     app.listen(PORT, HOST, () => {
       console.log(`🚀 Olive Oil Mill API server running on port ${PORT}`);
-      console.log(`📊 Dashboard: http://${HOST}:${PORT}/api/dashboard/overview`);
-      console.log(`🏥 Health check: http://${HOST}:${PORT}/api/health`);
-      console.log(`🌐 Server accessible from: http://192.168.1.31:${PORT}`);
+      console.log(`📊 Dashboard: http://localhost:${PORT}/api/dashboard/overview`);
+      console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+      console.log(`🌐 Server accessible from your LAN at: http://<your-ip>:${PORT}`);
     });
   } catch (error) {
     console.error('❌ Unable to connect to the database:', error);
