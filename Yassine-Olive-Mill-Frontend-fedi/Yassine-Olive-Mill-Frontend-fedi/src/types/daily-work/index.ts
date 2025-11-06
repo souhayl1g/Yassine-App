@@ -15,6 +15,9 @@ export interface Ticket {
   weightOut?: number;
   netWeight?: number;
   numberOfBoxes: number;
+  numberOfBidons?: number; // Bidons brought by client (base)
+  numberOfBidonsProduced?: number; // Bidons actually produced (from backend number_of_bidons)
+  taux?: number; // Oil extraction rate percentage
   unitPrice?: number;
   totalAmount?: number;
   isPaid?: boolean;

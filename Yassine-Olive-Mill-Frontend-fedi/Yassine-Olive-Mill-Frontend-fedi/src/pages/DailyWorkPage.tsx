@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DailyWorkHeader } from '@/components/daily-work/DailyWorkHeader';
 import { AddTicketModal } from '@/components/daily-work/AddTicketModal';
-import { QRScanModal, CameraScanModal } from '@/components/daily-work/QRScanModal';
+import { QRScanModal } from '@/components/daily-work/QRScanModal';
 import { RecentTicketsSection } from '@/components/daily-work/RecentTicketsSection';
 import { MinimizedTicketsBar } from '@/components/daily-work/MinimizedTicketsBar';
 import { EditTicketModal } from '@/components/daily-work/EditTicketModal';
@@ -63,19 +63,7 @@ export function DailyWorkPage() {
         onRemoveFromMinimized={dailyWork.removeFromMinimized}
       />
 
-      {/* Camera QR Scan Modal */}
-      <CameraScanModal
-        isOpen={dailyWork.isCameraScanOpen}
-        onClose={() => {
-          dailyWork.setIsCameraScanOpen(false);
-          dailyWork.stopCamera();
-          dailyWork.setIsFinishingOperation(false);
-        }}
-        isCameraActive={dailyWork.isCameraActive}
-        videoRef={dailyWork.videoRef}
-        onStartCamera={dailyWork.initializeCamera}
-        onStopCamera={dailyWork.stopCamera}
-      />
+      {/* Camera scan is now a tab inside QRScanModal */}
 
       {/* Edit Ticket Modal */}
       <EditTicketModal
@@ -158,19 +146,20 @@ export function DailyWorkPage() {
           dailyWork.setIsQrScanOpen(open);
           if (!open) {
             dailyWork.setIsFinishingOperation(false);
+            dailyWork.stopCamera();
           }
         }}
         onFileUpload={dailyWork.handleQRScan}
-        onOpenCamera={() => {
-          dailyWork.setIsQrScanOpen(false);
-          dailyWork.setIsCameraScanOpen(true);
-        }}
         onDeviceScan={(qrData) => {
           // Handle device scan - create a fake file to reuse existing handleQRScan logic
           const fakeFile = new File([qrData], 'qr-scan.txt', { type: 'text/plain' });
           // For device scan, we need to directly process the QR data
           dailyWork.handleQRResult(qrData);
         }}
+        isCameraActive={dailyWork.isCameraActive}
+        videoRef={dailyWork.videoRef}
+        onStartCamera={dailyWork.initializeCamera}
+        onStopCamera={dailyWork.stopCamera}
       />
 
       {/* Payment Modal */}

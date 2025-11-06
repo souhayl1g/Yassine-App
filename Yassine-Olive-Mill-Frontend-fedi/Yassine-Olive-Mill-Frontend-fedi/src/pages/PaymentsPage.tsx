@@ -384,48 +384,60 @@ export function PaymentsPage() {
     const today = new Date().toISOString().slice(0,10);
     const todaySession = ownerFunds.find(f => f.date === today);
     
-    // Calculate today's sales from export payments
+    // Calculate today's sales from export payments - ensure proper number conversion
     const todaySales = exportPayments
       .filter(ep => ep.payment_date === today)
-      .reduce((sum, ep) => sum + Number(ep.amount || 0), 0);
+      .reduce((sum, ep) => {
+        const amount = typeof ep.amount === 'string' ? parseFloat(ep.amount) || 0 : (ep.amount || 0);
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
     
-    // Calculate today's expenses
+    // Calculate today's expenses - ensure proper number conversion
     const todayExpenses = expenses
       .filter(e => e.date === today)
-      .reduce((sum, e) => sum + (e.amount || 0), 0);
+      .reduce((sum, e) => {
+        const amount = typeof e.amount === 'string' ? parseFloat(e.amount) || 0 : (e.amount || 0);
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
     
     if (todaySession) {
       const totalSales = todaySales;
       // amountSpent is already calculated from outgoing ticket payments
-      const totalSpent = todayExpenses + (todaySession.amountSpent || 0);
-      const balance = (todaySession.startingFunds || 0) + totalSales - totalSpent;
+      const amountSpent = typeof todaySession.amountSpent === 'string' ? parseFloat(todaySession.amountSpent) || 0 : (todaySession.amountSpent || 0);
+      const startingFunds = typeof todaySession.startingFunds === 'string' ? parseFloat(todaySession.startingFunds) || 0 : (todaySession.startingFunds || 0);
+      const totalSpent = todayExpenses + (isNaN(amountSpent) ? 0 : amountSpent);
+      const balance = (isNaN(startingFunds) ? 0 : startingFunds) + totalSales - totalSpent;
       
       return {
-        startingFunds: todaySession.startingFunds,
-        totalSpent,
-        totalSales,
-        balance,
-        containers: todaySession.allocatedContainers.length,
-        sales: todaySession.relatedSales.length
+        startingFunds: isNaN(startingFunds) ? 0 : startingFunds,
+        totalSpent: isNaN(totalSpent) ? 0 : totalSpent,
+        totalSales: isNaN(totalSales) ? 0 : totalSales,
+        balance: isNaN(balance) ? 0 : balance,
+        containers: Array.isArray(todaySession.allocatedContainers) ? todaySession.allocatedContainers.length : 0,
+        sales: Array.isArray(todaySession.relatedSales) ? todaySession.relatedSales.length : 0
       };
     }
     return { 
       startingFunds: 0, 
-      totalSpent: todayExpenses, 
-      totalSales: todaySales,
-      balance: todaySales - todayExpenses, 
+      totalSpent: isNaN(todayExpenses) ? 0 : todayExpenses, 
+      totalSales: isNaN(todaySales) ? 0 : todaySales,
+      balance: isNaN(todaySales - todayExpenses) ? 0 : (todaySales - todayExpenses), 
       containers: 0, 
       sales: exportPayments.filter(ep => ep.payment_date === today).length 
     };
   }, [ownerFunds, exportPayments, expenses]);
 
   const workersSummary = useMemo(() => {
-    const totalPaid = workerPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalPaid = workerPayments.reduce((sum, p) => {
+      const amount = typeof p.amount === 'string' ? parseFloat(p.amount) || 0 : (p.amount || 0);
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
     const byWorker: Record<number, number> = {};
     workerPayments.forEach(p => {
-      byWorker[p.workerId] = (byWorker[p.workerId] || 0) + (p.amount || 0);
+      const amount = typeof p.amount === 'string' ? parseFloat(p.amount) || 0 : (p.amount || 0);
+      byWorker[p.workerId] = (byWorker[p.workerId] || 0) + (isNaN(amount) ? 0 : amount);
     });
-    return { totalPaid, byWorker };
+    return { totalPaid: isNaN(totalPaid) ? 0 : totalPaid, byWorker };
   }, [workerPayments]);
 
   // Calculate outstanding balances for workers
@@ -433,39 +445,54 @@ export function PaymentsPage() {
     return workers.map(worker => {
       const totalPaid = workerPayments
         .filter(p => p.workerId === worker.id)
-        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        .reduce((sum, p) => {
+          const amount = typeof p.amount === 'string' ? parseFloat(p.amount) || 0 : (p.amount || 0);
+          return sum + (isNaN(amount) ? 0 : amount);
+        }, 0);
       // Outstanding balance calculation - can be enhanced based on salary logic
       const outstandingBalance = 0; // Placeholder for future salary calculation
-      return { ...worker, totalPaid, outstandingBalance };
+      return { ...worker, totalPaid: isNaN(totalPaid) ? 0 : totalPaid, outstandingBalance };
     });
   }, [workers, workerPayments]);
 
   const expensesTotal = useMemo(() => {
-    return expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    return expenses.reduce((sum, e) => {
+      const amount = typeof e.amount === 'string' ? parseFloat(e.amount) || 0 : (e.amount || 0);
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
   }, [expenses]);
 
   // Export payments summary
   const exportPaymentsTotal = useMemo(() => {
-    return exportPayments.reduce((sum, ep) => sum + Number(ep.amount || 0), 0);
+    return exportPayments.reduce((sum, ep) => {
+      const amount = typeof ep.amount === 'string' ? parseFloat(ep.amount) || 0 : (ep.amount || 0);
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
   }, [exportPayments]);
 
   // Ticket payments calculation - outgoing (negative), incoming (positive)
   const ticketPaymentsCalculated = useMemo(() => {
     const incoming = ticketPayments
       .filter(tp => tp.payment_type === 'incoming')
-      .reduce((sum, tp) => sum + Number(tp.amount || 0), 0);
+      .reduce((sum, tp) => {
+        const amount = typeof tp.amount === 'string' ? parseFloat(tp.amount) || 0 : (tp.amount || 0);
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
     
     const outgoing = ticketPayments
       .filter(tp => tp.payment_type === 'outgoing')
-      .reduce((sum, tp) => sum + Number(tp.amount || 0), 0);
+      .reduce((sum, tp) => {
+        const amount = typeof tp.amount === 'string' ? parseFloat(tp.amount) || 0 : (tp.amount || 0);
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
     
     // Outgoing are negative, incoming are positive
     const netBalance = incoming - outgoing;
     
     return {
-      incoming,
-      outgoing,
-      netBalance,
+      incoming: isNaN(incoming) ? 0 : incoming,
+      outgoing: isNaN(outgoing) ? 0 : outgoing,
+      netBalance: isNaN(netBalance) ? 0 : netBalance,
       incomingCount: ticketPayments.filter(tp => tp.payment_type === 'incoming').length,
       outgoingCount: ticketPayments.filter(tp => tp.payment_type === 'outgoing').length,
       totalCount: ticketPayments.length

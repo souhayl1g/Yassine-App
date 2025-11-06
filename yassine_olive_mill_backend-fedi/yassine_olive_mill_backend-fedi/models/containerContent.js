@@ -48,6 +48,12 @@ export default (sequelize) => {
     timestamps: true,
     indexes: [
       {
+        fields: ['containerId']
+      },
+      {
+        fields: ['recorded_at']
+      },
+      {
         fields: ['sold']
       }
     ]

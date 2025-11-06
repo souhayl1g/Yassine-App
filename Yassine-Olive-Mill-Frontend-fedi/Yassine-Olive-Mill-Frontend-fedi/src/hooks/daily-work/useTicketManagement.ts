@@ -125,6 +125,13 @@ export const useTicketManagement = () => {
             weightOut: ticket.weight_out ?? undefined,
             netWeight: ticket.net_weight ?? undefined,
             numberOfBoxes: ticket.number_of_boxes ?? 0,
+            // numberOfBidons = brought bidons (base), NOT produced
+            // bidons_brought is the correct field for "البدونات المجلوبة"
+            numberOfBidons: ticket.bidons_brought ?? 0,
+            // numberOfBidonsProduced = actual produced count from backend
+            numberOfBidonsProduced: ticket.number_of_bidons ?? undefined,
+            // Persist extraction rate when present
+            taux: ticket.taux ?? undefined,
             unitPrice: ticket.unit_price ?? 0,
             totalAmount: ticket.total_amount ?? undefined,
             isPaid: ticket.is_paid ?? false,
@@ -215,6 +222,13 @@ export const useTicketManagement = () => {
         weightOut: data.weight_out ?? undefined,
         netWeight: data.net_weight ?? undefined,
         numberOfBoxes: data.number_of_boxes ?? 0,
+        // numberOfBidons = brought bidons (base), NOT produced
+        // bidons_brought is the correct field for "البدونات المجلوبة"
+        numberOfBidons: data.bidons_brought ?? 0,
+        // numberOfBidonsProduced = actual produced count from backend
+        numberOfBidonsProduced: data.number_of_bidons ?? undefined,
+        // Extraction rate used for produced bidons calculation in receipts
+        taux: data.taux ?? undefined,
         unitPrice: data.unit_price ?? 0,
         totalAmount: data.total_amount ?? undefined,
         dateReceived: data.date_received || data.createdAt || new Date().toISOString(),

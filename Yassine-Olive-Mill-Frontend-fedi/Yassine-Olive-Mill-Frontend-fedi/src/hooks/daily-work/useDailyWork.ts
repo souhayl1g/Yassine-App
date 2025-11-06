@@ -414,9 +414,39 @@ export const useDailyWork = () => {
         setIsFinishingOperation(false);
         ticketManagement.loadRecentTickets(); // Refresh the tickets list
         
-        // Show print modal for completed ticket
-        if (response.data?.status === 'completed') {
-          setTicketToPrint(response.data);
+        // Show print modal for tickets that have been updated (in_process or completed)
+        // in_process = box labels after arrival
+        // completed = exit receipt after final processing
+        if (response.data?.status === 'in_process' || response.data?.status === 'completed') {
+          // Normalize backend payload to Ticket shape so print modal has correct fields
+          const d = response.data as any;
+          const normalizedTicket = {
+            id: String(d.id),
+            ticketNumber: d.ticket_number || String(d.id),
+            clientId: String(d.clientId ?? (d.client?.id ?? '')),
+            clientName: d.client ? `${d.client.firstname || ''} ${d.client.lastname || ''}`.trim() : `عميل #${d.clientId}`,
+            weightIn: d.weight_in ?? 0,
+            weightOut: d.weight_out ?? undefined,
+            netWeight: d.net_weight ?? undefined,
+            numberOfBoxes: d.number_of_boxes ?? 0,
+            // numberOfBidons = brought bidons (base), NOT produced
+            numberOfBidons: d.bidons_brought ?? 0,
+            // numberOfBidonsProduced = actual produced count from backend
+            numberOfBidonsProduced: d.number_of_bidons ?? undefined,
+            taux: d.taux ?? undefined,
+            unitPrice: d.unit_price ?? 0,
+            totalAmount: d.total_amount ?? undefined,
+            isPaid: d.is_paid ?? false,
+            paymentMethod: d.payment_method ?? undefined,
+            paymentReference: d.payment_reference ?? undefined,
+            datePaid: d.date_paid ?? undefined,
+            dateReceived: d.date_received || d.createdAt || new Date().toISOString(),
+            status: d.status || 'received',
+            operationType: d.operation_type || 'milling',
+            notes: d.notes || '',
+            qrCode: undefined
+          } as Ticket;
+          setTicketToPrint(normalizedTicket);
           setIsPrintModalOpen(true);
         }
       }
@@ -1098,6 +1128,29 @@ export const useDailyWork = () => {
   // Initialize data on mount
   useEffect(() => {
     ticketManagement.initializeData();
+  }, []);
+
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      // Refresh tickets list, clients, and prices
+      if (ticketManagement.loadRecentTickets) {
+        ticketManagement.loadRecentTickets(ticketManagement.currentPage || 1);
+      }
+      if (ticketManagement.loadClients) {
+        ticketManagement.loadClients();
+      }
+      if (ticketManagement.loadCurrentPrices) {
+        ticketManagement.loadCurrentPrices();
+      }
+      if (ticketManagement.loadDailyTicketCount && ticketManagement.setDailyTicketCount) {
+        ticketManagement.loadDailyTicketCount().then(ticketManagement.setDailyTicketCount);
+      }
+    }, 10000); // 10 seconds
+
+    // Cleanup interval on unmount
+    return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Prefetch payments for visible recent tickets to ensure correct UI totals before opening modal

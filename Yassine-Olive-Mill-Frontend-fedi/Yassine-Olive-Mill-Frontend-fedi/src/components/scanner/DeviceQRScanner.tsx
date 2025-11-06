@@ -16,7 +16,10 @@ export function DeviceQRScanner({ onScan, isActive, placeholder = "امسح رم
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) {
+      setIsListening(false);
+      return;
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Focus the hidden input when scanning starts
@@ -29,10 +32,8 @@ export function DeviceQRScanner({ onScan, isActive, placeholder = "امسح رم
         clearTimeout(timeoutRef.current);
       }
 
-      // Set listening state
-      if (!isListening) {
-        setIsListening(true);
-      }
+      // Always in listening state while active
+      setIsListening(true);
 
       // Set timeout to finish scanning (barcode scanners are very fast)
       timeoutRef.current = setTimeout(() => {
@@ -44,8 +45,9 @@ export function DeviceQRScanner({ onScan, isActive, placeholder = "امسح رم
             description: 'تم قراءة رمز QR بواسطة الماسح الضوئي',
           });
         }
-        setIsListening(false);
-      }, 100); // Short timeout as barcode scanners input very quickly
+        // Keep listening for the next scan immediately
+        setIsListening(true);
+  }, 50); // Ultra-short timeout for faster scanner confirmation
     };
 
     const handleInput = (e: Event) => {
@@ -72,17 +74,18 @@ export function DeviceQRScanner({ onScan, isActive, placeholder = "امسح رم
     };
   }, [isActive, input, isListening, onScan, toast]);
 
-  // Auto-focus the input when component becomes active
+  // Auto-focus and set listening when component becomes active
   useEffect(() => {
     if (isActive && inputRef.current) {
       inputRef.current.focus();
+      setIsListening(true);
     }
   }, [isActive]);
 
   if (!isActive) return null;
 
   return (
-    <div className="flex flex-col items-center p-6 bg-gradient-to-br from-blue-50 to-green-50 border-2 border-dashed border-blue-300 rounded-lg">
+    <div className="flex flex-col items-center p-8 bg-gradient-to-br from-blue-50 to-green-50 border-2 border-dashed border-blue-300 rounded-lg">
       {/* Hidden input for capturing scanner data */}
       <input
         ref={inputRef}
@@ -94,14 +97,14 @@ export function DeviceQRScanner({ onScan, isActive, placeholder = "امسح رم
       />
       
       {/* Scanner icon and status */}
-      <div className={`p-4 rounded-full mb-4 ${isListening ? 'bg-green-100 animate-pulse' : 'bg-blue-100'}`}>
-        <QrCode className={`h-8 w-8 ${isListening ? 'text-green-600' : 'text-blue-600'}`} />
+      <div className={`p-5 rounded-full mb-4 ${isActive ? 'bg-green-100 animate-pulse' : 'bg-blue-100'}`}>
+        <QrCode className={`h-10 w-10 ${isActive ? 'text-green-600' : 'text-blue-600'}`} />
       </div>
       
       {/* Status text */}
       <div className="text-center">
-        <h3 className={`text-lg font-semibold mb-2 ${isListening ? 'text-green-700' : 'text-blue-700'}`}>
-          {isListening ? 'جاري المسح...' : 'في انتظار المسح'}
+        <h3 className={`text-lg font-semibold mb-2 ${isActive ? 'text-green-700' : 'text-blue-700'}`}>
+          {'جاري المسح...'}
         </h3>
         <p className="text-sm text-gray-600 max-w-sm">
           {placeholder}

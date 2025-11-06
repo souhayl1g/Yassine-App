@@ -242,14 +242,13 @@ export function ScannerPage() {
       const payload = {
         number_of_boxes: boxes,
         bidons_brought: bidons,  // Will be 0 for selling operations
-        status: scannedTicket.operationType === 'sale' ? 'completed' : 'in_process'  // Complete sale operations immediately
+        // Always move to in_process after scanning and entering counts; completion happens later
+        status: 'in_process'
       };
 
       await api.put(`/batches/${scannedTicket.id}`, payload);
 
-      const successMessage = scannedTicket.operationType === 'sale' 
-        ? 'تم إكمال عملية البيع بنجاح' 
-        : 'تم تحديث التذكرة بنجاح';
+      const successMessage = 'تم تحديث التذكرة بنجاح';
       
       toast({ 
         title: 'نجح', 

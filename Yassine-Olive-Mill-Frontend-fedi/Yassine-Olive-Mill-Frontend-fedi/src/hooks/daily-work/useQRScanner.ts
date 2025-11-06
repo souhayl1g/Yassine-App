@@ -114,7 +114,8 @@ export const useQRScanner = (
         paymentAmount: ticket.totalAmount ? String(ticket.totalAmount) : '',
       });
 
-      setIsFinishingOperation(true);
+        // Only set finishing operation for milling operations, not for sale
+        setIsFinishingOperation(ticket.operationType !== 'sale');
       setIsEditModalOpen(true);
       setIsCameraScanOpen(false);
       stopCamera();
