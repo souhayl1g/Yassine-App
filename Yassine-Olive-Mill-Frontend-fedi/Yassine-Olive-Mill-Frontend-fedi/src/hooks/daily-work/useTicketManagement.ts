@@ -287,8 +287,8 @@ export const useTicketManagement = () => {
         description: 'تم حذف التذكرة بنجاح',
       });
       
-      // Reload tickets to ensure consistency
-      await loadRecentTickets(currentPage);
+  // Reload tickets silently to ensure consistency without visible reload
+  await loadRecentTickets(currentPage, true);
       
     } catch (error: any) {
       console.error('Error deleting ticket:', error);

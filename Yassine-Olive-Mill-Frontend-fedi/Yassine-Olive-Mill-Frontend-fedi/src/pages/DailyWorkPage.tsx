@@ -20,7 +20,8 @@ export function DailyWorkPage() {
 
   // Handle payment completion
   const handlePaymentComplete = () => {
-    dailyWork.loadRecentTickets(dailyWork.currentPage);
+    // Silent refresh to avoid visible reloading/flicker
+    dailyWork.loadRecentTickets(dailyWork.currentPage, true);
   };
 
   return (

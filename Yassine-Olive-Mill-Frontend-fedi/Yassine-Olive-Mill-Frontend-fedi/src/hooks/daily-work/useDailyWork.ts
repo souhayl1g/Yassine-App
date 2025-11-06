@@ -159,9 +159,10 @@ export const useDailyWork = () => {
       ticketManagement.setSelectedClient(null);
       setIsAddTicketOpen(false);
 
-      toast({ title: t('common.success'), description: 'تم إنشاء التذكرة بنجاح' });
+  toast({ title: t('common.success'), description: 'تم إنشاء التذكرة بنجاح' });
       
-      await ticketManagement.loadRecentTickets(ticketManagement.currentPage);
+  // Refresh tickets silently without disrupting page state
+  await ticketManagement.loadRecentTickets(ticketManagement.currentPage, true);
     } catch (e: any) {
       console.error('Error creating ticket:', e);
       toast({ variant: 'destructive', title: t('common.error'), description: e?.message || 'فشل في إنشاء التذكرة' });
@@ -410,9 +411,10 @@ export const useDailyWork = () => {
           }
         }
         
-        setIsEditModalOpen(false);
-        setIsFinishingOperation(false);
-        ticketManagement.loadRecentTickets(); // Refresh the tickets list
+  setIsEditModalOpen(false);
+  setIsFinishingOperation(false);
+  // Refresh the tickets list silently and keep current page
+  ticketManagement.loadRecentTickets(ticketManagement.currentPage, true);
         
         // Show print modal for tickets that have been updated (in_process or completed)
         // in_process = box labels after arrival
