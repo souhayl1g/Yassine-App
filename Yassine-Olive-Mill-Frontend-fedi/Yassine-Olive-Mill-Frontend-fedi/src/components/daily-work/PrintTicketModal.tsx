@@ -53,28 +53,43 @@ export function PrintTicketModal({
     'box-labels';
 
   const getPageStyle = () => {
-    // All types use 58mm x 43mm - each label/receipt on its own page
+    // Each label keeps 58mm x 43mm size, one per page
     return `
       @page {
-        size: 58mm 43mm;
-        margin: 0;
+        size: auto;
+        margin: 0mm;
       }
       @media print {
         * {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
-        body {
+        html, body {
           margin: 0;
           padding: 0;
         }
+        /* Force each label container to take full page */
         .page-break {
-          page-break-after: always;
-          break-after: page;
+          page-break-after: always !important;
+          break-after: page !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          min-height: 100vh !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
         }
         .no-page-break {
-          page-break-after: avoid;
-          break-after: avoid;
+          page-break-after: avoid !important;
+          min-height: 100vh !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+        /* Keep label dimensions fixed */
+        .label-content {
+          width: 58mm !important;
+          height: 43mm !important;
         }
       }
     `;
@@ -437,19 +452,22 @@ export function PrintTicketModal({
                 <div
                   key={boxNum}
                   className={boxNum < totalLabels ? 'page-break' : 'no-page-break'}
-                  style={{
-                    width: '58mm',
-                    height: '43mm',
-                    padding: '1.5mm',
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    position: 'relative',
-                    fontFamily: 'Arial, sans-serif',
-                    backgroundColor: 'white',
-                    border: '1.2px solid #000',
-                  }}
                 >
+                  <div
+                    className="label-content"
+                    style={{
+                      width: '58mm',
+                      height: '43mm',
+                      padding: '1.5mm',
+                      boxSizing: 'border-box',
+                      display: 'flex',
+                      flexDirection: 'row',
+                      position: 'relative',
+                      fontFamily: 'Arial, sans-serif',
+                      backgroundColor: 'white',
+                      border: '1.2px solid #000',
+                    }}
+                  >
                   <div
                     style={{
                       position: 'absolute',
@@ -535,6 +553,7 @@ export function PrintTicketModal({
                       {new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}
                     </div>
                   </div>
+                </div>
                 </div>
               ))}
 
