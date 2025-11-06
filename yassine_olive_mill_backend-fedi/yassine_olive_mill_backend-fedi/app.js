@@ -25,7 +25,9 @@ app.use(cors({
     'http://localhost:3000', 
     'http://localhost:5173',
     'http://192.168.1.22:5173',  // Add your actual frontend IP
-    'http://127.0.0.1:5173'
+    'http://127.0.0.1:5173',
+    /^https:\/\/.*\.vercel\.app$/,  // Allow all Vercel preview deployments
+    'https://yassine-olive-mill.vercel.app'  // Add your actual Vercel domain
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
