@@ -15,14 +15,6 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Leaf, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// Demo accounts type
-type DemoAccount = {
-  name: string;
-  username: string;
-  password: string;
-  role: string;
-};
-
 const loginSchema = z.object({
   email: z.string().email('validation.invalidEmail'),
   password: z.string().min(6, 'validation.minLength'),
@@ -36,7 +28,6 @@ export const AuthPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
-  const [demoAccounts, setDemoAccounts] = useState<DemoAccount[]>([]);
 
   // Helper function to get redirect path based on user role
   const getRedirectPath = (userRole: string) => {
@@ -54,26 +45,6 @@ export const AuthPage: React.FC = () => {
     }
     return '/';
   };
-
-  // Load demo accounts
-  useEffect(() => {
-    const loadDemoAccounts = async () => {
-      try {
-        const response = await fetch('/accounts.json');
-        if (response.ok) {
-          const accounts = await response.json();
-          setDemoAccounts(accounts);
-        } else {
-          console.log('Demo accounts file not found, hiding demo section');
-          setDemoAccounts([]);
-        }
-      } catch (error) {
-        console.log('Demo accounts file not found, hiding demo section');
-        setDemoAccounts([]);
-      }
-    };
-    loadDemoAccounts();
-  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -114,10 +85,7 @@ export const AuthPage: React.FC = () => {
 
 
 
-  const fillDemoCredentials = (account: DemoAccount) => {
-    loginForm.setValue('email', account.username);
-    loginForm.setValue('password', account.password);
-  };  return (
+  return (
     <div className="min-h-screen bg-gradient-to-br from-primary/20 via-background to-secondary/20 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
@@ -140,37 +108,6 @@ export const AuthPage: React.FC = () => {
           <LanguageSwitcher />
           <ThemeToggle />
         </div>
-
-        {/* Quick fill helper for testing */}
-        {demoAccounts.length > 0 && (
-          <OliveCard variant="outlined">
-            <OliveCardHeader>
-              <OliveCardTitle className="text-lg">{t('auth.demoCredentials')}</OliveCardTitle>
-              <OliveCardDescription>
-                {t('auth.quickFill')}
-              </OliveCardDescription>
-            </OliveCardHeader>
-            <OliveCardContent className="space-y-2">
-              {demoAccounts.map((account, index) => (
-                <OliveButton
-                  key={index}
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-between"
-                  onClick={() => fillDemoCredentials(account)}
-                >
-                  <div className="flex flex-col items-start">
-                    <span className="text-sm font-medium">{account.name}</span>
-                    <span className="text-xs text-muted-foreground">{account.username}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground capitalize">
-                    {account.role}
-                  </span>
-                </OliveButton>
-              ))}
-            </OliveCardContent>
-          </OliveCard>
-        )}
 
         {/* Auth Form */}
         <OliveCard>
