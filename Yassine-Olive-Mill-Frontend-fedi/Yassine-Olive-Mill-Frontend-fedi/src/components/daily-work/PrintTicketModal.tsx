@@ -429,10 +429,11 @@ export function PrintTicketModal({
               {ticketType === 'box-labels' && labelsToPrint.map((boxNum, index) => (
                 <div
                   key={boxNum}
-                  className={index < labelsToPrint.length - 1 ? 'page-break' : ''}
                   style={{
+                    pageBreakAfter: index < labelsToPrint.length - 1 ? 'always' : 'auto',
                     width: '58mm',
                     height: '43mm',
+                    margin: '0 auto',
                     padding: '1.5mm',
                     boxSizing: 'border-box',
                     display: 'flex',
