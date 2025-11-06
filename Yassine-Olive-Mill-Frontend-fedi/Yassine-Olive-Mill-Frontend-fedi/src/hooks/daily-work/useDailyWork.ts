@@ -1133,11 +1133,16 @@ export const useDailyWork = () => {
                 var hasPrinted = false;
                 var printTriggered = false;
                 var windowClosed = false;
+                var printDialogOpen = false;
+                var closeCheckInterval = null;
                 
-                // Close window when print dialog is dismissed (canceled or printed)
-                window.onafterprint = function() {
-                  if (!windowClosed) {
+                function closeWindow() {
+                  if (!windowClosed && window && !window.closed) {
                     windowClosed = true;
+                    if (closeCheckInterval) {
+                      clearInterval(closeCheckInterval);
+                      closeCheckInterval = null;
+                    }
                     setTimeout(function() {
                       try {
                         if (window && !window.closed) {
@@ -1146,29 +1151,89 @@ export const useDailyWork = () => {
                       } catch (e) {
                         // Ignore errors
                       }
-                    }, 100);
+                    }, 50);
                   }
+                }
+                
+                // Method 1: onafterprint event (most browsers)
+                window.onafterprint = function() {
+                  printDialogOpen = false;
+                  closeWindow();
                 };
                 
-                // Also use matchMedia for better browser support
+                // Method 2: beforeprint/afterprint events (better support)
+                window.onbeforeprint = function() {
+                  printDialogOpen = true;
+                };
+                
+                window.addEventListener('afterprint', function() {
+                  printDialogOpen = false;
+                  closeWindow();
+                });
+                
+                // Method 3: matchMedia for print (Chrome, Edge, Safari)
                 if (window.matchMedia) {
                   var mediaQueryList = window.matchMedia('print');
-                  mediaQueryList.addEventListener('change', function(mql) {
-                    if (!mql.matches && !windowClosed) {
+                  var handleMediaChange = function(mql) {
+                    if (!mql.matches) {
                       // Print dialog closed
-                      windowClosed = true;
-                      setTimeout(function() {
-                        try {
-                          if (window && !window.closed) {
-                            window.close();
-                          }
-                        } catch (e) {
-                          // Ignore errors
-                        }
-                      }, 100);
+                      printDialogOpen = false;
+                      closeWindow();
+                    } else {
+                      printDialogOpen = true;
                     }
-                  });
+                  };
+                  mediaQueryList.addEventListener('change', handleMediaChange);
+                  
+                  // Check initial state
+                  if (!mediaQueryList.matches) {
+                    printDialogOpen = false;
+                  }
                 }
+                
+                // Method 4: Focus-based detection (fallback)
+                var wasFocused = false;
+                window.addEventListener('focus', function() {
+                  if (printDialogOpen && wasFocused) {
+                    // Print dialog likely closed if we regain focus
+                    setTimeout(function() {
+                      if (!printDialogOpen) {
+                        closeWindow();
+                      }
+                    }, 200);
+                  }
+                  wasFocused = true;
+                });
+                
+                // Method 5: Polling fallback (most reliable)
+                var pollCount = 0;
+                closeCheckInterval = setInterval(function() {
+                  pollCount++;
+                  
+                  // After 1 second, start checking if print dialog is still open
+                  if (pollCount > 10) {
+                    // Check if window has focus (print dialog closed)
+                    if (document.hasFocus && document.hasFocus()) {
+                      if (printDialogOpen) {
+                        // Dialog was open but window has focus now - it closed
+                        printDialogOpen = false;
+                        closeWindow();
+                      }
+                    }
+                    
+                    // Force close after 3 seconds if still open (user definitely canceled)
+                    if (pollCount > 30 && !windowClosed) {
+                      closeWindow();
+                    }
+                  }
+                }, 100);
+                
+                // Clean up interval on window close
+                window.addEventListener('beforeunload', function() {
+                  if (closeCheckInterval) {
+                    clearInterval(closeCheckInterval);
+                  }
+                });
                 
                 window.onload = function() {
                   // Only print once
@@ -1179,22 +1244,13 @@ export const useDailyWork = () => {
                     // Small delay to ensure content is fully rendered
                     setTimeout(function() {
                       try {
+                        printDialogOpen = true;
                         window.print();
+                        wasFocused = true;
                       } catch (e) {
                         console.error('Print error:', e);
                         // Close window if print fails
-                        if (!windowClosed) {
-                          windowClosed = true;
-                          setTimeout(function() {
-                            try {
-                              if (window && !window.closed) {
-                                window.close();
-                              }
-                            } catch (e2) {
-                              // Ignore errors
-                            }
-                          }, 100);
-                        }
+                        closeWindow();
                       }
                     }, 100);
                   }
@@ -1203,6 +1259,8 @@ export const useDailyWork = () => {
                 // Also handle case where onload might have already fired
                 if (document.readyState === 'complete') {
                   window.onload();
+                } else {
+                  document.addEventListener('DOMContentLoaded', window.onload);
                 }
               })();
             </script>
