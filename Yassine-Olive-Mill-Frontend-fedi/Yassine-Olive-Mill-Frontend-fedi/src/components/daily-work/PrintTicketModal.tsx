@@ -53,51 +53,31 @@ export function PrintTicketModal({
     'box-labels';
 
   const getPageStyle = () => {
-    // Box labels use A4 to fit multiple labels, receipts use 58mm x 43mm
-    if (ticketType === 'box-labels') {
-      return `
-        @page {
-          size: A4 portrait;
-          margin: 10mm;
+    // All types use 58mm x 43mm - each label/receipt on its own page
+    return `
+      @page {
+        size: 58mm 43mm;
+        margin: 0;
+      }
+      @media print {
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
-        @media print {
-          body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-            margin: 0;
-            padding: 0;
-          }
-          .box-labels-grid {
-            display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 5mm !important;
-            width: 100% !important;
-          }
-          .page-break {
-            page-break-after: avoid !important;
-          }
-        }
-      `;
-    } else {
-      // Arrival and exit receipts use thermal printer size
-      return `
-        @page {
-          size: 58mm 43mm;
+        body {
           margin: 0;
+          padding: 0;
         }
-        @media print {
-          body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-            margin: 0;
-            padding: 0;
-          }
-          .page-break {
-            page-break-after: always;
-          }
+        .page-break {
+          page-break-after: always;
+          break-after: page;
         }
-      `;
-    }
+        .no-page-break {
+          page-break-after: avoid;
+          break-after: avoid;
+        }
+      }
+    `;
   };
 
   const handlePrint = useReactToPrint({
@@ -452,30 +432,24 @@ export function PrintTicketModal({
                 </div>
               )}
 
-              {/* TYPE 2: Box Labels Print */}
-              {ticketType === 'box-labels' && (
-                <div className="box-labels-grid" style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(2, 1fr)', 
-                  gap: '5mm',
-                  width: '100%'
-                }}>
-                  {labelsToPrint.map((boxNum) => (
-                    <div
-                      key={boxNum}
-                      style={{
-                        width: '58mm',
-                        height: '43mm',
-                        padding: '1.5mm',
-                        boxSizing: 'border-box',
-                        display: 'flex',
-                        flexDirection: 'row',
-                        position: 'relative',
-                        fontFamily: 'Arial, sans-serif',
-                        backgroundColor: 'white',
-                        border: '1.2px solid #000',
-                      }}
-                    >
+              {/* TYPE 2: Box Labels Print - Each label on separate page */}
+              {ticketType === 'box-labels' && labelsToPrint.map((boxNum) => (
+                <div
+                  key={boxNum}
+                  className={boxNum < totalLabels ? 'page-break' : 'no-page-break'}
+                  style={{
+                    width: '58mm',
+                    height: '43mm',
+                    padding: '1.5mm',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    position: 'relative',
+                    fontFamily: 'Arial, sans-serif',
+                    backgroundColor: 'white',
+                    border: '1.2px solid #000',
+                  }}
+                >
                   <div
                     style={{
                       position: 'absolute',
@@ -562,9 +536,7 @@ export function PrintTicketModal({
                     </div>
                   </div>
                 </div>
-                  ))}
-                </div>
-              )}
+              ))}
 
               {/* TYPE 3: Exit Receipt Print (58mm x 43mm) */}
               {ticketType === 'exit-receipt' && (
