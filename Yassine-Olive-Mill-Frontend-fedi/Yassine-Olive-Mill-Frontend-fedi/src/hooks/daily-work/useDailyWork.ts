@@ -1205,24 +1205,46 @@ export const useDailyWork = () => {
                   wasFocused = true;
                 });
                 
-                // Method 5: Polling fallback (most reliable)
+                // Method 5: Polling fallback (most reliable, especially for PDF printing)
                 var pollCount = 0;
+                var lastFocusTime = Date.now();
+                var lastBlurTime = 0;
+                
                 closeCheckInterval = setInterval(function() {
                   pollCount++;
                   
-                  // After 1 second, start checking if print dialog is still open
-                  if (pollCount > 10) {
+                  // After 0.5 seconds, start checking if print dialog is still open
+                  if (pollCount > 5) {
                     // Check if window has focus (print dialog closed)
-                    if (document.hasFocus && document.hasFocus()) {
+                    var hasFocus = document.hasFocus && document.hasFocus();
+                    
+                    if (hasFocus) {
+                      lastFocusTime = Date.now();
+                      
+                      // If we have focus and dialog was open, check if it's been closed
                       if (printDialogOpen) {
-                        // Dialog was open but window has focus now - it closed
-                        printDialogOpen = false;
+                        // Wait a bit to ensure dialog is really closed (PDF save dialog might appear)
+                        if (pollCount > 15) {
+                          // Dialog was open but window has focus now - it closed
+                          printDialogOpen = false;
+                          closeWindow();
+                        }
+                      }
+                    } else {
+                      lastBlurTime = Date.now();
+                    }
+                    
+                    // For PDF printing: If window regained focus after being blurred for > 1 second, close it
+                    // This handles the case where PDF save dialog appears and then closes
+                    if (hasFocus && lastBlurTime > 0 && (Date.now() - lastBlurTime) > 1000) {
+                      if (pollCount > 20) {
                         closeWindow();
                       }
                     }
                     
-                    // Force close after 3 seconds if still open (user definitely canceled)
-                    if (pollCount > 30 && !windowClosed) {
+                    // Force close after 2 seconds if still open (user definitely canceled or saved PDF)
+                    // Reduced from 3 seconds for faster response
+                    if (pollCount > 20 && !windowClosed) {
                       closeWindow();
                     }
                   }
