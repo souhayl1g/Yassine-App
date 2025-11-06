@@ -96,4 +96,28 @@ router.delete('/:id', verifyToken, requireRole(['admin']), async (req, res) => {
   }
 });
 
+// PUT change user password - Admin only
+router.put('/:id/password', verifyToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { password } = req.body;
+    
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+    
+    const user = await User.findByPk(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Update password (will be hashed by the model's beforeCreate/beforeUpdate hook)
+    await user.update({ password });
+    
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ message: 'Error changing password', error: error.message });
+  }
+});
+
 export default router;
