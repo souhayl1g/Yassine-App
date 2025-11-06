@@ -65,24 +65,9 @@ export function PrintTicketModal({
           print-color-adjust: exact;
           margin: 0;
           padding: 0;
-          width: 58mm;
-          height: 43mm;
-        }
-        html, #root {
-          width: 58mm;
-          height: 43mm;
         }
         .page-break {
           page-break-after: always;
-          break-after: page;
-        }
-        .print-page {
-          width: 58mm !important;
-          height: 43mm !important;
-          display: block !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid-page !important;
-          margin: 0 auto !important;
         }
       }
     `;
@@ -441,11 +426,13 @@ export function PrintTicketModal({
               )}
 
               {/* TYPE 2: Box Labels Print */}
-              {ticketType === 'box-labels' && labelsToPrint.map((boxNum, index) => (
+              {ticketType === 'box-labels' && labelsToPrint.map((boxNum) => (
                 <div
                   key={boxNum}
-                  className={`print-page ${index < labelsToPrint.length - 1 ? 'page-break' : ''}`}
+                  className={boxNum < totalLabels ? 'page-break' : ''}
                   style={{
+                    width: '58mm',
+                    height: '43mm',
                     padding: '1.5mm',
                     boxSizing: 'border-box',
                     display: 'flex',
