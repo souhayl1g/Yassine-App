@@ -62,20 +62,20 @@ export default defineConfig(({ mode }) => {
           start_url: "/",
           icons: [
             {
-              src: "/favicon.png",
-              sizes: "192x192",
-              type: "image/png",
-              purpose: "any maskable",
-            },
-            {
-              src: "/apple-touch-icon.png",
-              sizes: "180x180",
-              type: "image/png",
+              src: "/favicon.svg",
+              sizes: "512x512",
+              type: "image/svg+xml",
               purpose: "any",
             },
             {
               src: "/favicon.svg",
-              sizes: "any",
+              sizes: "192x192",
+              type: "image/svg+xml",
+              purpose: "any maskable",
+            },
+            {
+              src: "/favicon.svg",
+              sizes: "180x180",
               type: "image/svg+xml",
               purpose: "any",
             },
@@ -86,14 +86,14 @@ export default defineConfig(({ mode }) => {
               short_name: "عميل جديد",
               description: "إضافة عميل جديد بسرعة",
               url: "/clients",
-              icons: [{ src: "/favicon.png", sizes: "96x96" }],
+              icons: [{ src: "/favicon.svg", sizes: "96x96" }],
             },
             {
               name: "عمل اليوم",
               short_name: "اليوم",
               description: "عرض عمل اليوم",
               url: "/",
-              icons: [{ src: "/favicon.png", sizes: "96x96" }],
+              icons: [{ src: "/favicon.svg", sizes: "96x96" }],
             },
           ],
           categories: ["business", "productivity"],
@@ -101,6 +101,9 @@ export default defineConfig(({ mode }) => {
           dir: "rtl",
         },
         workbox: {
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
           runtimeCaching: [
             {
