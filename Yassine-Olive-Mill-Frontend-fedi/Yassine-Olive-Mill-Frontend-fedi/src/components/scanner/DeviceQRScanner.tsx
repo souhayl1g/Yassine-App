@@ -9,84 +9,116 @@ interface DeviceQRScannerProps {
 }
 
 export function DeviceQRScanner({ onScan, isActive, placeholder = "امسح رمز QR باستخدام الماسح الضوئي..." }: DeviceQRScannerProps) {
+  // Display value for debugging/status only
   const [input, setInput] = useState('');
-  const [isListening, setIsListening] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Internal buffer (faster than state) – scanners type very quickly
+  const bufferRef = useRef('');
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!isActive) {
-      setIsListening(false);
-      return;
-    }
+    if (!isActive) return;
+
+    // Validate QR data format before passing to handler
+    const isValidQRData = (data: string): boolean => {
+      // Must be at least 5 characters
+      if (data.length < 5) return false;
+      
+      // Check if it's valid JSON (our ticket QR format)
+      try {
+        const parsed = JSON.parse(data);
+        // Must have either ticketId or id field
+        if (parsed.ticketId || parsed.id) return true;
+      } catch {
+        // Not JSON, continue other checks
+      }
+      
+      // Check if it's a plain number (ticket ID)
+      if (/^\d+$/.test(data)) return true;
+      
+      // Check if it looks like a ticket number format (YYYY/MM/DD/NNN)
+      if (/^\d{4}\/\d{2}\/\d{2}\/\d{3,}$/.test(data)) return true;
+      
+      // Reject if it contains too many special chars or non-ASCII garbage
+      const specialCharRatio = (data.match(/[^a-zA-Z0-9\s\{\}\[\]":,\.\-\/]/g) || []).length / data.length;
+      return specialCharRatio < 0.3; // Allow max 30% special chars
+    };
+
+    // Finalize the scan either on Enter or on inactivity
+    const finalize = () => {
+      const value = bufferRef.current.trim();
+      if (!value) return;
+      
+      // Validate before sending
+      if (!isValidQRData(value)) {
+        bufferRef.current = '';
+        setInput('');
+        toast({ 
+          variant: 'destructive',
+          title: 'مسح غير صالح', 
+          description: 'البيانات المقروءة غير صحيحة. يرجى المحاولة مرة أخرى.' 
+        });
+        return;
+      }
+      
+      onScan(value);
+      bufferRef.current = '';
+      setInput('');
+      toast({ title: 'تم المسح بنجاح', description: 'تم قراءة رمز QR بواسطة الماسح الضوئي' });
+    };
+
+    const scheduleFinalize = (delay = 120) => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(finalize, delay);
+    };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Focus the hidden input when scanning starts
+      // Ensure keystrokes are captured by hidden input (helps some browsers)
       if (inputRef.current && document.activeElement !== inputRef.current) {
         inputRef.current.focus();
       }
 
-      // Clear any existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      // Ignore modifier-only keys
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        scheduleFinalize(0);
+        return;
+      }
+      if (e.key === 'Escape') {
+        bufferRef.current = '';
+        setInput('');
+        return;
       }
 
-      // Always in listening state while active
-      setIsListening(true);
-
-      // Set timeout to finish scanning (barcode scanners are very fast)
-      timeoutRef.current = setTimeout(() => {
-        if (input.trim()) {
-          onScan(input.trim());
-          setInput('');
-          toast({
-            title: 'تم المسح بنجاح',
-            description: 'تم قراءة رمز QR بواسطة الماسح الضوئي',
-          });
-        }
-        // Keep listening for the next scan immediately
-        setIsListening(true);
-  }, 50); // Ultra-short timeout for faster scanner confirmation
+      // Append printable characters
+      if (e.key.length === 1) {
+        bufferRef.current += e.key;
+        setInput(bufferRef.current);
+        // Most scanners are fast – short idle timeout marks end of scan
+        scheduleFinalize(80);
+      }
     };
 
-    const handleInput = (e: Event) => {
-      const target = e.target as HTMLInputElement;
-      setInput(target.value);
-    };
-
-    // Listen for keyboard events globally
     document.addEventListener('keydown', handleKeyDown);
-    
-    // Listen for input changes on the hidden input
-    if (inputRef.current) {
-      inputRef.current.addEventListener('input', handleInput);
-    }
-
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      if (inputRef.current) {
-        inputRef.current.removeEventListener('input', handleInput);
-      }
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [isActive, input, isListening, onScan, toast]);
+  }, [isActive, onScan, toast]);
 
-  // Auto-focus and set listening when component becomes active
+  // Auto-focus the hidden input when active
   useEffect(() => {
-    if (isActive && inputRef.current) {
-      inputRef.current.focus();
-      setIsListening(true);
-    }
+    if (isActive && inputRef.current) inputRef.current.focus();
   }, [isActive]);
 
   if (!isActive) return null;
 
   return (
     <div className="flex flex-col items-center p-8 bg-gradient-to-br from-blue-50 to-green-50 border-2 border-dashed border-blue-300 rounded-lg">
-      {/* Hidden input for capturing scanner data */}
+      {/* Hidden input to keep focus on the page while scanning */}
       <input
         ref={inputRef}
         value={input}
