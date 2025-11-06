@@ -1,3 +1,4 @@
 node_modules
 **/node_modules
 **/yassine_olive_mill_backend-fedi/yassine_olive_mill_backend-fedi/config/config.json
+.vercel
