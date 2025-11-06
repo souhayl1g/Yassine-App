@@ -25,7 +25,17 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    server: serverConfig,
+    server: {
+      ...serverConfig,
+      proxy: {
+        // Proxy API calls to local backend in development so we can use `/api` everywhere
+        '/api': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          secure: false,
+        },
+      },
+    },
     plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {
       alias: {

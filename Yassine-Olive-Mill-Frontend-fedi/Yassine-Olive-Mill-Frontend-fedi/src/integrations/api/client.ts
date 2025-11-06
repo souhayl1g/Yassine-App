@@ -2,7 +2,8 @@
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
-const BASE_URL: string = (import.meta as any).env?.VITE_BASE_BACKEND_API || '';
+// Default to `/api` so Vercel proxy (and Vite dev proxy) handle backend forwarding
+const BASE_URL: string = (import.meta as any).env?.VITE_BASE_BACKEND_API || '/api';
 const TOKEN_STORAGE_KEY = 'olive_token';
 
 function buildUrl(path: string): string {
