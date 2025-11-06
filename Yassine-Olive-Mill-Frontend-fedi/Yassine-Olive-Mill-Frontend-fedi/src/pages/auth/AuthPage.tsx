@@ -175,13 +175,14 @@ export const AuthPage: React.FC = () => {
         {/* Auth Form */}
         <OliveCard>
           <OliveCardContent className="pt-6">
-            <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+            <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4" autoComplete="off">
               <div className="space-y-2">
                 <Label htmlFor="email">{t('auth.email')}</Label>
                 <Input
                   id="email"
                   type="email"
                   className="olive-input"
+                  autoComplete="off"
                   {...loginForm.register('email')}
                 />
                 {loginForm.formState.errors.email && (
@@ -198,8 +199,8 @@ export const AuthPage: React.FC = () => {
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     className="olive-input pr-10"
+                    autoComplete="new-password"
                     {...loginForm.register('password')}
-                    autoComplete="current-password"
                   />
                   <button
                     type="button"
