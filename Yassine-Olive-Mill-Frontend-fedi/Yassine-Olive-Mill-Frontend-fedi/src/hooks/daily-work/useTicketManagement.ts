@@ -92,8 +92,11 @@ export const useTicketManagement = () => {
   };
 
   // Load recent tickets from API
-  const loadRecentTickets = async (page: number = 1) => {
-    setLoadingTickets(true);
+  const loadRecentTickets = async (page: number = 1, silent: boolean = false) => {
+    // Only show loading spinner if not silent refresh
+    if (!silent) {
+      setLoadingTickets(true);
+    }
     try {
       const res = await api.get<any>(`/batches?page=${page}&limit=${ticketsPerPage}`);
       const payload = getPayload<any>(res);
@@ -153,13 +156,19 @@ export const useTicketManagement = () => {
       setCurrentPage(page);
     } catch (error: any) {
       console.error('Error loading tickets:', error);
-      toast({
-        variant: 'destructive',
-        title: 'خطأ',
-        description: 'فشل في تحميل التذاكر الحديثة: ' + (error?.message || 'خطأ غير معروف'),
-      });
+      // Only show error toast if not silent refresh
+      if (!silent) {
+        toast({
+          variant: 'destructive',
+          title: 'خطأ',
+          description: 'فشل في تحميل التذاكر الحديثة: ' + (error?.message || 'خطأ غير معروف'),
+        });
+      }
     } finally {
-      setLoadingTickets(false);
+      // Only clear loading state if we set it
+      if (!silent) {
+        setLoadingTickets(false);
+      }
     }
   };
 

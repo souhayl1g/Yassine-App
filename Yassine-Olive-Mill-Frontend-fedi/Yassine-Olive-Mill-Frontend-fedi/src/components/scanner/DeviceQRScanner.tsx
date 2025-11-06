@@ -20,6 +20,35 @@ export function DeviceQRScanner({ onScan, isActive, placeholder = "امسح رم
   useEffect(() => {
     if (!isActive) return;
 
+    // Map physical key codes to US layout characters so scans work even if OS layout is AZERTY/AR
+    const US_DIGITS: Record<string, string> = {
+      Digit0: '0', Digit1: '1', Digit2: '2', Digit3: '3', Digit4: '4',
+      Digit5: '5', Digit6: '6', Digit7: '7', Digit8: '8', Digit9: '9',
+    };
+    const US_DIGITS_SHIFT: Record<string, string> = {
+      Digit1: '!', Digit2: '@', Digit3: '#', Digit4: '$', Digit5: '%',
+      Digit6: '^', Digit7: '&', Digit8: '*', Digit9: '(', Digit0: ')',
+    };
+    const US_PUNC: Record<string, string> = {
+      Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\',
+      Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backquote: '`', Space: ' ',
+    };
+    const US_PUNC_SHIFT: Record<string, string> = {
+      Minus: '_', Equal: '+', BracketLeft: '{', BracketRight: '}', Backslash: '|',
+      Semicolon: ':', Quote: '"', Comma: '<', Period: '>', Slash: '?', Backquote: '~',
+    };
+
+    const translateUS = (e: KeyboardEvent): string => {
+      // Letters
+      const m = e.code.match(/^Key([A-Z])$/);
+      if (m) return e.shiftKey ? m[1] : m[1].toLowerCase();
+      // Digits row
+      if (US_DIGITS[e.code]) return e.shiftKey ? (US_DIGITS_SHIFT[e.code] || US_DIGITS[e.code]) : US_DIGITS[e.code];
+      // Punctuation
+      if (US_PUNC[e.code]) return e.shiftKey ? (US_PUNC_SHIFT[e.code] || US_PUNC[e.code]) : US_PUNC[e.code];
+      return '';
+    };
+
     // Validate QR data format before passing to handler
     const isValidQRData = (data: string): boolean => {
       // Must be at least 5 characters
@@ -93,12 +122,13 @@ export function DeviceQRScanner({ onScan, isActive, placeholder = "امسح رم
         return;
       }
 
-      // Append printable characters
-      if (e.key.length === 1) {
-        bufferRef.current += e.key;
+      // Use US mapping based on physical key code so active OS layout doesn't matter (AZERTY, AR, ...)
+      const ch = translateUS(e);
+      if (ch) {
+        e.preventDefault();
+        bufferRef.current += ch;
         setInput(bufferRef.current);
-        // Most scanners are fast – short idle timeout marks end of scan
-        scheduleFinalize(80);
+        scheduleFinalize(80); // Most scanners are fast – short idle timeout marks end of scan
       }
     };
 

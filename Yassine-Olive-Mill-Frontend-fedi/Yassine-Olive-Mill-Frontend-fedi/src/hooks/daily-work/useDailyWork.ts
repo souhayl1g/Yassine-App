@@ -1342,16 +1342,18 @@ export const useDailyWork = () => {
     ticketManagement.initializeData();
   }, []);
 
-  // Auto-refresh every 10 seconds
+  // Auto-refresh every 10 seconds (silent mode - no loading spinner)
   useEffect(() => {
     const intervalId = setInterval(() => {
-      // Refresh tickets list, clients, and prices
+      // Refresh tickets list silently (no loading spinner)
       if (ticketManagement.loadRecentTickets) {
-        ticketManagement.loadRecentTickets(ticketManagement.currentPage || 1);
+        ticketManagement.loadRecentTickets(ticketManagement.currentPage || 1, true); // true = silent mode
       }
+      // Refresh clients silently
       if (ticketManagement.loadClients) {
         ticketManagement.loadClients();
       }
+      // Refresh prices silently
       if (ticketManagement.loadCurrentPrices) {
         ticketManagement.loadCurrentPrices();
       }
