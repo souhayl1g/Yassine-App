@@ -44,6 +44,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     headers['ngrok-skip-browser-warning'] = 'true';
 
     const body = await readRawBody(req);
+    
+    // Ensure Content-Type is set for POST/PUT requests
+    if (!headers['content-type'] && body && (req.method === 'POST' || req.method === 'PUT')) {
+      headers['content-type'] = 'application/json';
+    }
+
+    console.log(`[API Proxy] Headers:`, Object.keys(headers));
+    console.log(`[API Proxy] Body length:`, body?.length || 0);
 
     const resp = await fetch(targetUrl, {
       method: req.method,
@@ -51,6 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: body ? new Uint8Array(body) : undefined,
       redirect: 'manual',
     });
+
+    console.log(`[API Proxy] Response status: ${resp.status}`);
 
     res.status(resp.status);
     resp.headers.forEach((value, key) => {
@@ -64,7 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('[API Proxy Error]', error);
     res.status(500).json({ 
       error: 'Failed to proxy request to backend',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: error instanceof Error ? error.message : 'Unknown error',
+      backend: BACKEND
     });
   }
 }
