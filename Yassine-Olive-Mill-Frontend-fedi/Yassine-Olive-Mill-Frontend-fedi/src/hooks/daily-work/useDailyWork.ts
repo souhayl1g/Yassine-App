@@ -1079,6 +1079,13 @@ export const useDailyWork = () => {
                   padding: 10px; 
                   background: white;
                   color: black;
+                  page-break-before: auto;
+                  page-break-after: always;
+                  page-break-inside: avoid;
+                }
+                @page {
+                  size: A4;
+                  margin: 10mm;
                 }
               }
               @media (prefers-color-scheme: dark) {
