@@ -1,5 +1,5 @@
 {
-  "framework": "vite",
+  "buildCommand": "sh build.sh",
   "functions": {
     "api/**/*.{js,ts}": {
       "runtime": "nodejs18.x"
