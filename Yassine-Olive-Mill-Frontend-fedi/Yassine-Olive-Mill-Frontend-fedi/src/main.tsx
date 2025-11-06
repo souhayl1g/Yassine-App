@@ -2,9 +2,43 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
+// PWA viewport lock - prevents zoom on mobile
+function preventZoom() {
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+  document.addEventListener('gesturechange', (e) => e.preventDefault());
+  document.addEventListener('gestureend', (e) => e.preventDefault());
+  
+  // Prevent double-tap zoom
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (event) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, false);
+}
+
+// Detect if running as PWA
+const isPWA = window.matchMedia('(display-mode: standalone)').matches 
+  || (window.navigator as any).standalone 
+  || document.referrer.includes('android-app://');
+
+if (isPWA) {
+  console.log('Running as PWA - applying mobile optimizations');
+  preventZoom();
+  
+  // Add PWA-specific class to body
+  document.body.classList.add('pwa-mode');
+  
+  // Prevent pull-to-refresh
+  document.body.style.overscrollBehavior = 'none';
+}
+
 // Add error boundary and logging
 console.log("React app starting...");
 console.log("Root element:", document.getElementById("root"));
+console.log("PWA Mode:", isPWA);
 
 try {
   const rootElement = document.getElementById("root");
