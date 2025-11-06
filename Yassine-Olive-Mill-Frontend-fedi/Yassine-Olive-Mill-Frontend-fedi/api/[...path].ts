@@ -22,8 +22,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // Catch-all route segments after /api
     const parts = (req.query.path as string[] | undefined) ?? [];
+    const pathString = parts.join('/');
     const search = req.url && req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
-    const targetUrl = `${BACKEND}/api/${parts.join('/')}${search}`;
+    
+    // Build target URL - avoid double slashes
+    const targetUrl = pathString 
+      ? `${BACKEND}/api/${pathString}${search}`
+      : `${BACKEND}/api${search}`;
 
     console.log(`[API Proxy] ${req.method} ${targetUrl}`);
 
