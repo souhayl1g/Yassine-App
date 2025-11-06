@@ -162,22 +162,63 @@ All colors MUST be HSL for proper theming support.
   body {
     @apply bg-background text-foreground transition-colors duration-300;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    
+    /* Safe-area insets for iOS devices (notches, home indicator) */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    
     /* Improve touch scrolling on mobile */
     -webkit-overflow-scrolling: touch;
+    
     /* Prevent text size adjustment on mobile */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    
+    /* Prevent pull-to-refresh on mobile (optional - remove if you want it) */
+    overscroll-behavior-y: contain;
   }
   
-  /* Improve touch targets for mobile */
+  /* Safe-area support for fixed elements */
+  header, footer, .fixed {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Improve touch targets for mobile - minimum 44px (iOS recommendation) */
   button, a, input, select {
     touch-action: manipulation;
+    min-height: 44px;
+    min-width: 44px;
   }
   
   /* Prevent zoom on double tap for iOS */
   @media screen and (max-width: 768px) {
     button, a {
       -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Ensure touch targets are large enough on mobile */
+    button:not(.icon-only), 
+    a:not(.icon-only) {
+      min-height: 44px;
+      min-width: 44px;
+      padding: 0.75rem 1rem;
+    }
+  }
+  
+  /* PWA specific styles */
+  @media (display-mode: standalone) {
+    body {
+      /* Remove any browser chrome padding when in PWA mode */
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    
+    /* Adjust spacing for standalone mode */
+    header {
+      padding-top: calc(env(safe-area-inset-top) + 0.5rem);
     }
   }
 }
