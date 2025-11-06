@@ -1,21 +1,47 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Olive branch background circle -->
-  <circle cx="16" cy="16" r="15" fill="#22C55E" stroke="#16A34A" stroke-width="2"/>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradient background circle -->
+  <defs>
+    <linearGradient id="oliveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#22C55E;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16A34A;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="oilGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FCD34D;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F59E0B;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#oliveGrad)"/>
+  
+  <!-- Olive branch -->
+  <path d="M180 200 Q 200 180 220 190 Q 240 200 260 190 Q 280 180 300 200" 
+        stroke="#065F46" stroke-width="12" fill="none" stroke-linecap="round"/>
   
   <!-- Olive leaves -->
-  <path d="M8 10C10 6 12 8 14 6C16 4 18 6 20 4C22 2 24 4 24 6" stroke="#16A34A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <path d="M8 18C10 14 12 16 14 14C16 12 18 14 20 12C22 10 24 12 24 14" stroke="#16A34A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <ellipse cx="210" cy="185" rx="15" ry="30" fill="#10B981" transform="rotate(-30 210 185)"/>
+  <ellipse cx="240" cy="180" rx="15" ry="30" fill="#10B981" transform="rotate(-10 240 180)"/>
+  <ellipse cx="270" cy="185" rx="15" ry="30" fill="#10B981" transform="rotate(30 270 185)"/>
   
-  <!-- Olive fruits -->
-  <circle cx="10" cy="8" r="2.5" fill="#B45309"/>
-  <circle cx="14" cy="10" r="2.5" fill="#B45309"/>
-  <circle cx="18" cy="8" r="2.5" fill="#B45309"/>
-  <circle cx="22" cy="10" r="2.5" fill="#B45309"/>
+  <!-- Olives (fruits) -->
+  <circle cx="205" cy="210" r="18" fill="#7C2D12"/>
+  <circle cx="240" cy="205" r="18" fill="#7C2D12"/>
+  <circle cx="275" cy="210" r="18" fill="#7C2D12"/>
   
-  <!-- Oil drop -->
-  <path d="M16 20C16 22.5 18.5 25 21 25C23.5 25 26 22.5 26 20C26 17.5 23.5 15 21 15C18.5 15 16 17.5 16 20Z" fill="#F59E0B"/>
+  <!-- Shine on olives -->
+  <circle cx="210" cy="205" r="6" fill="#A16207" opacity="0.6"/>
+  <circle cx="245" cy="200" r="6" fill="#A16207" opacity="0.6"/>
+  <circle cx="280" cy="205" r="6" fill="#A16207" opacity="0.6"/>
   
-  <!-- Mill symbol -->
-  <rect x="12" y="22" width="8" height="6" rx="1" fill="#6B7280"/>
-  <rect x="13" y="23" width="6" height="4" fill="#9CA3AF"/>
+  <!-- Oil drops -->
+  <path d="M 200 280 Q 200 250 220 250 Q 240 250 240 280 Q 240 310 220 310 Q 200 310 200 280 Z" 
+        fill="url(#oilGrad)" opacity="0.9"/>
+  <path d="M 240 290 Q 240 260 260 260 Q 280 260 280 290 Q 280 320 260 320 Q 240 320 240 290 Z" 
+        fill="url(#oilGrad)" opacity="0.85"/>
+  <path d="M 280 280 Q 280 250 300 250 Q 320 250 320 280 Q 320 310 300 310 Q 280 310 280 280 Z" 
+        fill="url(#oilGrad)" opacity="0.8"/>
+  
+  <!-- Bottle silhouette -->
+  <path d="M 230 340 L 230 360 Q 230 370 240 370 L 270 370 Q 280 370 280 360 L 280 340 L 275 330 L 235 330 Z" 
+        fill="#065F46" opacity="0.3"/>
 </svg>
