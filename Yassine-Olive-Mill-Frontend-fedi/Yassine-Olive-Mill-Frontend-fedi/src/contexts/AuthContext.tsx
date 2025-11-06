@@ -18,24 +18,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Initialize from localStorage and try to validate token via /auth/me
+  // Initialize from sessionStorage and try to validate token via /auth/me
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const savedUser = localStorage.getItem(TOKEN_USER_KEY);
-        if (savedUser) {
+        const savedUser = sessionStorage.getItem(TOKEN_USER_KEY);
+        const savedToken = sessionStorage.getItem('olive-mill-token');
+        
+        if (savedUser && savedToken) {
           const parsedUser = JSON.parse(savedUser);
+          api.setToken(savedToken);
           setUser(parsedUser);
           
-          if (api.getToken()) {
+          // Validate token with backend
+          try {
             const me = await api.get<User>('/auth/me');
             setUser(me);
-            localStorage.setItem(TOKEN_USER_KEY, JSON.stringify(me));
+            sessionStorage.setItem(TOKEN_USER_KEY, JSON.stringify(me));
+          } catch (error) {
+            // Token invalid, logout
+            sessionStorage.removeItem(TOKEN_USER_KEY);
+            sessionStorage.removeItem('olive-mill-token');
+            api.setToken(null);
+            setUser(null);
           }
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
-        localStorage.removeItem(TOKEN_USER_KEY);
+        sessionStorage.removeItem(TOKEN_USER_KEY);
+        sessionStorage.removeItem('olive-mill-token');
         api.setToken(null);
         setUser(null);
       } finally {
@@ -50,10 +61,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       console.log('Attempting login to:', (import.meta as any).env?.VITE_BASE_BACKEND_API);
-      const resp = await api.post<{ token: string; user: User }>('auth/login', { email, password });
+      const resp = await api.post<{ token: string; user: User }>('auth/login', { email, password }, {
+        headers: {
+          'X-Skip-Credentials': 'true' // Prevent browser credential prompt
+        }
+      });
       console.log('Login response:', resp);
       api.setToken(resp.token);
-      localStorage.setItem(TOKEN_USER_KEY, JSON.stringify(resp.user));
+      
+      // Use sessionStorage instead of localStorage for auto-logout on close
+      sessionStorage.setItem(TOKEN_USER_KEY, JSON.stringify(resp.user));
+      sessionStorage.setItem('olive-mill-token', resp.token);
+      
       setUser(resp.user);
       return { success: true };
     } catch (error: any) {
@@ -74,6 +93,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           role: userData.role || 'operator',
           firstname: userData.firstname,
           lastname: userData.lastname,
+        },
+        {
+          headers: {
+            'X-Skip-Credentials': 'true' // Prevent browser credential prompt
+          }
         }
       );
       // Some backends may return token; if so, store it.
@@ -86,7 +110,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         password: userData.password,
       });
       api.setToken(loginResp.token);
-      localStorage.setItem(TOKEN_USER_KEY, JSON.stringify(loginResp.user));
+      sessionStorage.setItem(TOKEN_USER_KEY, JSON.stringify(loginResp.user));
+      sessionStorage.setItem('olive-mill-token', loginResp.token);
       setUser(loginResp.user);
       return { success: true };
     } catch (error: any) {
@@ -97,7 +122,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem(TOKEN_USER_KEY);
+    sessionStorage.removeItem(TOKEN_USER_KEY);
+    sessionStorage.removeItem('olive-mill-token');
     api.setToken(null);
     setUser(null);
   };

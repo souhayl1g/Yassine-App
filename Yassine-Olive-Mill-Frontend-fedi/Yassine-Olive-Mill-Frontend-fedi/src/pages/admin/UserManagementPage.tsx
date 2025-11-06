@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
-import { Users, UserPlus, Edit2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Users, UserPlus, Edit2, Trash2, Eye, EyeOff, KeyRound } from 'lucide-react';
 
 // User type
 interface User {
@@ -49,8 +49,17 @@ const editUserSchema = z.object({
   }),
 });
 
+const changePasswordSchema = z.object({
+  newPassword: z.string().min(6, 'validation.minLength'),
+  confirmPassword: z.string(),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: 'validation.passwordMismatch',
+  path: ['confirmPassword'],
+});
+
 type CreateUserForm = z.infer<typeof createUserSchema>;
 type EditUserForm = z.infer<typeof editUserSchema>;
+type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
 
 export const UserManagementPage: React.FC = () => {
   const { t } = useTranslation();
@@ -59,9 +68,13 @@ export const UserManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [changingPasswordUser, setChangingPasswordUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   const createForm = useForm<CreateUserForm>({
     resolver: zodResolver(createUserSchema),
@@ -82,6 +95,14 @@ export const UserManagementPage: React.FC = () => {
       firstname: '',
       lastname: '',
       role: 'scanner',
+    },
+  });
+
+  const passwordForm = useForm<ChangePasswordForm>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: {
+      newPassword: '',
+      confirmPassword: '',
     },
   });
 
@@ -231,6 +252,48 @@ export const UserManagementPage: React.FC = () => {
       role: user.role,
     });
     setIsEditDialogOpen(true);
+  };
+
+  // Open password change dialog
+  const openPasswordDialog = (user: User) => {
+    setChangingPasswordUser(user);
+    passwordForm.reset({
+      newPassword: '',
+      confirmPassword: '',
+    });
+    setIsPasswordDialogOpen(true);
+  };
+
+  // Handle change password
+  const handleChangePassword = async (data: ChangePasswordForm) => {
+    if (!changingPasswordUser) return;
+    
+    try {
+      setLoading(true);
+      
+      await api.put(`/users/${changingPasswordUser.id}/password`, {
+        password: data.newPassword,
+      });
+      
+      toast({
+        title: t('common.success'),
+        description: 'تم تغيير كلمة المرور بنجاح',
+      });
+
+      // Reset form and close dialog
+      passwordForm.reset();
+      setIsPasswordDialogOpen(false);
+      setChangingPasswordUser(null);
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast({
+        variant: 'destructive',
+        title: t('common.error'),
+        description: error?.response?.data?.message || 'فشل في تغيير كلمة المرور',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Get role badge variant
@@ -472,6 +535,15 @@ export const UserManagementPage: React.FC = () => {
                     <OliveButton
                       size="sm"
                       variant="outline"
+                      onClick={() => openPasswordDialog(user)}
+                      className="gap-2"
+                    >
+                      <KeyRound className="h-4 w-4" />
+                      كلمة المرور
+                    </OliveButton>
+                    <OliveButton
+                      size="sm"
+                      variant="outline"
                       onClick={() => handleDeleteUser(user.id)}
                       className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
@@ -585,6 +657,102 @@ export const UserManagementPage: React.FC = () => {
                 </OliveButton>
               </div>
             </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>تغيير كلمة المرور</DialogTitle>
+          </DialogHeader>
+          
+          {changingPasswordUser && (
+            <div className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">تغيير كلمة المرور لـ:</p>
+                <p className="font-semibold">
+                  {changingPasswordUser.firstname && changingPasswordUser.lastname 
+                    ? `${changingPasswordUser.firstname} ${changingPasswordUser.lastname}` 
+                    : changingPasswordUser.email}
+                </p>
+              </div>
+
+              <form onSubmit={passwordForm.handleSubmit(handleChangePassword)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">كلمة المرور الجديدة</Label>
+                  <div className="relative">
+                    <Input
+                      id="newPassword"
+                      type={showNewPassword ? 'text' : 'password'}
+                      {...passwordForm.register('newPassword')}
+                      className="olive-input pr-10"
+                      placeholder="أدخل كلمة المرور الجديدة"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {passwordForm.formState.errors.newPassword && (
+                    <p className="text-sm text-destructive">
+                      {t(passwordForm.formState.errors.newPassword.message!)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">تأكيد كلمة المرور</Label>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmNewPassword ? 'text' : 'password'}
+                      {...passwordForm.register('confirmPassword')}
+                      className="olive-input pr-10"
+                      placeholder="أعد إدخال كلمة المرور"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                    >
+                      {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {passwordForm.formState.errors.confirmPassword && (
+                    <p className="text-sm text-destructive">
+                      {t(passwordForm.formState.errors.confirmPassword.message!)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <OliveButton
+                    type="submit"
+                    className="flex-1"
+                    disabled={loading}
+                  >
+                    {loading ? t('common.loading') : 'تغيير كلمة المرور'}
+                  </OliveButton>
+                  <OliveButton
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsPasswordDialogOpen(false);
+                      setChangingPasswordUser(null);
+                      passwordForm.reset();
+                    }}
+                    disabled={loading}
+                  >
+                    إلغاء
+                  </OliveButton>
+                </div>
+              </form>
+            </div>
           )}
         </DialogContent>
       </Dialog>
