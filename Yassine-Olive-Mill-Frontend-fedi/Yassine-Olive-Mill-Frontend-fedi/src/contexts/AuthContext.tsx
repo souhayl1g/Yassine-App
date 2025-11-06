@@ -22,16 +22,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // Migration: Clear old localStorage data and force re-login
+        // One-time migration: Clear old localStorage data only if sessionStorage is empty
         const oldLocalUser = localStorage.getItem(TOKEN_USER_KEY);
-        if (oldLocalUser) {
-          console.log('Migrating from localStorage to sessionStorage - clearing old data');
+        const sessionUser = sessionStorage.getItem(TOKEN_USER_KEY);
+        
+        // If there's old localStorage data but no sessionStorage, do ONE-TIME migration
+        if (oldLocalUser && !sessionUser) {
+          console.log('One-time migration from localStorage to sessionStorage');
           localStorage.removeItem(TOKEN_USER_KEY);
           localStorage.removeItem('olive-mill-token');
           api.setToken(null);
           setUser(null);
           setLoading(false);
           return;
+        }
+        
+        // If there's old localStorage and sessionStorage exists, just clean up localStorage silently
+        if (oldLocalUser && sessionUser) {
+          localStorage.removeItem(TOKEN_USER_KEY);
+          localStorage.removeItem('olive-mill-token');
         }
 
         const savedUser = sessionStorage.getItem(TOKEN_USER_KEY);
@@ -42,7 +51,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           api.setToken(savedToken);
           setUser(parsedUser);
           
-          // Validate token with backend
+          // Optional: Validate token with backend (disabled to prevent logout on refresh)
+          // Uncomment if you want to validate token on every page load
+          /*
           try {
             const me = await api.get<User>('/auth/me');
             setUser(me);
@@ -54,6 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             api.setToken(null);
             setUser(null);
           }
+          */
         }
       } catch (error) {
         console.error('Auth initialization error:', error);

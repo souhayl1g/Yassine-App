@@ -1068,24 +1068,33 @@ export const useDailyWork = () => {
                 font-size: 12px; 
                 color: #666; 
               }
+              @page {
+                size: 80mm auto;
+                margin: 0;
+              }
               @media print { 
-                body { 
+                * {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                html, body { 
                   margin: 0; 
+                  padding: 0;
                   background: white;
                   color: black;
+                  width: 80mm;
+                  height: auto;
                 }
                 .ticket { 
+                  width: 80mm;
                   border: none; 
-                  padding: 10px; 
+                  padding: 5mm; 
                   background: white;
                   color: black;
                   page-break-before: auto;
-                  page-break-after: always;
+                  page-break-after: auto;
                   page-break-inside: avoid;
-                }
-                @page {
-                  size: A4;
-                  margin: 10mm;
+                  box-sizing: border-box;
                 }
               }
               @media (prefers-color-scheme: dark) {
