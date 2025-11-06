@@ -44,6 +44,19 @@ app.use(helmet({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Ngrok compatibility - log requests and ensure proper handling
+app.use((req, res, next) => {
+  // Log incoming requests for debugging
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  
+  // Ngrok sends this header, we can use it for debugging
+  if (req.headers['ngrok-skip-browser-warning']) {
+    console.log('  → Request from ngrok tunnel');
+  }
+  
+  next();
+});
+
 // Logging middleware
 app.use(logger);
 

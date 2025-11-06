@@ -6,8 +6,8 @@
   },
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/[...path]"
+      "source": "/api/:path*",
+      "destination": "/api/clients"
     }
   ]
 }

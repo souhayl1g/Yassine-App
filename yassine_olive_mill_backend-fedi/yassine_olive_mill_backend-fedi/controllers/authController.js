@@ -79,19 +79,25 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   try {
+    console.log('Login attempt - Headers:', req.headers);
+    console.log('Login attempt - Body:', req.body);
+    
     const { email, password } = req.body;
 
     if (!email || !password) {
+      console.log('Missing credentials - email:', !!email, 'password:', !!password);
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
     const user = await User.findOne({ where: { email } });
     if (!user) {
+      console.log('User not found:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
+      console.log('Invalid password for user:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
