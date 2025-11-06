@@ -1,4 +1,7 @@
 {
+  "buildCommand": "cd Yassine-Olive-Mill-Frontend-fedi/Yassine-Olive-Mill-Frontend-fedi && npm install && npm run build",
+  "outputDirectory": "Yassine-Olive-Mill-Frontend-fedi/Yassine-Olive-Mill-Frontend-fedi/dist",
+  "installCommand": "cd Yassine-Olive-Mill-Frontend-fedi/Yassine-Olive-Mill-Frontend-fedi && npm install",
   "functions": {
     "api/**/*.{js,ts}": {
       "runtime": "nodejs18.x"
