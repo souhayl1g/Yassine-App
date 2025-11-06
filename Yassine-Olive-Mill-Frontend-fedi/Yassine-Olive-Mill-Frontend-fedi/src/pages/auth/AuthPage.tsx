@@ -91,9 +91,11 @@ export const AuthPage: React.FC = () => {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center mb-6">
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl olive-primary-gradient shadow-lg">
-              <Leaf className="h-10 w-10 text-white" />
-            </div>
+            <img 
+              src="/favicon.svg" 
+              alt="Olive Mill Logo" 
+              className="h-20 w-20 rounded-2xl shadow-lg"
+            />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">
             {t('auth.title')}
