@@ -22,6 +22,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initAuth = async () => {
       try {
+        // Migration: Clear old localStorage data and force re-login
+        const oldLocalUser = localStorage.getItem(TOKEN_USER_KEY);
+        if (oldLocalUser) {
+          console.log('Migrating from localStorage to sessionStorage - clearing old data');
+          localStorage.removeItem(TOKEN_USER_KEY);
+          localStorage.removeItem('olive-mill-token');
+          api.setToken(null);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
         const savedUser = sessionStorage.getItem(TOKEN_USER_KEY);
         const savedToken = sessionStorage.getItem('olive-mill-token');
         
@@ -47,6 +59,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error('Auth initialization error:', error);
         sessionStorage.removeItem(TOKEN_USER_KEY);
         sessionStorage.removeItem('olive-mill-token');
+        localStorage.removeItem(TOKEN_USER_KEY);
+        localStorage.removeItem('olive-mill-token');
         api.setToken(null);
         setUser(null);
       } finally {
@@ -122,8 +136,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
+    // Clear both session and local storage to be safe
     sessionStorage.removeItem(TOKEN_USER_KEY);
     sessionStorage.removeItem('olive-mill-token');
+    localStorage.removeItem(TOKEN_USER_KEY);
+    localStorage.removeItem('olive-mill-token');
     api.setToken(null);
     setUser(null);
   };
