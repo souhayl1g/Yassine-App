@@ -72,6 +72,89 @@ input, select, textarea {
   font-size: 16px !important;
 }
 
+/* Mobile PWA Responsive Font Scaling */
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 14px; /* Base font size for mobile */
+  }
+  
+  /* Scale headings for mobile */
+  h1 { font-size: 1.75rem !important; } /* ~24px */
+  h2 { font-size: 1.5rem !important; }  /* ~21px */
+  h3 { font-size: 1.25rem !important; } /* ~17px */
+  h4 { font-size: 1.1rem !important; }  /* ~15px */
+  h5 { font-size: 1rem !important; }    /* ~14px */
+  h6 { font-size: 0.9rem !important; }  /* ~12px */
+  
+  /* Body text */
+  p, span, div, label {
+    font-size: 0.95rem; /* ~13px */
+  }
+  
+  /* Buttons */
+  button {
+    font-size: 0.9rem !important;
+    padding: 0.6rem 1rem !important;
+  }
+  
+  /* Tables */
+  table {
+    font-size: 0.85rem;
+  }
+  
+  /* Cards and containers */
+  .card, [class*="card"] {
+    padding: 0.75rem !important;
+  }
+  
+  /* Reduce spacing */
+  .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+  }
+  
+  .space-y-6 > * + * {
+    margin-top: 1rem !important;
+  }
+  
+  /* Make sure content doesn't overflow */
+  * {
+    max-width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
+/* Extra small devices (< 375px) */
+@media screen and (max-width: 375px) {
+  html {
+    font-size: 13px;
+  }
+  
+  h1 { font-size: 1.5rem !important; }
+  h2 { font-size: 1.3rem !important; }
+  h3 { font-size: 1.15rem !important; }
+  
+  button {
+    font-size: 0.85rem !important;
+    padding: 0.5rem 0.8rem !important;
+  }
+}
+
+/* PWA-specific optimizations */
+@media (display-mode: standalone) {
+  body {
+    /* Remove any margin/padding in standalone mode */
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Ensure full viewport usage */
+  #root {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+}
+
 /* Olive Mill Management System Design System
 All colors MUST be HSL for proper theming support.
 */
