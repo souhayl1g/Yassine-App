@@ -53,30 +53,21 @@ export function PrintTicketModal({
     'box-labels';
 
   const getPageStyle = () => {
-    // Simple approach: each label on its own page
+    // All tickets are now 58mm x 43mm
     return `
       @page {
-        size: auto;
-        margin: 15mm;
+        size: 58mm 43mm;
+        margin: 0;
       }
       @media print {
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-        html, body {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
           margin: 0;
           padding: 0;
         }
         .page-break {
-          page-break-after: always !important;
-          break-after: page !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-          margin-bottom: 0 !important;
-        }
-        .no-page-break {
-          page-break-after: avoid !important;
+          page-break-after: always;
         }
       }
     `;
@@ -434,11 +425,11 @@ export function PrintTicketModal({
                 </div>
               )}
 
-              {/* TYPE 2: Box Labels Print - Each label on separate page */}
-              {ticketType === 'box-labels' && labelsToPrint.map((boxNum) => (
+              {/* TYPE 2: Box Labels Print */}
+              {ticketType === 'box-labels' && labelsToPrint.map((boxNum, index) => (
                 <div
                   key={boxNum}
-                  className={boxNum < totalLabels ? 'page-break' : 'no-page-break'}
+                  className={index < labelsToPrint.length - 1 ? 'page-break' : ''}
                   style={{
                     width: '58mm',
                     height: '43mm',
