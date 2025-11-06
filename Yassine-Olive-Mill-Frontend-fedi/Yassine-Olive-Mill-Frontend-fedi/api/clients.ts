@@ -50,8 +50,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const body = await readRawBody(req);
     
-    // Ensure Content-Type is set for POST/PUT requests
-    if (!headers['content-type'] && body && (req.method === 'POST' || req.method === 'PUT')) {
+    // Force Content-Type to application/json for POST/PUT requests with body
+    // This fixes the issue where the browser sends text/plain which breaks Express body parsing
+    if (body && body.length > 0 && (req.method === 'POST' || req.method === 'PUT')) {
       headers['content-type'] = 'application/json';
     }
 
