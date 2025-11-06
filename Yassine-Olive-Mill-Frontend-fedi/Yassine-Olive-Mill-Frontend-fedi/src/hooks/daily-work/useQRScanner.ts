@@ -107,7 +107,6 @@ export const useQRScanner = (
       setEditForm({
         weightOut: ticket.weightOut !== undefined ? String(ticket.weightOut) : '',
         numberOfBoxes: ticket.numberOfBoxes ? String(ticket.numberOfBoxes) : '',
-        notes: ticket.notes || '',
         taux: '', // Reset taux for each ticket
         // Payment fields
         isPaid: ticket.isPaid || false,

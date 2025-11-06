@@ -1143,9 +1143,6 @@ export const useDailyWork = () => {
       if (ticketManagement.loadCurrentPrices) {
         ticketManagement.loadCurrentPrices();
       }
-      if (ticketManagement.loadDailyTicketCount && ticketManagement.setDailyTicketCount) {
-        ticketManagement.loadDailyTicketCount().then(ticketManagement.setDailyTicketCount);
-      }
     }, 10000); // 10 seconds
 
     // Cleanup interval on unmount
