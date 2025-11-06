@@ -1,9 +1,8 @@
 {
-  "buildCommand": "sh build.sh",
-  "rootDirectory": "Yassine-Olive-Mill-Frontend-fedi",
-  "functions": {
-    "api/**/*.{js,ts}": {
-      "runtime": "nodejs18.x"
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[...path]"
     }
-  }
+  ]
 }
