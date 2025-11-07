@@ -24,7 +24,7 @@ interface EditTicketModalProps {
   calculateEditTotalAmount: (operationType?: string) => Promise<number>;
   calculateEditTotalAmountWithDetails: (operationType?: string) => Promise<{
     amount: number;
-    calculationMethod: string;
+    // calculationMethod: string;
     containerWeight?: number;
   }>;
   isMinimumPriceApplied: (operationType?: string) => Promise<boolean>;
@@ -175,13 +175,7 @@ export function EditTicketModal({
                   onChange={(e) => setEditForm((p) => ({ ...p, numberOfBoxes: e.target.value }))}
                   placeholder="0"
                   className="w-full"
-                  disabled={isFinishingOperation}
                 />
-                {isFinishingOperation && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    لا يمكن تعديل عدد الصناديق أثناء إكمال العملية. انتظر حتى يقوم المسؤول بمسح وإدخال العدد.
-                  </p>
-                )}
               </label>
             </div>
           </div>
