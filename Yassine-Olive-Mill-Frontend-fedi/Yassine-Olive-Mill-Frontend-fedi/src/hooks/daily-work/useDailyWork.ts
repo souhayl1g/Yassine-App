@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
@@ -19,6 +19,11 @@ export const useDailyWork = () => {
   
   // Use ticket management hook
   const ticketManagement = useTicketManagement();
+  // Keep track of latest current page to avoid stale closures in intervals
+  const currentPageRef = useRef<number>(1);
+  useEffect(() => {
+    currentPageRef.current = ticketManagement.currentPage || 1;
+  }, [ticketManagement.currentPage]);
   
   // Modal states
   const [isAddTicketOpen, setIsAddTicketOpen] = useState(false);
@@ -1348,8 +1353,12 @@ export const useDailyWork = () => {
   useEffect(() => {
     const intervalId = setInterval(() => {
       // Refresh tickets list silently (no loading spinner)
+      // IMPORTANT: Do NOT reset pagination — only auto-refresh when user is on page 1
       if (ticketManagement.loadRecentTickets) {
-        ticketManagement.loadRecentTickets(ticketManagement.currentPage || 1, true); // true = silent mode
+        const pageToRefresh = currentPageRef.current || 1;
+        if (pageToRefresh === 1) {
+          ticketManagement.loadRecentTickets(1, true); // true = silent mode
+        }
       }
       // Refresh clients silently
       if (ticketManagement.loadClients) {
@@ -1362,7 +1371,7 @@ export const useDailyWork = () => {
     }, 10000); // 10 seconds
 
     // Cleanup interval on unmount
-    return () => clearInterval(intervalId);
+    return () => { clearInterval(intervalId); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
