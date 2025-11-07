@@ -19,6 +19,8 @@ export const useDailyWork = () => {
   
   // Use ticket management hook
   const ticketManagement = useTicketManagement();
+  // Global toggle: disable automatic reloading to preserve user pagination
+  const AUTO_REFRESH_ENABLED = false;
   // Keep track of latest current page to avoid stale closures in intervals
   const currentPageRef = useRef<number>(1);
   useEffect(() => {
@@ -1349,8 +1351,9 @@ export const useDailyWork = () => {
     ticketManagement.initializeData();
   }, []);
 
-  // Auto-refresh every 10 seconds (silent mode - no loading spinner)
+  // Auto-refresh every 10 seconds (disabled by default)
   useEffect(() => {
+    if (!AUTO_REFRESH_ENABLED) return;
     const intervalId = setInterval(() => {
       // Refresh tickets list silently (no loading spinner)
       // IMPORTANT: Do NOT reset pagination — only auto-refresh when user is on page 1
