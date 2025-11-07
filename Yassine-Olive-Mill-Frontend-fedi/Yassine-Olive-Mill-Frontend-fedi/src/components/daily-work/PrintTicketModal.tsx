@@ -45,6 +45,8 @@ export function PrintTicketModal({
     }
   };
 
+  const PRINT_ROOT_ID = 'olive-print-root';
+
   const ticketType = !ticket ? 'box-labels' : 
     ticket.status === 'received' ? 'arrival-receipt' :
     ticket.status === 'completed' ? 'exit-receipt' :
@@ -57,15 +59,29 @@ export function PrintTicketModal({
     }
     @media print {
       html, body {
-        margin: 0;
-        padding: 0;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 58mm !important;
+        min-height: 43mm !important;
+      }
+      #${PRINT_ROOT_ID} {
+        width: 58mm !important;
       }
       .print-page {
         width: 58mm !important;
+        min-height: 43mm !important;
         height: 43mm !important;
+        display: block !important;
+        page-break-before: always !important;
         page-break-after: always !important;
+        page-break-inside: avoid !important;
+        break-before: page !important;
         break-after: page !important;
         overflow: hidden !important;
+      }
+      .print-page:first-child {
+        page-break-before: auto !important;
+        break-before: auto !important;
       }
       .print-page:last-child {
         page-break-after: auto !important;
@@ -84,7 +100,7 @@ export function PrintTicketModal({
   if (!isOpen || !ticket) return null;
 
   const numberOfBoxes = ticket.numberOfBoxes || 0;
-  const totalLabels = numberOfBoxes || 1;
+  const totalLabels = Math.max(1, numberOfBoxes);
   const labelsToPrint = Array.from({ length: totalLabels }, (_, i) => i + 1);
   const ticketIdText = ticket.ticketNumber ?? String(ticket.id);
   const qrCodeValue = JSON.stringify({
@@ -328,6 +344,8 @@ export function PrintTicketModal({
 
           <div style={{ display: 'none' }}>
             <div ref={printRef}>
+              <style>{getPageStyle()}</style>
+              <div id={PRINT_ROOT_ID}>
               {ticketType === 'arrival-receipt' && (
                 <div className="print-page">
                   <div style={{
@@ -673,6 +691,7 @@ export function PrintTicketModal({
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
 

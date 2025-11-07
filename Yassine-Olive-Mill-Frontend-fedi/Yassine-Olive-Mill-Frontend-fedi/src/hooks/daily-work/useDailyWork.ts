@@ -19,10 +19,13 @@ export const useDailyWork = () => {
   
   // Use ticket management hook
   const ticketManagement = useTicketManagement();
-  // Global toggle: disable automatic reloading to preserve user pagination
-  const AUTO_REFRESH_ENABLED = false;
+  // Global toggle for silent auto-refresh of ticket list
+  const AUTO_REFRESH_ENABLED = true;
+  const AUTO_REFRESH_INTERVAL_MS = 5000;
   // Keep track of latest current page to avoid stale closures in intervals
   const currentPageRef = useRef<number>(1);
+  const autoRefreshInFlightRef = useRef(false);
+  const interactionLockRef = useRef(false);
   useEffect(() => {
     currentPageRef.current = ticketManagement.currentPage || 1;
   }, [ticketManagement.currentPage]);
@@ -187,6 +190,29 @@ export const useDailyWork = () => {
     });
     ticketManagement.setSelectedClient(null);
   };
+
+  // Track when user is interacting with modals to pause background refresh
+  useEffect(() => {
+    interactionLockRef.current = Boolean(
+      isEditModalOpen ||
+      isAddTicketOpen ||
+      isFinishingOperation ||
+      isQrScanOpen ||
+      isPrintModalOpen ||
+      isDetailsModalOpen ||
+      isQrDisplayOpen ||
+      isCameraScanOpen
+    );
+  }, [
+    isEditModalOpen,
+    isAddTicketOpen,
+    isFinishingOperation,
+    isQrScanOpen,
+    isPrintModalOpen,
+    isDetailsModalOpen,
+    isQrDisplayOpen,
+    isCameraScanOpen
+  ]);
 
   // Handle ticket click to edit
   const handleTicketClick = async (ticket: Ticket) => {
@@ -1351,30 +1377,52 @@ export const useDailyWork = () => {
     ticketManagement.initializeData();
   }, []);
 
-  // Auto-refresh every 10 seconds (disabled by default)
+  // Auto-refresh tickets silently every 5 seconds when user is not interacting with modals
   useEffect(() => {
     if (!AUTO_REFRESH_ENABLED) return;
-    const intervalId = setInterval(() => {
-      // Refresh tickets list silently (no loading spinner)
-      // IMPORTANT: Do NOT reset pagination — only auto-refresh when user is on page 1
-      if (ticketManagement.loadRecentTickets) {
-        const pageToRefresh = currentPageRef.current || 1;
-        if (pageToRefresh === 1) {
-          ticketManagement.loadRecentTickets(1, true); // true = silent mode
-        }
-      }
-      // Refresh clients silently
-      if (ticketManagement.loadClients) {
-        ticketManagement.loadClients();
-      }
-      // Refresh prices silently
-      if (ticketManagement.loadCurrentPrices) {
-        ticketManagement.loadCurrentPrices();
-      }
-    }, 10000); // 10 seconds
 
-    // Cleanup interval on unmount
-    return () => { clearInterval(intervalId); };
+    const performRefresh = async () => {
+      if (autoRefreshInFlightRef.current) return;
+      if (interactionLockRef.current) return;
+
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      if (!ticketManagement.loadRecentTickets) return;
+
+      autoRefreshInFlightRef.current = true;
+      const pageToRefresh = currentPageRef.current || 1;
+
+      try {
+        await ticketManagement.loadRecentTickets(pageToRefresh, true);
+      } catch (error) {
+        // Swallow errors silently during background refresh
+        console.warn('Auto refresh failed:', error);
+      } finally {
+        autoRefreshInFlightRef.current = false;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document === 'undefined' || document.hidden) return;
+      void performRefresh();
+    };
+
+    const intervalId = window.setInterval(() => {
+      void performRefresh();
+    }, AUTO_REFRESH_INTERVAL_MS);
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    void performRefresh();
+
+    return () => {
+      clearInterval(intervalId);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
