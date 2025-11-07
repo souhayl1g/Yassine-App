@@ -57,7 +57,7 @@ export function PrintTicketModal({
     return `
       @page {
         size: 58mm 43mm;
-        margin: 0;
+        margin: 1;
       }
       @media print {
         html, body {
@@ -65,9 +65,8 @@ export function PrintTicketModal({
           print-color-adjust: exact;
           margin: 0;
           padding: 0;
-          width: 58mm;
-          height: 43mm;
         }
+        /* Each label element creates a new printed page */
         .page-break { page-break-after: always; break-after: page; }
         .avoid-break { page-break-inside: avoid; break-inside: avoid; }
       }
