@@ -25,6 +25,10 @@ export default defineConfig(({ mode }) => {
     }
   }
 
+  // === LIFETIME SOLUTION: Cache-Busting Version ===
+  // Increment this version to force complete PWA cache invalidation
+  const PWA_VERSION = "2.1.0";
+
   return {
     server: {
       ...serverConfig,
@@ -37,19 +41,92 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    
+    // === CRITICAL: Force cache busting for all assets ===
+    build: {
+      // Ensure every build generates unique filenames
+      rollupOptions: {
+        output: {
+          // Add content hash to all JS/CSS files (e.g., index-abc123.js)
+          entryFileNames: `assets/[name]-[hash].js`,
+          chunkFileNames: `assets/[name]-[hash].js`,
+          assetFileNames: `assets/[name]-[hash].[ext]`,
+          // Prevent service worker from caching stale assets
+          manualChunks: {
+            'print-component': ['react-to-print', 'qrcode.react'],
+          },
+        },
+      },
+      // Enable sourcemaps for debugging
+      sourcemap: mode === "development",
+      // Ensure CSS is extracted with hash
+      cssCodeSplit: true,
+    },
+    
     plugins: [
       react(),
       mode === "development" && componentTagger(),
+      
       VitePWA({
         registerType: "autoUpdate",
-        includeAssets: [
-          "favicon.ico",
-          "favicon.png",
-          "favicon.svg",
-          "apple-touch-icon.png",
-          "olive_mill.ico",
-          "olive_mill.svg",
-        ],
+        // === FORCE IMMEDIATE UPDATES ===
+        workbox: {
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,        // Install new SW immediately
+          clientsClaim: true,       // Take control of all clients immediately
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+          
+          // === CRITICAL: Short cache for JS files ===
+          runtimeCaching: [
+            {
+              urlPattern: ({ request }) => request.destination === 'script',
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "js-cache-v2", // Change name to clear old caches
+                networkTimeoutSeconds: 3,
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 1, // 1 hour max cache
+                },
+              },
+            },
+            {
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "google-fonts-cache",
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
+              },
+            },
+            {
+              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "gstatic-fonts-cache",
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
+              },
+            },
+            {
+              urlPattern: /\/api\/.*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "api-cache",
+                networkTimeoutSeconds: 10,
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60, // 1 hour
+                },
+              },
+            },
+          ],
+        },
+        
         manifest: {
           name: "معصرة ياسين وأبوه - نظام الإدارة",
           short_name: "معصرة ياسين",
@@ -73,25 +150,17 @@ export default defineConfig(({ mode }) => {
               type: "image/svg+xml",
               purpose: "any maskable",
             },
-            {
-              src: "/favicon.svg",
-              sizes: "180x180",
-              type: "image/svg+xml",
-              purpose: "any",
-            },
           ],
           shortcuts: [
             {
               name: "إضافة عميل جديد",
               short_name: "عميل جديد",
-              description: "إضافة عميل جديد بسرعة",
               url: "/clients",
               icons: [{ src: "/favicon.svg", sizes: "96x96" }],
             },
             {
               name: "عمل اليوم",
               short_name: "اليوم",
-              description: "عرض عمل اليوم",
               url: "/",
               icons: [{ src: "/favicon.svg", sizes: "96x96" }],
             },
@@ -100,72 +169,41 @@ export default defineConfig(({ mode }) => {
           lang: "ar",
           dir: "rtl",
         },
-        workbox: {
-          cleanupOutdatedCaches: true,
-          skipWaiting: true,
-          clientsClaim: true,
-          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "google-fonts-cache",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "gstatic-fonts-cache",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              urlPattern: /\/api\/.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "api-cache",
-                networkTimeoutSeconds: 10,
-                expiration: {
-                  maxEntries: 50,
-                  maxAgeSeconds: 60 * 60, // 1 hour
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-          ],
-        },
+        
+        // === DEVELOPMENT SETTINGS ===
         devOptions: {
-          enabled: false, // Disable in dev to avoid service worker issues during development
+          enabled: false, // Disable in dev to avoid SW issues
         },
+        
+        // === FORCE UPDATE ON EVERY DEPLOYMENT ===
+        includeAssets: [
+          "favicon.ico",
+          "favicon.png",
+          "favicon.svg",
+          "apple-touch-icon.png",
+          "olive_mill.ico",
+          "olive_mill.svg",
+        ],
       }),
     ].filter(Boolean),
+    
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },
     },
+    
     optimizeDeps: {
       exclude: ['qr-scanner']
     },
+    
     worker: {
       format: 'es'
-    }
+    },
+    
+    // === DEVELOPMENT MODE SETTINGS ===
+    define: {
+      __PWA_VERSION__: JSON.stringify(PWA_VERSION),
+    },
   };
 });

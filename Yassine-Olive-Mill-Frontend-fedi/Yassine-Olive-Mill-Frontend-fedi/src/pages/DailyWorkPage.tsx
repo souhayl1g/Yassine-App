@@ -49,7 +49,7 @@ export function DailyWorkPage() {
           onTicketClick={dailyWork.handleTicketClick}
           onPrintTicket={dailyWork.handlePrintTicket}
           onShowQrCode={dailyWork.handleShowQrCode}
-          onPageChange={dailyWork.loadRecentTickets}
+          onPageChange={(page) => dailyWork.loadRecentTickets(page, true)}
           onDeleteTicket={dailyWork.handleDeleteTicket}
           onPayTicket={payment.openPaymentModal}
           onViewPaymentHistory={(clientId, clientName) => payment.openPaymentHistory(clientId, clientName)}
