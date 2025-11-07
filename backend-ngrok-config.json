@@ -1,0 +1,19 @@
+{
+    "backend":  {
+                    "port":  3000,
+                    "directory":  "yassine_olive_mill_backend-fedi/yassine_olive_mill_backend-fedi",
+                    "healthCheckUrl":  "http://localhost:3000/api/health"
+                },
+    "ngrok":  {
+                  "port":  3000,
+                  "apiUrl":  "http://localhost:4040/api/tunnels",
+                  "updateInterval":  30
+              },
+    "monitoring":  {
+                       "checkInterval":  30,
+                       "maxRestartAttempts":  5,
+                       "restartDelay":  10
+                   },
+    "ngrokUrl":  "https://preneuralgic-overexuberantly-marjorie.ngrok-free.dev",
+    "lastUpdated":  ""
+}

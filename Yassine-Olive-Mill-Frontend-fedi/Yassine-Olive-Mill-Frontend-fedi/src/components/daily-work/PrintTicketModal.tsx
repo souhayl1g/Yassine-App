@@ -5,6 +5,7 @@ import { Ticket } from '@/types/daily-work';
 import { QRCodeSVG } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
 import { api } from '@/integrations/api/client';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 interface PrintTicketModalProps {
   isOpen: boolean;
@@ -96,12 +97,194 @@ export function PrintTicketModal({
     }
   `;
 
-  const handlePrint = useReactToPrint({
+  const standardPrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Ticket-${ticket?.ticketNumber}`,
     pageStyle: getPageStyle(),
     onAfterPrint: onPrint,
   });
+
+  const printHtmlDocument = (html: string) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const cleanup = () => {
+      if (iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+      onPrint();
+    };
+
+    const handleAfterPrint = () => {
+      cleanup();
+    };
+
+    const iframeWindow = iframe.contentWindow;
+    if (!iframeWindow) {
+      cleanup();
+      return;
+    }
+
+    iframeWindow.addEventListener('afterprint', handleAfterPrint);
+    iframeWindow.addEventListener('beforeunload', handleAfterPrint);
+
+    const doc = iframeWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const triggerPrint = () => {
+      try {
+        iframeWindow.focus();
+        iframeWindow.print();
+      } catch (error) {
+        console.error('Print error', error);
+        cleanup();
+      }
+    };
+
+    if (doc.readyState === 'complete') {
+      setTimeout(triggerPrint, 200);
+    } else {
+      iframeWindow.addEventListener('load', () => setTimeout(triggerPrint, 200));
+    }
+
+    setTimeout(cleanup, 60000);
+  };
+
+  const buildLabelDocumentHtml = () => {
+    const labelStyle = `
+      @page {
+        size: 58mm 43mm;
+        margin: 0;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        width: 58mm;
+        background: white;
+        direction: rtl;
+      }
+      .label-page {
+        width: 58mm;
+        height: 43mm;
+        page-break-after: always;
+        box-sizing: border-box;
+        padding: 1.5mm;
+        font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: row;
+        position: relative;
+        border: 1.2px solid #000;
+        overflow: hidden;
+      }
+      .label-page:last-child {
+        page-break-after: auto;
+      }
+      .label-index {
+        position: absolute;
+        top: 0;
+        right: 0;
+        font-size: 6pt;
+        font-weight: bold;
+        color: #000;
+        background-color: #e5e7eb;
+        padding: 0.5mm 1mm;
+        border-bottom-left-radius: 1mm;
+      }
+      .label-qr {
+        width: 26mm;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-right: 1mm;
+        border-right: 1px solid #000;
+      }
+      .label-details {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding-left: 1.5mm;
+        text-align: right;
+      }
+      .label-title {
+        font-size: 8pt;
+        font-weight: 700;
+        color: #000;
+        line-height: 1.1;
+        border-bottom: 1px solid #000;
+        padding-bottom: 0.5mm;
+        margin-bottom: 0.5mm;
+      }
+      .label-text {
+        font-size: 6pt;
+        color: #000;
+        margin-bottom: 0.3mm;
+      }
+      .label-client {
+        font-size: 7pt;
+        font-weight: 600;
+        color: #000;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-bottom: 0.5mm;
+      }
+    `;
+
+    const qrSvgMarkup = renderToStaticMarkup(
+      <QRCodeSVG value={qrCodeValue} size={95} level="H" includeMargin={false} />
+    );
+
+    const labelsMarkup = labelsToPrint.map((boxNum) => `
+      <div class="label-page">
+        <div class="label-index">${boxNum}/${totalLabels}</div>
+        <div class="label-qr">${qrSvgMarkup}</div>
+        <div class="label-details">
+          <div class="label-title">معصرة ياسين وأبوه</div>
+          <div class="label-client">${ticket?.clientName ?? ''}</div>
+          <div class="label-text">رقم: ${ticketIdText}</div>
+          <div class="label-text">${ticket ? new Date(ticket.dateReceived).toLocaleDateString('ar-TN') : ''}</div>
+        </div>
+      </div>
+    `).join('');
+
+    return `<!DOCTYPE html>
+      <html lang="ar" dir="rtl">
+        <head>
+          <meta charSet="utf-8" />
+          <title>طباعة الملصقات - ${ticket?.clientName ?? ''}</title>
+          <style>${labelStyle}</style>
+        </head>
+        <body>
+          ${labelsMarkup}
+        </body>
+      </html>`;
+  };
+
+  const handleLabelPrint = () => {
+    if (!ticket) {
+      return;
+    }
+
+    const html = buildLabelDocumentHtml();
+    printHtmlDocument(html);
+  };
+
+  const handlePrint = () => {
+    if (ticketType === 'box-labels') {
+      handleLabelPrint();
+    } else {
+      standardPrint();
+    }
+  };
 
   if (!isOpen || !ticket) return null;
 
