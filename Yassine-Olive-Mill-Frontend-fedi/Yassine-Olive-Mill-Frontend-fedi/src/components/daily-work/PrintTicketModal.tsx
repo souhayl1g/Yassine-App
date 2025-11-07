@@ -242,81 +242,75 @@ export function PrintTicketModal({
             )}
 
             {ticketType === 'exit-receipt' && (
-              <div className="bg-white border border-black p-1 mx-auto text-gray-900" dir="rtl" style={{ width: '58mm', height: '43mm' }}>
-                <div className="text-center border-b border-emerald-600 pb-0.5 mb-0.5">
-                  <h2 className="text-[8px] font-bold text-emerald-700 leading-none">معصرة ياسين وأبوه</h2>
-                  <p className="text-[5px] text-gray-600 leading-none">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
+              <div className="bg-white border border-black p-0.5 mx-auto text-gray-900" dir="rtl" style={{ width: '58mm', height: '43mm' }}>
+                <div className="text-center border-b border-emerald-600 pb-0 mb-0.5">
+                  <h2 className="text-[7px] font-bold text-emerald-700 leading-none">معصرة ياسين وأبوه</h2>
+                  <p className="text-[4.5px] text-gray-600 leading-none">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
                 </div>
-                <div className="flex h-[calc(43mm-9mm)]">
+                <div className="flex h-[calc(43mm-7mm)]">
                   <div className="w-1/2 flex items-center justify-center border-r border-black pr-0.5">
-                    <QRCodeSVG value={qrCodeValue} size={50} level="H" includeMargin={false} />
+                    <QRCodeSVG value={qrCodeValue} size={48} level="H" includeMargin={false} />
                   </div>
-                  <div className="w-1/2 pl-1 flex flex-col justify-between text-right text-[5.5px]">
-                    <div className="space-y-[1px]">
-                      <div className="flex justify-between leading-tight font-bold border-b border-gray-300 pb-0.5">
+                  <div className="w-1/2 pl-0.5 flex flex-col justify-between text-right text-[4.5px]">
+                    <div className="space-y-[0.5px]">
+                      <div className="flex justify-between leading-none font-bold border-b border-gray-300 pb-0">
                         <span>رقم: {ticketIdText}</span>
-                        <span className="text-[4px]">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                        <span className="text-[3.5px]">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                       </div>
-                      <div className="leading-tight font-bold text-[6px] truncate">{ticket.clientName}</div>
+                      <div className="leading-none font-bold text-[5px] truncate">{ticket.clientName}</div>
                       
-                      <div className="flex justify-between leading-tight">
+                      <div className="flex justify-between leading-none">
                         <span>دخول:</span>
                         <span className="font-semibold">{ticket.weightIn}</span>
                       </div>
-                      <div className="flex justify-between leading-tight">
+                      <div className="flex justify-between leading-none">
                         <span>خروج:</span>
                         <span className="font-semibold">{weightOut}</span>
                       </div>
-                      <div className="flex justify-between leading-tight bg-emerald-100 px-0.5 rounded">
+                      <div className="flex justify-between leading-none bg-emerald-100 px-0.5 rounded">
                         <span className="font-bold">صافي:</span>
                         <span className="text-emerald-700 font-bold">{safeNetWeight} كلغ</span>
                       </div>
-                      <div className="flex justify-between leading-tight">
-                        <span>البدونات المجلوبة:</span>
-                        <span className="font-bold text-blue-700">{numberOfBidons} بدون</span>
+                      <div className="flex justify-between leading-none text-[4px]">
+                        <span>بدونات مجلوبة:</span>
+                        <span className="font-bold text-blue-700">{numberOfBidons}</span>
                       </div>
-                      <div className="flex justify-between leading-tight">
-                        <span>بدونات إضافية:</span>
+                      <div className="flex justify-between leading-none text-[4px]">
+                        <span>إضافية:</span>
                         <span className={additionalBidonsForClient > 0 ? 'font-bold text-orange-700' : 'font-bold text-gray-500'}>
-                          {additionalBidonsForClient > 0 ? `+${additionalBidonsForClient}` : '+0'} بدون
+                          {additionalBidonsForClient > 0 ? `+${additionalBidonsForClient}` : '+0'}
                         </span>
                       </div>
-                      <div className="flex justify-between leading-tight">
-                        <span>تكلفة البدونات الإضافية:</span>
+                      <div className="flex justify-between leading-none text-[3.5px]">
+                        <span>تكلفة إضافية:</span>
                         <span className={additionalBidonsForClient > 0 ? 'font-bold text-orange-700' : 'font-bold text-gray-500'}>
                           {additionalBidonsForClient > 0
-                            ? `${additionalBidonsForClient}×${(currentPrices?.emptyBidonPrice || 0).toFixed(2)} = ${bidonCost.toFixed(3)} د.ت`
-                            : '0.000 د.ت'}
+                            ? `${bidonCost.toFixed(2)} د.ت`
+                            : '0 د.ت'}
                         </span>
                       </div>
                     </div>
                     
-                    <div className="border-t border-emerald-600 pt-0.5 space-y-[1px]">
-                      <div className="flex justify-between leading-tight text-[5px]">
+                    <div className="border-t border-emerald-600 pt-0 space-y-[0.5px]">
+                      <div className="flex justify-between leading-none text-[4px]">
                         <span>سعر/كلغ:</span>
-                        <span className="font-bold">{derivedUnitPrice > 0 ? derivedUnitPrice.toFixed(3) : '—'}</span>
+                        <span className="font-bold">{derivedUnitPrice > 0 ? derivedUnitPrice.toFixed(2) : '—'}</span>
                       </div>
-                      <div className="flex justify-between leading-tight text-[4.5px]">
-                        <span>أساسي ({safeNetWeight}×{derivedUnitPrice.toFixed(2)}):</span>
-                        <span className="font-semibold">{baseAmount > 0 ? baseAmount.toFixed(3) : '—'}</span>
+                      <div className="flex justify-between leading-none text-[3.5px]">
+                        <span>أساسي:</span>
+                        <span className="font-semibold">{baseAmount > 0 ? baseAmount.toFixed(2) : '—'}</span>
                       </div>
                       {additionalBidonsForClient > 0 && (
-                        <>
-                          <div className="flex justify-between leading-tight bg-orange-50 px-0.5 rounded text-[4.5px]">
-                            <span>بدونات إضافية:</span>
-                            <span className="text-orange-700 font-bold">{additionalBidonsForClient} بدون</span>
-                          </div>
-                          <div className="flex justify-between leading-tight bg-orange-50 px-0.5 rounded text-[4.5px]">
-                            <span>سعر ({additionalBidonsForClient}×{(currentPrices?.emptyBidonPrice || 0).toFixed(2)}):</span>
-                            <span className="text-orange-700 font-bold">{bidonCost.toFixed(3)}</span>
-                          </div>
-                        </>
+                        <div className="flex justify-between leading-none bg-orange-50 px-0.5 rounded text-[3.5px]">
+                          <span>بدونات:</span>
+                          <span className="text-orange-700 font-bold">{bidonCost.toFixed(2)}</span>
+                        </div>
                       )}
-                      <div className="flex justify-between leading-tight bg-emerald-100 px-0.5 rounded">
+                      <div className="flex justify-between leading-none bg-emerald-100 px-0.5 rounded">
                         <span className="font-bold">مجموع:</span>
-                        <span className="text-emerald-700 font-bold text-[6px]">{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'}</span>
+                        <span className="text-emerald-700 font-bold text-[5px]">{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(2) : '—'}</span>
                       </div>
-                      <div className={`text-center text-[4.5px] font-bold ${ticket.isPaid ? 'text-green-700' : 'text-orange-700'}`}>
+                      <div className={`text-center text-[4px] font-bold ${ticket.isPaid ? 'text-green-700' : 'text-orange-700'}`}>
                         {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                       </div>
                     </div>
@@ -508,7 +502,7 @@ export function PrintTicketModal({
                   <div style={{
                     width: '100%',
                     height: '100%',
-                    padding: '1mm',
+                    padding: '0.5mm',
                     boxSizing: 'border-box',
                     fontFamily: 'Arial, sans-serif',
                     backgroundColor: 'white',
@@ -518,18 +512,18 @@ export function PrintTicketModal({
                     <div style={{
                       textAlign: 'center',
                       borderBottom: '1px solid #059669',
-                      paddingBottom: '0.5mm',
+                      paddingBottom: '0mm',
                       marginBottom: '0.5mm',
                     }}>
-                      <h2 style={{ fontSize: '8pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1 }}>
+                      <h2 style={{ fontSize: '7pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1 }}>
                         معصرة ياسين وأبوه
                       </h2>
-                      <p style={{ fontSize: '5pt', color: '#4b5563', margin: 0, lineHeight: 1 }}>
+                      <p style={{ fontSize: '4.5pt', color: '#4b5563', margin: 0, lineHeight: 1 }}>
                         إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}
                       </p>
                     </div>
 
-                    <div style={{ display: 'flex', height: 'calc(43mm - 9mm)' }}>
+                    <div style={{ display: 'flex', height: 'calc(43mm - 7mm)' }}>
                       <div style={{
                         width: '50%',
                         display: 'flex',
@@ -538,38 +532,38 @@ export function PrintTicketModal({
                         borderRight: '1px solid #000',
                         paddingRight: '0.5mm',
                       }}>
-                        <QRCodeSVG value={qrCodeValue} size={85} level="H" includeMargin={false} />
+                        <QRCodeSVG value={qrCodeValue} size={80} level="H" includeMargin={false} />
                       </div>
                       <div style={{
                         width: '50%',
-                        paddingLeft: '1.5mm',
+                        paddingLeft: '1mm',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'space-between',
                         textAlign: 'right',
                       }}>
-                        <div style={{ fontSize: '5.5pt' }}>
+                        <div style={{ fontSize: '4.5pt' }}>
                           <div style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             fontWeight: 'bold',
                             borderBottom: '0.5px solid #d1d5db',
-                            paddingBottom: '0.5mm',
+                            paddingBottom: '0mm',
                             marginBottom: '0.5mm',
-                            lineHeight: 1.2,
+                            lineHeight: 1,
                           }}>
                             <span>رقم: {ticketIdText}</span>
-                            <span style={{ fontSize: '4pt' }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                            <span style={{ fontSize: '3.5pt' }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                           </div>
-                          <div style={{ fontWeight: 'bold', fontSize: '6pt', marginBottom: '0.5mm', lineHeight: 1.2 }}>
+                          <div style={{ fontWeight: 'bold', fontSize: '5pt', marginBottom: '0.5mm', lineHeight: 1 }}>
                             {ticket.clientName}
                           </div>
                           
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3mm', lineHeight: 1.2 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0mm', lineHeight: 1 }}>
                             <span>دخول:</span>
                             <span style={{ fontWeight: 600 }}>{ticket.weightIn}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3mm', lineHeight: 1.2 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0mm', lineHeight: 1 }}>
                             <span>خروج:</span>
                             <span style={{ fontWeight: 600 }}>{weightOut}</span>
                           </div>
@@ -577,93 +571,78 @@ export function PrintTicketModal({
                             display: 'flex',
                             justifyContent: 'space-between',
                             backgroundColor: '#ecfdf5',
-                            padding: '0.5mm',
+                            padding: '0.3mm',
                             borderRadius: '0.5mm',
                             marginBottom: '0.5mm',
-                            lineHeight: 1.2,
+                            lineHeight: 1,
                           }}>
                             <span style={{ fontWeight: 'bold' }}>صافي:</span>
                             <span style={{ color: '#059669', fontWeight: 'bold' }}>{safeNetWeight} كلغ</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3mm', lineHeight: 1.2 }}>
-                            <span>البدونات المجلوبة:</span>
-                            <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{numberOfBidons} بدون</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0mm', lineHeight: 1, fontSize: '4pt' }}>
+                            <span>بدونات مجلوبة:</span>
+                            <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{numberOfBidons}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3mm', lineHeight: 1.2 }}>
-                            <span>بدونات إضافية:</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0mm', lineHeight: 1, fontSize: '4pt' }}>
+                            <span>إضافية:</span>
                             <span style={{ color: additionalBidonsForClient > 0 ? '#ea580c' : '#6b7280', fontWeight: 'bold' }}>
-                              {additionalBidonsForClient > 0 ? `+${additionalBidonsForClient}` : '+0'} بدون
+                              {additionalBidonsForClient > 0 ? `+${additionalBidonsForClient}` : '+0'}
                             </span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3mm', lineHeight: 1.2 }}>
-                            <span>تكلفة البدونات الإضافية:</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5mm', lineHeight: 1, fontSize: '3.5pt' }}>
+                            <span>تكلفة إضافية:</span>
                             <span style={{ color: additionalBidonsForClient > 0 ? '#ea580c' : '#6b7280', fontWeight: 'bold' }}>
                               {additionalBidonsForClient > 0
-                                ? `${additionalBidonsForClient}×${(currentPrices?.emptyBidonPrice || 0).toFixed(2)} = ${bidonCost.toFixed(3)} د.ت`
-                                : '0.000 د.ت'}
+                                ? `${bidonCost.toFixed(2)} د.ت`
+                                : '0 د.ت'}
                             </span>
                           </div>
                         </div>
                         
-                        <div style={{ borderTop: '1px solid #059669', paddingTop: '0.5mm', fontSize: '5pt' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3mm', lineHeight: 1.2 }}>
+                        <div style={{ borderTop: '1px solid #059669', paddingTop: '0mm', fontSize: '4pt' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0mm', lineHeight: 1 }}>
                             <span>سعر/كلغ:</span>
-                            <span style={{ fontWeight: 'bold' }}>{derivedUnitPrice > 0 ? derivedUnitPrice.toFixed(3) : '—'}</span>
+                            <span style={{ fontWeight: 'bold' }}>{derivedUnitPrice > 0 ? derivedUnitPrice.toFixed(2) : '—'}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3mm', lineHeight: 1.2, fontSize: '4.5pt' }}>
-                            <span>أساسي ({safeNetWeight}×{derivedUnitPrice.toFixed(2)}):</span>
-                            <span style={{ fontWeight: 600 }}>{baseAmount > 0 ? baseAmount.toFixed(3) : '—'}</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0mm', lineHeight: 1, fontSize: '3.5pt' }}>
+                            <span>أساسي:</span>
+                            <span style={{ fontWeight: 600 }}>{baseAmount > 0 ? baseAmount.toFixed(2) : '—'}</span>
                           </div>
                           {additionalBidonsForClient > 0 && (
-                            <>
-                              <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                backgroundColor: '#fff7ed',
-                                padding: '0.5mm',
-                                borderRadius: '0.5mm',
-                                marginBottom: '0.3mm',
-                                fontSize: '4.5pt',
-                                lineHeight: 1.2,
-                              }}>
-                                <span>بدونات إضافية:</span>
-                                <span style={{ color: '#ea580c', fontWeight: 'bold' }}>{additionalBidonsForClient} بدون</span>
-                              </div>
-                              <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                backgroundColor: '#fff7ed',
-                                padding: '0.5mm',
-                                borderRadius: '0.5mm',
-                                marginBottom: '0.3mm',
-                                fontSize: '4.5pt',
-                                lineHeight: 1.2,
-                              }}>
-                                <span>سعر ({additionalBidonsForClient}×{(currentPrices?.emptyBidonPrice || 0).toFixed(2)}):</span>
-                                <span style={{ color: '#ea580c', fontWeight: 'bold' }}>{bidonCost.toFixed(3)}</span>
-                              </div>
-                            </>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              backgroundColor: '#fff7ed',
+                              padding: '0.3mm',
+                              borderRadius: '0.5mm',
+                              marginBottom: '0mm',
+                              fontSize: '3.5pt',
+                              lineHeight: 1,
+                            }}>
+                              <span>بدونات:</span>
+                              <span style={{ color: '#ea580c', fontWeight: 'bold' }}>{bidonCost.toFixed(2)}</span>
+                            </div>
                           )}
                           <div style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             backgroundColor: '#ecfdf5',
-                            padding: '0.5mm',
+                            padding: '0.3mm',
                             borderRadius: '0.5mm',
-                            marginBottom: '0.3mm',
-                            lineHeight: 1.2,
+                            marginBottom: '0mm',
+                            lineHeight: 1,
                           }}>
                             <span style={{ fontWeight: 'bold' }}>مجموع:</span>
-                            <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '6pt' }}>
-                              {derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'}
+                            <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '5pt' }}>
+                              {derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(2) : '—'}
                             </span>
                           </div>
                           <div style={{
                             textAlign: 'center',
-                            fontSize: '4.5pt',
+                            fontSize: '4pt',
                             fontWeight: 'bold',
                             color: ticket.isPaid ? '#10b981' : '#f97316',
-                            lineHeight: 1.2,
+                            lineHeight: 1,
                           }}>
                             {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                           </div>
