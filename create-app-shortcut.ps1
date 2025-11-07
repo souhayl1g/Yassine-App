@@ -5,9 +5,9 @@ $shortcutPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("D
 # Create the shortcut
 $Shortcut = $WScriptShell.CreateShortcut($shortcutPath)
 
-# Set Edge in app mode (no browser UI)
-$Shortcut.TargetPath = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-$Shortcut.Arguments = "--app=https://yassine-app.vercel.app/ --window-size=1280,920"
+# Set to run services check script
+$Shortcut.TargetPath = "powershell.exe"
+$Shortcut.Arguments = "-ExecutionPolicy Bypass -NoProfile -File `"$PSScriptRoot\start-services.ps1`""
 
 # Set a nice icon
 $Shortcut.IconLocation = "C:\Windows\System32\shell32.dll,44"
