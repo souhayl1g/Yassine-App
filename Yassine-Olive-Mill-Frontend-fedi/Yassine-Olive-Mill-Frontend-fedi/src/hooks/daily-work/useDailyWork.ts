@@ -368,15 +368,18 @@ export const useDailyWork = () => {
       
       // Separate ticket data from payment data
       const isPaidNow = !!ticketManagement.editForm.isPaid;
-      const weightOut = parseFloat(ticketManagement.editForm.weightOut);
+      const weightOutStr = ticketManagement.editForm.weightOut?.trim() || '';
+      const weightOut = weightOutStr ? parseFloat(weightOutStr) : undefined;
+      const hasWeightOut = weightOutStr !== '' && !isNaN(weightOut) && weightOut !== undefined && weightOut >= 0;
+      
       const ticketPayload: any = {
-        weightOut: weightOut,
+        ...(hasWeightOut && { weightOut: weightOut }),
         numberOfBoxes: parseInt(ticketManagement.editForm.numberOfBoxes) || 0,
         ...(ticketManagement.scannedTicket.operationType === 'sale' && ticketManagement.editForm.taux && {
           taux: parseFloat(ticketManagement.editForm.taux)
         }),
-        // Set status to 'completed' when weightOut is entered
-        status: weightOut && weightOut > 0 ? 'completed' : undefined,
+        // ALWAYS set status to 'completed' when weightOut is entered
+        ...(hasWeightOut && { status: 'completed' }),
         // Persist paid status to batch
         is_paid: isPaidNow,
         ...(isPaidNow
