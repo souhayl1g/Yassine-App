@@ -55,22 +55,28 @@ export function PrintTicketModal({
   const getPageStyle = () => `
     @page {
       size: 58mm 43mm;
-      margin: 0;
+      margin: 0 !important;
     }
     @media print {
       html, body {
         margin: 0 !important;
         padding: 0 !important;
         width: 58mm !important;
-        min-height: 43mm !important;
+        height: 43mm !important;
+        max-height: 43mm !important;
+        overflow: visible !important;
       }
       #${PRINT_ROOT_ID} {
         width: 58mm !important;
+        min-height: 43mm !important;
+        height: auto !important;
+        display: block !important;
       }
       .print-page {
         width: 58mm !important;
         min-height: 43mm !important;
         height: 43mm !important;
+        max-height: 43mm !important;
         display: block !important;
         page-break-before: always !important;
         page-break-after: always !important;
