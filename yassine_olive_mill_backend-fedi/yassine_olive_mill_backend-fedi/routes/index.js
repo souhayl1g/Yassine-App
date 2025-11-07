@@ -25,6 +25,7 @@ import ownerFundRoutes from "./ownerFunds.js"
 import workerRoutes from "./workers.js"
 import workerPaymentRoutes from "./workerPayments.js"
 import paymentExpenseRoutes from "./paymentExpenses.js"
+// Note: printer routes are registered directly in app.js as public routes
 
 // Mount routes
 router.use('/clients', clientRoutes);
@@ -50,6 +51,7 @@ router.use('/owner-funds', ownerFundRoutes);
 router.use('/workers', workerRoutes);
 router.use('/worker-payments', workerPaymentRoutes);
 router.use('/payment-expenses', paymentExpenseRoutes);
+// Note: printer routes are registered directly in app.js as public routes
 
 // Health check endpoint
 router.get('/health', (req, res) => {

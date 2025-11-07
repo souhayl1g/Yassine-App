@@ -72,6 +72,10 @@ app.get('/api/health', (req, res) => {
 // Public routes (auth routes should NOT require token)
 app.use('/api/auth', authRoutes);
 
+// Import printer routes for public access
+import printerRoutes from "./routes/printer.js";
+app.use('/api/printer', printerRoutes); // Public printer endpoints
+
 // Protected routes (require authentication)
 app.use('/api', verifyToken, apiRoutes);
 
