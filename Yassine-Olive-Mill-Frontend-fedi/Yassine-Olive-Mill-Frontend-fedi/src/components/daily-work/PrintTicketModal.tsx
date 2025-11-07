@@ -24,7 +24,6 @@ export function PrintTicketModal({
   const printRef = useRef<HTMLDivElement>(null);
   const [currentPrices, setCurrentPrices] = useState<any>(null);
 
-  // Load current prices when modal opens
   useEffect(() => {
     if (isOpen && ticketType === 'exit-receipt') {
       loadCurrentPrices();
@@ -46,60 +45,34 @@ export function PrintTicketModal({
     }
   };
 
-  // Determine ticket type based on status
   const ticketType = !ticket ? 'box-labels' : 
     ticket.status === 'received' ? 'arrival-receipt' :
     ticket.status === 'completed' ? 'exit-receipt' :
     'box-labels';
 
-  const getPageStyle = () => {
-    return `
-      @page {
-        size: 58mm 43mm;
+  const getPageStyle = () => `
+    @page {
+      size: 58mm 43mm;
+      margin: 0;
+    }
+    @media print {
+      html, body {
         margin: 0;
+        padding: 0;
       }
-      @media print {
-        html, body {
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-          margin: 0 !important;
-          padding: 0 !important;
-          width: 58mm !important;
-          height: 43mm !important;
-        }
-        body * {
-          visibility: hidden;
-        }
-        .print-content, .print-content * {
-          visibility: visible;
-        }
-        .print-content {
-          position: absolute;
-          left: 0;
-          top: 0;
-        }
-        /* Each print-page creates a new page */
-        .print-page {
-          width: 58mm;
-          height: 43mm;
-          display: block;
-          page-break-after: always;
-          break-after: page;
-          margin: 0;
-          padding: 0;
-        }
-        /* Remove page break from the last label */
-        .print-page:last-child {
-          page-break-after: auto;
-          break-after: auto;
-        }
-        .avoid-break {
-          page-break-inside: avoid;
-          break-inside: avoid;
-        }
+      .print-page {
+        width: 58mm !important;
+        height: 43mm !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        overflow: hidden !important;
       }
-    `;
-  };
+      .print-page:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
+    }
+  `;
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -110,13 +83,10 @@ export function PrintTicketModal({
 
   if (!isOpen || !ticket) return null;
 
-  // Generate array of box numbers (1 to numberOfBoxes)
   const numberOfBoxes = ticket.numberOfBoxes || 0;
-  // Print labels equal to the number of boxes (at least 1)
   const totalLabels = numberOfBoxes || 1;
   const labelsToPrint = Array.from({ length: totalLabels }, (_, i) => i + 1);
   const ticketIdText = ticket.ticketNumber ?? String(ticket.id);
-  // Use the same payload as the app-wide QR (JSON with key fields)
   const qrCodeValue = JSON.stringify({
     ticketId: ticket.id,
     ticketNumber: ticket.ticketNumber,
@@ -125,14 +95,11 @@ export function PrintTicketModal({
     dateReceived: ticket.dateReceived,
   });
 
-  // Pricing derivation for exit receipts: calculate based on operation type and bidons
-  // Calculate correct net weight: weightIn - weightOut
   const weightIn = ticket.weightIn || 0;
   const weightOut = ticket.weightOut || 0;
   const calculatedNetWeight = weightIn - weightOut;
   const safeNetWeight = calculatedNetWeight > 0 ? calculatedNetWeight : 0;
-  
-  // Get appropriate unit price based on operation type from settings
+
   let baseUnitPrice = 0;
   if (currentPrices && ticket.operationType) {
     if (ticket.operationType === 'milling') {
@@ -142,57 +109,37 @@ export function PrintTicketModal({
     }
   }
 
-  // Use ticket's unit price if available, otherwise use settings price
   const derivedUnitPrice = typeof ticket.unitPrice === 'number' && ticket.unitPrice > 0
     ? ticket.unitPrice
     : baseUnitPrice;
 
-  // Calculate base amount from weight
   const baseAmount = derivedUnitPrice * safeNetWeight;
 
-  // Bidon calculation based on the guide:
-  // - البدونات المجلبة (bidons brought): numberOfBidons from ticket
-  // - البدونات المنتجة (bidons produced): from backend number_of_bidons or calculated from oil production
-  // - البدونات الإضافية للعميل (additional bidons for client): produced - brought
   const numberOfBidons = ticket.numberOfBidons || 0;
-  
-  // For milling operation: use backend produced count if available, otherwise calculate
   let bidonsProduced = 0;
   let additionalBidonsForClient = 0;
-  
+
   if (ticket.operationType === 'milling') {
-    // Priority 1: Use backend's actual produced count if available
     if (ticket.numberOfBidonsProduced !== undefined && ticket.numberOfBidonsProduced !== null) {
       bidonsProduced = ticket.numberOfBidonsProduced;
     } else {
-      // Priority 2: Calculate from taux if available
-      // Oil production = net weight × (taux / 100)
-      // Each bidon = 16 kg
-      const taux = ticket.taux || 0; // extraction rate percentage
+      const taux = ticket.taux || 0;
       const oilProduction = safeNetWeight * (taux / 100);
       bidonsProduced = Math.floor(oilProduction / 16);
     }
-    
-    // Additional bidons = produced - brought (never negative)
     additionalBidonsForClient = Math.max(0, bidonsProduced - numberOfBidons);
   } else {
-    // For sale operation, all brought bidons are additional
     additionalBidonsForClient = numberOfBidons;
   }
 
-  // Bidon cost calculation:
-  // Cost = additional bidons × empty bidon price
-  // If additional bidons is negative (client brought less than produced), cost is 0
-  const bidonCost = additionalBidonsForClient > 0 
+  const bidonCost = additionalBidonsForClient > 0
     ? additionalBidonsForClient * (currentPrices?.emptyBidonPrice || 0)
     : 0;
 
-  // Total amount = base amount + bidon cost
   const derivedTotalAmount = typeof ticket.totalAmount === 'number' && ticket.totalAmount > 0
     ? ticket.totalAmount
     : baseAmount + bidonCost;
 
-  // Determine modal title and description based on ticket type
   const getModalTitle = () => {
     if (ticketType === 'arrival-receipt') return '🎫 طباعة إيصال الوصول';
     if (ticketType === 'exit-receipt') return '📄 طباعة إيصال الخروج';
@@ -208,13 +155,10 @@ export function PrintTicketModal({
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="sticky top-0 bg-gradient-to-r from-emerald-600 to-green-600 text-white p-6 rounded-t-xl flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-black mb-1">{getModalTitle()}</h2>
-            <p className="text-emerald-100 text-sm">
-              {getModalDescription()}
-            </p>
+            <p className="text-emerald-100 text-sm">{getModalDescription()}</p>
           </div>
           <button
             onClick={onClose}
@@ -224,14 +168,12 @@ export function PrintTicketModal({
           </button>
         </div>
 
-        {/* Preview Section */}
         <div className="p-6">
           <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 mb-6">
             <h3 className="font-bold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
               👁️ معاينة
             </h3>
 
-            {/* TYPE 1: Arrival Receipt Preview (58mm x 43mm) */}
             {ticketType === 'arrival-receipt' && (
               <div className="bg-white border border-black p-1 mx-auto text-gray-900" dir="rtl" style={{ width: '58mm', height: '43mm' }}>
                 <div className="text-center border-b border-emerald-600 pb-0.5 mb-1">
@@ -272,7 +214,6 @@ export function PrintTicketModal({
               </div>
             )}
 
-            {/* TYPE 2: Box Labels Preview */}
             {ticketType === 'box-labels' && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                 {labelsToPrint.map((boxNum) => (
@@ -300,7 +241,6 @@ export function PrintTicketModal({
               </div>
             )}
 
-            {/* TYPE 3: Exit Receipt Preview (58mm x 43mm) */}
             {ticketType === 'exit-receipt' && (
               <div className="bg-white border border-black p-1 mx-auto text-gray-900" dir="rtl" style={{ width: '58mm', height: '43mm' }}>
                 <div className="text-center border-b border-emerald-600 pb-0.5 mb-0.5">
@@ -331,7 +271,6 @@ export function PrintTicketModal({
                         <span className="font-bold">صافي:</span>
                         <span className="text-emerald-700 font-bold">{safeNetWeight} كلغ</span>
                       </div>
-                      {/* Added Bidon Summary in empty space (always visible) */}
                       <div className="flex justify-between leading-tight">
                         <span>البدونات المجلوبة:</span>
                         <span className="font-bold text-blue-700">{numberOfBidons} بدون</span>
@@ -352,7 +291,6 @@ export function PrintTicketModal({
                       </div>
                     </div>
                     
-                    {/* Pricing Section */}
                     <div className="border-t border-emerald-600 pt-0.5 space-y-[1px]">
                       <div className="flex justify-between leading-tight text-[5px]">
                         <span>سعر/كلغ:</span>
@@ -388,32 +326,26 @@ export function PrintTicketModal({
             )}
           </div>
 
-          {/* Print Content (Hidden) */}
           <div style={{ display: 'none' }}>
-            <div ref={printRef} className="print-content">
-              {/* TYPE 1: Arrival Receipt Print (58mm x 43mm) */}
+            <div ref={printRef}>
               {ticketType === 'arrival-receipt' && (
-                <div className="print-page avoid-break">
-                  <div
-                    style={{
-                      width: '58mm',
-                      height: '43mm',
-                      padding: '1mm',
-                      boxSizing: 'border-box',
-                      fontFamily: 'Arial, sans-serif',
-                      backgroundColor: 'white',
-                      border: '1px solid #000',
-                      direction: 'rtl',
-                    }}
-                  >
-                    <div
-                      style={{
-                        textAlign: 'center',
-                        borderBottom: '1px solid #059669',
-                        paddingBottom: '0.5mm',
-                        marginBottom: '1mm',
-                      }}
-                    >
+                <div className="print-page">
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    padding: '1mm',
+                    boxSizing: 'border-box',
+                    fontFamily: 'Arial, sans-serif',
+                    backgroundColor: 'white',
+                    border: '1px solid #000',
+                    direction: 'rtl',
+                  }}>
+                    <div style={{
+                      textAlign: 'center',
+                      borderBottom: '1px solid #059669',
+                      paddingBottom: '0.5mm',
+                      marginBottom: '1mm',
+                    }}>
                       <h2 style={{ fontSize: '8pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1 }}>
                         معصرة ياسين وأبوه
                       </h2>
@@ -421,10 +353,24 @@ export function PrintTicketModal({
                     </div>
 
                     <div style={{ display: 'flex', height: 'calc(43mm - 10mm)' }}>
-                      <div style={{ width: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #000', paddingRight: '0.5mm' }}>
+                      <div style={{
+                        width: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRight: '1px solid #000',
+                        paddingRight: '0.5mm',
+                      }}>
                         <QRCodeSVG value={qrCodeValue} size={85} level="H" includeMargin={false} />
                       </div>
-                      <div style={{ width: '50%', paddingLeft: '1.5mm', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'right' }}>
+                      <div style={{
+                        width: '50%',
+                        paddingLeft: '1.5mm',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        textAlign: 'right',
+                      }}>
                         <div style={{ fontSize: '6pt', marginBottom: '0.5mm', lineHeight: 1.2 }}>
                           <span style={{ fontWeight: 'bold' }}>رقم: </span>
                           <span style={{ fontWeight: 600 }}>{ticketIdText}</span>
@@ -433,7 +379,14 @@ export function PrintTicketModal({
                           <span style={{ fontWeight: 'bold' }}>نوع: </span>
                           <span>{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
                         </div>
-                        <div style={{ fontSize: '6pt', fontWeight: 'bold', borderBottom: '1px solid #d1d5db', paddingBottom: '0.5mm', marginBottom: '0.5mm', lineHeight: 1.2 }}>
+                        <div style={{
+                          fontSize: '6pt',
+                          fontWeight: 'bold',
+                          borderBottom: '1px solid #d1d5db',
+                          paddingBottom: '0.5mm',
+                          marginBottom: '0.5mm',
+                          lineHeight: 1.2,
+                        }}>
                           {ticket.clientName}
                         </div>
                         <div style={{ fontSize: '6pt', marginBottom: '0.5mm', lineHeight: 1.2 }}>
@@ -441,7 +394,14 @@ export function PrintTicketModal({
                           <span style={{ color: '#059669', fontWeight: 'bold' }}>{ticket.weightIn} كلغ</span>
                         </div>
                         {numberOfBidons > 0 && (
-                          <div style={{ fontSize: '6pt', backgroundColor: '#eff6ff', padding: '0.5mm', borderRadius: '1mm', marginBottom: '0.5mm', lineHeight: 1.2 }}>
+                          <div style={{
+                            fontSize: '6pt',
+                            backgroundColor: '#eff6ff',
+                            padding: '0.5mm',
+                            borderRadius: '1mm',
+                            marginBottom: '0.5mm',
+                            lineHeight: 1.2,
+                          }}>
                             <span style={{ fontWeight: 'bold' }}>بدونات: </span>
                             <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{numberOfBidons}</span>
                           </div>
@@ -455,105 +415,87 @@ export function PrintTicketModal({
                 </div>
               )}
 
-              {/* TYPE 2: Box Labels Print - FIXED: Each label on separate page */}
               {ticketType === 'box-labels' && labelsToPrint.map((boxNum) => (
                 <div key={boxNum} className="print-page">
-                  <div
-                    style={{
-                      width: '58mm',
-                      height: '43mm',
-                      padding: '1.5mm',
-                      boxSizing: 'border-box',
-                      display: 'flex',
-                      flexDirection: 'row',
-                      position: 'relative',
-                      fontFamily: 'Arial, sans-serif',
-                      backgroundColor: 'white',
-                      border: '1.2px solid #000',
-                    }}
-                  >
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '0',
-                        right: '0',
-                        fontSize: '6pt',
-                        fontWeight: 'bold',
-                        color: '#000',
-                        backgroundColor: '#e5e7eb',
-                        padding: '0.5mm 1mm',
-                        borderBottomLeftRadius: '1mm',
-                      }}
-                    >
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    padding: '1.5mm',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    position: 'relative',
+                    fontFamily: 'Arial, sans-serif',
+                    backgroundColor: 'white',
+                    border: '1.2px solid #000',
+                  }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: '0',
+                      right: '0',
+                      fontSize: '6pt',
+                      fontWeight: 'bold',
+                      color: '#000',
+                      backgroundColor: '#e5e7eb',
+                      padding: '0.5mm 1mm',
+                      borderBottomLeftRadius: '1mm',
+                    }}>
                       {boxNum}/{totalLabels}
                     </div>
-                    <div
-                      style={{
-                        width: '26mm',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        paddingRight: '1mm',
-                        borderRight: '1px solid #000',
-                      }}
-                    >
+                    <div style={{
+                      width: '26mm',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingRight: '1mm',
+                      borderRight: '1px solid #000',
+                    }}>
                       <QRCodeSVG value={qrCodeValue} size={95} level="H" includeMargin={false} />
                     </div>
-                    <div
-                      style={{
-                        flex: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'center',
-                        paddingLeft: '1.5mm',
-                      }}
-                      dir="rtl"
-                    >
-                      <div
-                        style={{
-                          fontSize: '8pt',
-                          fontWeight: 700,
-                          color: '#000',
-                          lineHeight: 1.1,
-                          borderBottom: '1px solid #000',
-                          paddingBottom: '0.5mm',
-                          marginBottom: '0.5mm',
-                          textAlign: 'right',
-                        }}
-                      >
+                    <div style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      paddingLeft: '1.5mm',
+                    }} dir="rtl">
+                      <div style={{
+                        fontSize: '8pt',
+                        fontWeight: 700,
+                        color: '#000',
+                        lineHeight: 1.1,
+                        borderBottom: '1px solid #000',
+                        paddingBottom: '0.5mm',
+                        marginBottom: '0.5mm',
+                        textAlign: 'right',
+                      }}>
                         معصرة ياسين وأبوه
                       </div>
-                      <div
-                        style={{
-                          fontSize: '7pt',
-                          fontWeight: 600,
-                          color: '#000',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          marginBottom: '0.5mm',
-                          textAlign: 'right',
-                        }}
-                      >
+                      <div style={{
+                        fontSize: '7pt',
+                        fontWeight: 600,
+                        color: '#000',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        marginBottom: '0.5mm',
+                        textAlign: 'right',
+                      }}>
                         {ticket.clientName}
                       </div>
-                      <div
-                        style={{
-                          fontSize: '6.2pt',
-                          color: '#000',
-                          marginBottom: '0.3mm',
-                          textAlign: 'right',
-                        }}
-                      >
+                      <div style={{
+                        fontSize: '6.2pt',
+                        color: '#000',
+                        marginBottom: '0.3mm',
+                        textAlign: 'right',
+                      }}>
                         رقم: {ticketIdText}
                       </div>
-                      <div
-                        style={{
-                          fontSize: '6pt',
-                          color: '#000',
-                          textAlign: 'right',
-                        }}
-                      >
+                      <div style={{
+                        fontSize: '6pt',
+                        color: '#000',
+                        textAlign: 'right',
+                      }}>
                         {new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}
                       </div>
                     </div>
@@ -561,29 +503,24 @@ export function PrintTicketModal({
                 </div>
               ))}
 
-              {/* TYPE 3: Exit Receipt Print (58mm x 43mm) */}
               {ticketType === 'exit-receipt' && (
-                <div className="print-page avoid-break">
-                  <div
-                    style={{
-                      width: '58mm',
-                      height: '43mm',
-                      padding: '1mm',
-                      boxSizing: 'border-box',
-                      fontFamily: 'Arial, sans-serif',
-                      backgroundColor: 'white',
-                      border: '1px solid #000',
-                      direction: 'rtl',
-                    }}
-                  >
-                    <div
-                      style={{
-                        textAlign: 'center',
-                        borderBottom: '1px solid #059669',
-                        paddingBottom: '0.5mm',
-                        marginBottom: '0.5mm',
-                      }}
-                    >
+                <div className="print-page">
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    padding: '1mm',
+                    boxSizing: 'border-box',
+                    fontFamily: 'Arial, sans-serif',
+                    backgroundColor: 'white',
+                    border: '1px solid #000',
+                    direction: 'rtl',
+                  }}>
+                    <div style={{
+                      textAlign: 'center',
+                      borderBottom: '1px solid #059669',
+                      paddingBottom: '0.5mm',
+                      marginBottom: '0.5mm',
+                    }}>
                       <h2 style={{ fontSize: '8pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1 }}>
                         معصرة ياسين وأبوه
                       </h2>
@@ -593,12 +530,34 @@ export function PrintTicketModal({
                     </div>
 
                     <div style={{ display: 'flex', height: 'calc(43mm - 9mm)' }}>
-                      <div style={{ width: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #000', paddingRight: '0.5mm' }}>
+                      <div style={{
+                        width: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRight: '1px solid #000',
+                        paddingRight: '0.5mm',
+                      }}>
                         <QRCodeSVG value={qrCodeValue} size={85} level="H" includeMargin={false} />
                       </div>
-                      <div style={{ width: '50%', paddingLeft: '1.5mm', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'right' }}>
+                      <div style={{
+                        width: '50%',
+                        paddingLeft: '1.5mm',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        textAlign: 'right',
+                      }}>
                         <div style={{ fontSize: '5.5pt' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderBottom: '0.5px solid #d1d5db', paddingBottom: '0.5mm', marginBottom: '0.5mm', lineHeight: 1.2 }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            fontWeight: 'bold',
+                            borderBottom: '0.5px solid #d1d5db',
+                            paddingBottom: '0.5mm',
+                            marginBottom: '0.5mm',
+                            lineHeight: 1.2,
+                          }}>
                             <span>رقم: {ticketIdText}</span>
                             <span style={{ fontSize: '4pt' }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                           </div>
@@ -614,11 +573,18 @@ export function PrintTicketModal({
                             <span>خروج:</span>
                             <span style={{ fontWeight: 600 }}>{weightOut}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#ecfdf5', padding: '0.5mm', borderRadius: '0.5mm', marginBottom: '0.5mm', lineHeight: 1.2 }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            backgroundColor: '#ecfdf5',
+                            padding: '0.5mm',
+                            borderRadius: '0.5mm',
+                            marginBottom: '0.5mm',
+                            lineHeight: 1.2,
+                          }}>
                             <span style={{ fontWeight: 'bold' }}>صافي:</span>
                             <span style={{ color: '#059669', fontWeight: 'bold' }}>{safeNetWeight} كلغ</span>
                           </div>
-                          {/* Added Bidon Summary in empty space (always visible) */}
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3mm', lineHeight: 1.2 }}>
                             <span>البدونات المجلوبة:</span>
                             <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{numberOfBidons} بدون</span>
@@ -639,7 +605,6 @@ export function PrintTicketModal({
                           </div>
                         </div>
                         
-                        {/* Pricing Section */}
                         <div style={{ borderTop: '1px solid #059669', paddingTop: '0.5mm', fontSize: '5pt' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3mm', lineHeight: 1.2 }}>
                             <span>سعر/كلغ:</span>
@@ -651,23 +616,55 @@ export function PrintTicketModal({
                           </div>
                           {additionalBidonsForClient > 0 && (
                             <>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#fff7ed', padding: '0.5mm', borderRadius: '0.5mm', marginBottom: '0.3mm', fontSize: '4.5pt', lineHeight: 1.2 }}>
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                backgroundColor: '#fff7ed',
+                                padding: '0.5mm',
+                                borderRadius: '0.5mm',
+                                marginBottom: '0.3mm',
+                                fontSize: '4.5pt',
+                                lineHeight: 1.2,
+                              }}>
                                 <span>بدونات إضافية:</span>
                                 <span style={{ color: '#ea580c', fontWeight: 'bold' }}>{additionalBidonsForClient} بدون</span>
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#fff7ed', padding: '0.5mm', borderRadius: '0.5mm', marginBottom: '0.3mm', fontSize: '4.5pt', lineHeight: 1.2 }}>
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                backgroundColor: '#fff7ed',
+                                padding: '0.5mm',
+                                borderRadius: '0.5mm',
+                                marginBottom: '0.3mm',
+                                fontSize: '4.5pt',
+                                lineHeight: 1.2,
+                              }}>
                                 <span>سعر ({additionalBidonsForClient}×{(currentPrices?.emptyBidonPrice || 0).toFixed(2)}):</span>
                                 <span style={{ color: '#ea580c', fontWeight: 'bold' }}>{bidonCost.toFixed(3)}</span>
                               </div>
                             </>
                           )}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#ecfdf5', padding: '0.5mm', borderRadius: '0.5mm', marginBottom: '0.3mm', lineHeight: 1.2 }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            backgroundColor: '#ecfdf5',
+                            padding: '0.5mm',
+                            borderRadius: '0.5mm',
+                            marginBottom: '0.3mm',
+                            lineHeight: 1.2,
+                          }}>
                             <span style={{ fontWeight: 'bold' }}>مجموع:</span>
                             <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '6pt' }}>
                               {derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'}
                             </span>
                           </div>
-                          <div style={{ textAlign: 'center', fontSize: '4.5pt', fontWeight: 'bold', color: ticket.isPaid ? '#10b981' : '#f97316', lineHeight: 1.2 }}>
+                          <div style={{
+                            textAlign: 'center',
+                            fontSize: '4.5pt',
+                            fontWeight: 'bold',
+                            color: ticket.isPaid ? '#10b981' : '#f97316',
+                            lineHeight: 1.2,
+                          }}>
                             {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                           </div>
                         </div>
@@ -679,7 +676,6 @@ export function PrintTicketModal({
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-3">
             <OliveButton
               onClick={handlePrint}
