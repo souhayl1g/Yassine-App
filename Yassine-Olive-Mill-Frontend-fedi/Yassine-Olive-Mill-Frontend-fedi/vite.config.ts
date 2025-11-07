@@ -128,7 +128,7 @@ export default defineConfig(({ mode }) => {
         },
         
         manifest: {
-          name: "معصرة ياسين وأبوه - نظام الإدارة",
+          name: "معصرة الحاج لطفي - نظام الإدارة",
           short_name: "معصرة ياسين",
           description: "نظام شامل لإدارة معاصر الزيتون مع دعم اللغة العربية",
           theme_color: "#22C55E",

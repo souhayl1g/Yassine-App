@@ -221,7 +221,7 @@ export function PressingDisplayPage() {
         <div className="inline-flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-green-600 px-8 py-4 rounded-2xl shadow-xl mb-4">
           <span className="text-5xl">🫒</span>
           <h1 className="text-4xl font-black text-white">
-            معصرة ياسين وأبوه
+            معصرة الحاج لطفي
           </h1>
         </div>
         <div className="text-xl font-bold text-gray-700 mb-2">
