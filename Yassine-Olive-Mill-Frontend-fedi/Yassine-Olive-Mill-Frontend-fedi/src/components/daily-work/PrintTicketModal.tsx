@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { X, Printer, Minimize2 } from 'lucide-react';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Ticket } from '@/types/daily-work';
@@ -14,6 +14,9 @@ interface PrintTicketModalProps {
   onClose: () => void;
 }
 
+// Global counter to force unique keys
+let printSessionCounter = 0;
+
 export function PrintTicketModal({
   isOpen,
   ticket,
@@ -23,21 +26,32 @@ export function PrintTicketModal({
 }: PrintTicketModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const [currentPrices, setCurrentPrices] = useState<any>(null);
+  const [sessionId, setSessionId] = useState(0);
 
+  // CRITICAL: Force complete remount when modal opens
   useEffect(() => {
-    if (isOpen && ticketType === 'exit-receipt') {
-      loadCurrentPrices();
+    if (isOpen && ticket) {
+      printSessionCounter++;
+      setSessionId(printSessionCounter);
+      console.log(`[PRINT] New session ${printSessionCounter} - Ticket: ${ticket.ticketNumber}, Type: ${ticket.status}`);
+      
+      if (ticket.status === 'completed') {
+        loadCurrentPrices();
+      }
+    } else {
+      // Cleanup on close
+      setCurrentPrices(null);
     }
-  }, [isOpen]);
+  }, [isOpen, ticket?.id]);
 
   const loadCurrentPrices = async () => {
     try {
-      const response = await api.get('/prices?latest=true');
-      if (response && typeof response === 'object' && response !== null) {
+      const response = await api.get('/prices?latest=true') as any;
+      if (response && typeof response === 'object') {
         setCurrentPrices({
-          millingPricePerKg: (response as any).milling_price_per_kg || 0,
-          oliveBuyingPricePerKg: (response as any).olive_buying_price_per_kg || 0,
-          emptyBidonPrice: (response as any).empty_bidon_price || 0,
+          millingPricePerKg: response.milling_price_per_kg || 0,
+          oliveBuyingPricePerKg: response.olive_buying_price_per_kg || 0,
+          emptyBidonPrice: response.empty_bidon_price || 0,
         });
       }
     } catch (error) {
@@ -50,35 +64,39 @@ export function PrintTicketModal({
     ticket.status === 'completed' ? 'exit-receipt' :
     'box-labels';
 
-  const getPageStyle = () => `
-    @page {
-      size: 58mm 43mm;
-      margin: 0;
-    }
+  // INLINE PRINT STYLES - Most reliable approach
+  const printPageStyle = `
+    @page { size: 58mm 43mm; margin: 0; }
     @media print {
-      html, body {
-        margin: 0;
-        padding: 0;
-      }
+      html, body { margin: 0; padding: 0; }
       .print-page {
         width: 58mm !important;
         height: 43mm !important;
         page-break-after: always !important;
         break-after: page !important;
         overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       .print-page:last-child {
         page-break-after: auto !important;
         break-after: auto !important;
       }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
   `;
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: `Ticket-${ticket?.ticketNumber}`,
-    pageStyle: getPageStyle(),
-    onAfterPrint: onPrint,
+    documentTitle: `Ticket-${ticket?.ticketNumber}-${Date.now()}`, // Timestamp prevents caching
+    pageStyle: printPageStyle,
+    onAfterPrint: () => {
+      console.log(`[PRINT] Completed session ${sessionId}`);
+      onPrint();
+    },
+    onBeforePrint: async () => {
+      console.log(`[PRINT] Starting ${labelsToPrint.length} pages for session ${sessionId}`);
+    },
   });
 
   if (!isOpen || !ticket) return null;
@@ -152,6 +170,13 @@ export function PrintTicketModal({
     return `${totalLabels} ملصقات لـ ${ticket.clientName}`;
   };
 
+  // DEBUG: Log the actual content that will be printed
+  useEffect(() => {
+    if (printRef.current) {
+      console.log(`[PRINT] Content ready: ${printRef.current.children.length} pages`);
+    }
+  }, [sessionId]);
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -218,7 +243,7 @@ export function PrintTicketModal({
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                 {labelsToPrint.map((boxNum) => (
                   <div
-                    key={boxNum}
+                    key={`preview-${boxNum}`}
                     className="bg-white border border-black rounded p-2 shadow-sm relative"
                     style={{ aspectRatio: '58/43' }}
                   >
@@ -326,10 +351,11 @@ export function PrintTicketModal({
             )}
           </div>
 
-          <div style={{ display: 'none' }}>
+          {/* CRITICAL: Use session ID in key to force complete DOM rebuild */}
+          <div style={{ display: 'none' }} key={`print-session-${sessionId}`}>
             <div ref={printRef}>
               {ticketType === 'arrival-receipt' && (
-                <div className="print-page">
+                <div className="print-page" style={{ width: '58mm', height: '43mm', pageBreakAfter: 'always', breakAfter: 'page' }}>
                   <div style={{
                     width: '100%',
                     height: '100%',
@@ -415,8 +441,17 @@ export function PrintTicketModal({
                 </div>
               )}
 
-              {ticketType === 'box-labels' && labelsToPrint.map((boxNum) => (
-                <div key={boxNum} className="print-page">
+              {ticketType === 'box-labels' && labelsToPrint.map((boxNum, index) => (
+                <div 
+                  key={`label-${sessionId}-${boxNum}`} 
+                  className="print-page" 
+                  style={{ 
+                    width: '58mm', 
+                    height: '43mm', 
+                    pageBreakAfter: index === labelsToPrint.length - 1 ? 'auto' : 'always',
+                    breakAfter: index === labelsToPrint.length - 1 ? 'auto' : 'page'
+                  }}
+                >
                   <div style={{
                     width: '100%',
                     height: '100%',
@@ -504,7 +539,7 @@ export function PrintTicketModal({
               ))}
 
               {ticketType === 'exit-receipt' && (
-                <div className="print-page">
+                <div className="print-page" style={{ width: '58mm', height: '43mm', pageBreakAfter: 'always', breakAfter: 'page' }}>
                   <div style={{
                     width: '100%',
                     height: '100%',
