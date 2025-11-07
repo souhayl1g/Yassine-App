@@ -54,10 +54,10 @@ export function PrintTicketModal({
     'box-labels';
 
   const getPageStyle = () => {
-    // Use 70x120mm for arrival and exit receipts (taller), 58x43mm for box labels
+    // Use 70x150mm for arrival and exit receipts (taller/longer), 58x43mm for box labels
     const isReceipt = ticketType === 'arrival-receipt' || ticketType === 'exit-receipt';
     const width = isReceipt ? '70mm' : '58mm';
-    const height = isReceipt ? '120mm' : '43mm';
+    const height = isReceipt ? '150mm' : '43mm';
     
     return `
     @page {
@@ -387,41 +387,51 @@ export function PrintTicketModal({
             </h3>
 
             {ticketType === 'arrival-receipt' && (
-              <div className="bg-white border border-black p-2 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '120mm' }}>
-                <div className="text-center border-b border-emerald-600 pb-1 mb-2">
-                  <h2 className="text-[12px] font-bold text-emerald-700 leading-none">معصرة الحاج لطفي</h2>
-                  <p className="text-[8px] text-gray-600 leading-none">إيصال الوصول</p>
+              <div className="bg-white border border-black p-3 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '150mm' }}>
+                {/* Big Title and Logo */}
+                <div className="text-center mb-4">
+                  <div className="flex justify-center mb-2">
+                    <img 
+                      src="/favicon.svg" 
+                      alt="Logo" 
+                      className="h-12 w-12"
+                    />
+                  </div>
+                  <h2 className="text-[18px] font-bold text-emerald-700 leading-tight mb-1">معصرة الحاج لطفي</h2>
+                  <p className="text-[10px] text-gray-600 leading-tight">إيصال الوصول</p>
                 </div>
-                <div className="flex flex-col h-[calc(120mm-20mm)]">
-                  <div className="flex-1 flex flex-col justify-start text-right space-y-1 mb-2">
-                    <div className="flex justify-between leading-tight text-[9px]">
-                      <span className="font-bold">رقم:</span>
-                      <span className="font-semibold">{ticketIdText}</span>
-                    </div>
-                    <div className="flex justify-between leading-tight text-[9px]">
-                      <span className="font-bold">نوع:</span>
-                      <span>{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
-                    </div>
-                    <div className="leading-tight border-b border-gray-300 pb-1 mb-1">
-                      <span className="font-bold text-[14px]">{ticket.clientName}</span>
-                    </div>
-                    <div className="flex justify-between leading-tight text-[9px]">
-                      <span className="font-bold">دخول:</span>
-                      <span className="text-emerald-700 font-bold">{ticket.weightIn} كلغ</span>
-                    </div>
-                    {numberOfBidons > 0 && (
-                      <div className="flex justify-between leading-tight bg-blue-50 px-1 rounded text-[9px]">
-                        <span className="font-bold">بدونات:</span>
-                        <span className="text-blue-700 font-bold">{numberOfBidons}</span>
-                      </div>
-                    )}
-                    <div className="text-[7px] leading-tight text-gray-500">
-                      {new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}
-                    </div>
+
+                {/* Client Info */}
+                <div className="flex flex-col text-right space-y-2 mb-4">
+                  <div className="text-center">
+                    <div className="font-bold text-[16px] mb-1">{ticket.clientName}</div>
                   </div>
-                  <div className="flex items-center justify-center border-t border-black pt-2">
-                    <QRCodeSVG value={qrCodeValue} size={140} level="H" includeMargin={false} />
+                  <div className="flex justify-between leading-tight text-[11px]">
+                    <span className="font-bold">رقم التذكرة:</span>
+                    <span className="font-semibold">{ticketIdText}</span>
                   </div>
+                  <div className="flex justify-between leading-tight text-[11px]">
+                    <span className="font-bold">التاريخ:</span>
+                    <span className="font-semibold">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                  </div>
+                </div>
+
+                {/* Spacer */}
+                <div className="flex-1"></div>
+
+                {/* Big QR Code at Bottom */}
+                <div className="flex items-center justify-center border-t border-gray-300 pt-3 pb-2">
+                  <QRCodeSVG value={qrCodeValue} size={180} level="H" includeMargin={false} />
+                </div>
+
+                {/* Special Message to Client */}
+                <div className="text-center border-t border-gray-300 pt-2 mt-2">
+                  <p className="text-[9px] text-gray-600 leading-tight">
+                    شكراً لثقتكم بنا. نتمنى لكم تجربة ممتازة
+                  </p>
+                  <p className="text-[8px] text-gray-500 leading-tight mt-1">
+                    للاستفسار: يرجى الاتصال بنا
+                  </p>
                 </div>
               </div>
             )}
@@ -454,83 +464,68 @@ export function PrintTicketModal({
             )}
 
             {ticketType === 'exit-receipt' && (
-              <div className="bg-white border border-black p-2 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '120mm' }}>
-                <div className="text-center border-b border-emerald-600 pb-1 mb-2">
-                  <h2 className="text-[12px] font-bold text-emerald-700 leading-none">معصرة الحاج لطفي</h2>
-                  <p className="text-[8px] text-gray-600 leading-none">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
+              <div className="bg-white border border-black p-3 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '150mm' }}>
+                {/* Big Title and Logo */}
+                <div className="text-center mb-4">
+                  <div className="flex justify-center mb-2">
+                    <img 
+                      src="/favicon.svg" 
+                      alt="Logo" 
+                      className="h-12 w-12"
+                    />
+                  </div>
+                  <h2 className="text-[18px] font-bold text-emerald-700 leading-tight mb-1">معصرة الحاج لطفي</h2>
+                  <p className="text-[10px] text-gray-600 leading-tight">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
                 </div>
-                <div className="flex flex-col h-[calc(120mm-20mm)]">
-                  <div className="flex-1 flex flex-col justify-start text-right space-y-1 mb-2">
-                    <div className="flex justify-between leading-tight text-[9px] font-bold border-b border-gray-300 pb-1">
-                      <span>رقم: {ticketIdText}</span>
-                      <span className="text-[7px]">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
-                    </div>
-                    <div className="leading-tight font-bold text-[14px] mb-1">{ticket.clientName}</div>
-                    
-                    <div className="flex justify-between leading-tight text-[9px]">
-                      <span>دخول:</span>
-                      <span className="font-semibold">{ticket.weightIn} كلغ</span>
-                    </div>
-                    <div className="flex justify-between leading-tight text-[9px]">
-                      <span>خروج:</span>
-                      <span className="font-semibold">{weightOut} كلغ</span>
-                    </div>
-                    <div className="flex justify-between leading-tight bg-emerald-100 px-1 rounded text-[9px]">
-                      <span className="font-bold">صافي:</span>
-                      <span className="text-emerald-700 font-bold">{safeNetWeight} كلغ</span>
-                    </div>
-                    <div className="flex justify-between leading-tight text-[8px]">
-                      <span>البدونات المجلوبة:</span>
-                      <span className="font-bold text-blue-700">{numberOfBidons} بدون</span>
-                    </div>
-                    <div className="flex justify-between leading-tight text-[8px]">
-                      <span>بدونات إضافية:</span>
-                      <span className={additionalBidonsForClient > 0 ? 'font-bold text-orange-700' : 'font-bold text-gray-500'}>
-                        {additionalBidonsForClient > 0 ? `+${additionalBidonsForClient}` : '+0'} بدون
-                      </span>
-                    </div>
-                    <div className="flex justify-between leading-tight text-[7px]">
-                      <span>تكلفة البدونات الإضافية:</span>
-                      <span className={additionalBidonsForClient > 0 ? 'font-bold text-orange-700' : 'font-bold text-gray-500'}>
-                        {additionalBidonsForClient > 0
-                          ? `${additionalBidonsForClient}×${(currentPrices?.emptyBidonPrice || 0).toFixed(2)} = ${bidonCost.toFixed(3)} د.ت`
-                          : '0.000 د.ت'}
-                      </span>
-                    </div>
-                    
-                    <div className="border-t border-emerald-600 pt-1 space-y-1 mt-1">
-                      <div className="flex justify-between leading-tight text-[8px]">
-                        <span>سعر/كلغ:</span>
-                        <span className="font-bold">{derivedUnitPrice > 0 ? derivedUnitPrice.toFixed(3) : '—'}</span>
-                      </div>
-                      <div className="flex justify-between leading-tight text-[7px]">
-                        <span>أساسي ({safeNetWeight}×{derivedUnitPrice.toFixed(2)}):</span>
-                        <span className="font-semibold">{baseAmount > 0 ? baseAmount.toFixed(3) : '—'}</span>
-                      </div>
-                      {additionalBidonsForClient > 0 && (
-                        <>
-                          <div className="flex justify-between leading-tight bg-orange-50 px-1 rounded text-[7px]">
-                            <span>بدونات إضافية:</span>
-                            <span className="text-orange-700 font-bold">{additionalBidonsForClient} بدون</span>
-                          </div>
-                          <div className="flex justify-between leading-tight bg-orange-50 px-1 rounded text-[7px]">
-                            <span>سعر ({additionalBidonsForClient}×{(currentPrices?.emptyBidonPrice || 0).toFixed(2)}):</span>
-                            <span className="text-orange-700 font-bold">{bidonCost.toFixed(3)}</span>
-                          </div>
-                        </>
-                      )}
-                      <div className="flex justify-between leading-tight bg-emerald-100 px-1 rounded text-[9px]">
-                        <span className="font-bold">مجموع:</span>
-                        <span className="text-emerald-700 font-bold">{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'}</span>
-                      </div>
-                      <div className={`text-center text-[8px] font-bold ${ticket.isPaid ? 'text-green-700' : 'text-orange-700'}`}>
-                        {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
-                      </div>
-                    </div>
+
+                {/* Client Info */}
+                <div className="flex flex-col text-right space-y-2 mb-3">
+                  <div className="text-center">
+                    <div className="font-bold text-[16px] mb-1">{ticket.clientName}</div>
                   </div>
-                  <div className="flex items-center justify-center border-t border-black pt-2">
-                    <QRCodeSVG value={qrCodeValue} size={140} level="H" includeMargin={false} />
+                  <div className="flex justify-between leading-tight text-[11px]">
+                    <span className="font-bold">رقم التذكرة:</span>
+                    <span className="font-semibold">{ticketIdText}</span>
                   </div>
+                  <div className="flex justify-between leading-tight text-[11px]">
+                    <span className="font-bold">التاريخ:</span>
+                    <span className="font-semibold">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                  </div>
+                  
+                  {/* Net Weight */}
+                  <div className="flex justify-between leading-tight bg-emerald-50 px-2 py-1 rounded text-[12px] mt-2">
+                    <span className="font-bold">الوزن الصافي:</span>
+                    <span className="text-emerald-700 font-bold">{safeNetWeight} كلغ</span>
+                  </div>
+
+                  {/* Total */}
+                  <div className="flex justify-between leading-tight bg-blue-50 px-2 py-1 rounded text-[12px]">
+                    <span className="font-bold">المبلغ الإجمالي:</span>
+                    <span className="text-blue-700 font-bold">{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
+                  </div>
+
+                  {/* Payment State */}
+                  <div className={`text-center py-2 rounded text-[12px] font-bold ${ticket.isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                    {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
+                  </div>
+                </div>
+
+                {/* Spacer */}
+                <div className="flex-1"></div>
+
+                {/* Big QR Code at Bottom */}
+                <div className="flex items-center justify-center border-t border-gray-300 pt-3 pb-2">
+                  <QRCodeSVG value={qrCodeValue} size={180} level="H" includeMargin={false} />
+                </div>
+
+                {/* Special Message to Client */}
+                <div className="text-center border-t border-gray-300 pt-2 mt-2">
+                  <p className="text-[9px] text-gray-600 leading-tight">
+                    شكراً لثقتكم بنا. نتمنى لكم تجربة ممتازة
+                  </p>
+                  <p className="text-[8px] text-gray-500 leading-tight mt-1">
+                    للاستفسار: يرجى الاتصال بنا
+                  </p>
                 </div>
               </div>
             )}
@@ -545,7 +540,7 @@ export function PrintTicketModal({
                   <div style={{
                     width: '100%',
                     height: '100%',
-                    padding: '2mm',
+                    padding: '3mm',
                     boxSizing: 'border-box',
                     fontFamily: 'Arial, sans-serif',
                     backgroundColor: 'white',
@@ -554,74 +549,75 @@ export function PrintTicketModal({
                     display: 'flex',
                     flexDirection: 'column',
                   }}>
+                    {/* Big Title and Logo */}
                     <div style={{
                       textAlign: 'center',
-                      borderBottom: '1px solid #059669',
-                      paddingBottom: '1mm',
-                      marginBottom: '2mm',
+                      marginBottom: '4mm',
                     }}>
-                      <h2 style={{ fontSize: '12pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1 }}>
+                      <div style={{ marginBottom: '2mm' }}>
+                        <img 
+                          src="/favicon.svg" 
+                          alt="Logo" 
+                          style={{ height: '12mm', width: '12mm' }}
+                        />
+                      </div>
+                      <h2 style={{ fontSize: '18pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '1mm' }}>
                         معصرة الحاج لطفي
                       </h2>
-                      <p style={{ fontSize: '8pt', color: '#4b5563', margin: 0, lineHeight: 1 }}>إيصال الوصول</p>
+                      <p style={{ fontSize: '10pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>إيصال الوصول</p>
                     </div>
 
+                    {/* Client Info */}
                     <div style={{ 
-                      flex: 1, 
                       display: 'flex', 
                       flexDirection: 'column', 
-                      justifyContent: 'flex-start',
                       textAlign: 'right',
-                      marginBottom: '2mm',
+                      marginBottom: '4mm',
+                      gap: '2mm',
                     }}>
-                      <div style={{ fontSize: '9pt', marginBottom: '1mm', lineHeight: 1.3 }}>
-                        <span style={{ fontWeight: 'bold' }}>رقم: </span>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '16pt', fontWeight: 'bold', marginBottom: '1mm' }}>
+                          {ticket.clientName}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '11pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3 }}>
+                        <span style={{ fontWeight: 'bold' }}>رقم التذكرة:</span>
                         <span style={{ fontWeight: 600 }}>{ticketIdText}</span>
                       </div>
-                      <div style={{ fontSize: '9pt', marginBottom: '1mm', lineHeight: 1.3 }}>
-                        <span style={{ fontWeight: 'bold' }}>نوع: </span>
-                        <span>{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
-                      </div>
-                      <div style={{
-                        fontSize: '14pt',
-                        fontWeight: 'bold',
-                        borderBottom: '1px solid #d1d5db',
-                        paddingBottom: '1mm',
-                        marginBottom: '1mm',
-                        lineHeight: 1.3,
-                      }}>
-                        {ticket.clientName}
-                      </div>
-                      <div style={{ fontSize: '9pt', marginBottom: '1mm', lineHeight: 1.3 }}>
-                        <span style={{ fontWeight: 'bold' }}>دخول: </span>
-                        <span style={{ color: '#059669', fontWeight: 'bold' }}>{ticket.weightIn} كلغ</span>
-                      </div>
-                      {numberOfBidons > 0 && (
-                        <div style={{
-                          fontSize: '9pt',
-                          backgroundColor: '#eff6ff',
-                          padding: '1mm',
-                          borderRadius: '1mm',
-                          marginBottom: '1mm',
-                          lineHeight: 1.3,
-                        }}>
-                          <span style={{ fontWeight: 'bold' }}>بدونات: </span>
-                          <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{numberOfBidons}</span>
-                        </div>
-                      )}
-                      <div style={{ fontSize: '7pt', color: '#6b7280', lineHeight: 1.3 }}>
-                        {new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}
+                      <div style={{ fontSize: '11pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3 }}>
+                        <span style={{ fontWeight: 'bold' }}>التاريخ:</span>
+                        <span style={{ fontWeight: 600 }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                       </div>
                     </div>
 
+                    {/* Spacer */}
+                    <div style={{ flex: 1 }}></div>
+
+                    {/* Big QR Code at Bottom */}
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      borderTop: '1px solid #000',
-                      paddingTop: '2mm',
+                      borderTop: '1px solid #d1d5db',
+                      paddingTop: '3mm',
+                      paddingBottom: '2mm',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={140} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={180} level="H" includeMargin={false} />
+                    </div>
+
+                    {/* Special Message to Client */}
+                    <div style={{
+                      textAlign: 'center',
+                      borderTop: '1px solid #d1d5db',
+                      paddingTop: '2mm',
+                      marginTop: '2mm',
+                    }}>
+                      <p style={{ fontSize: '9pt', color: '#4b5563', margin: 0, lineHeight: 1.3 }}>
+                        شكراً لثقتكم بنا. نتمنى لكم تجربة ممتازة
+                      </p>
+                      <p style={{ fontSize: '8pt', color: '#6b7280', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
+                        للاستفسار: يرجى الاتصال بنا
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -720,7 +716,7 @@ export function PrintTicketModal({
                   <div style={{
                     width: '100%',
                     height: '100%',
-                    padding: '2mm',
+                    padding: '3mm',
                     boxSizing: 'border-box',
                     fontFamily: 'Arial, sans-serif',
                     backgroundColor: 'white',
@@ -729,159 +725,119 @@ export function PrintTicketModal({
                     display: 'flex',
                     flexDirection: 'column',
                   }}>
+                    {/* Big Title and Logo */}
                     <div style={{
                       textAlign: 'center',
-                      borderBottom: '1px solid #059669',
-                      paddingBottom: '1mm',
-                      marginBottom: '2mm',
+                      marginBottom: '4mm',
                     }}>
-                      <h2 style={{ fontSize: '12pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1 }}>
+                      <div style={{ marginBottom: '2mm' }}>
+                        <img 
+                          src="/favicon.svg" 
+                          alt="Logo" 
+                          style={{ height: '12mm', width: '12mm' }}
+                        />
+                      </div>
+                      <h2 style={{ fontSize: '18pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '1mm' }}>
                         معصرة الحاج لطفي
                       </h2>
-                      <p style={{ fontSize: '8pt', color: '#4b5563', margin: 0, lineHeight: 1 }}>
+                      <p style={{ fontSize: '10pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>
                         إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}
                       </p>
                     </div>
 
+                    {/* Client Info */}
                     <div style={{ 
-                      flex: 1, 
                       display: 'flex', 
                       flexDirection: 'column', 
-                      justifyContent: 'flex-start',
                       textAlign: 'right',
-                      marginBottom: '2mm',
+                      marginBottom: '3mm',
+                      gap: '2mm',
                     }}>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        fontWeight: 'bold',
-                        borderBottom: '1px solid #d1d5db',
-                        paddingBottom: '1mm',
-                        marginBottom: '1mm',
-                        lineHeight: 1.3,
-                        fontSize: '9pt',
-                      }}>
-                        <span>رقم: {ticketIdText}</span>
-                        <span style={{ fontSize: '7pt' }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '16pt', fontWeight: 'bold', marginBottom: '1mm' }}>
+                          {ticket.clientName}
+                        </div>
                       </div>
-                      <div style={{ fontWeight: 'bold', fontSize: '14pt', marginBottom: '1mm', lineHeight: 1.3 }}>
-                        {ticket.clientName}
+                      <div style={{ fontSize: '11pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3 }}>
+                        <span style={{ fontWeight: 'bold' }}>رقم التذكرة:</span>
+                        <span style={{ fontWeight: 600 }}>{ticketIdText}</span>
+                      </div>
+                      <div style={{ fontSize: '11pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3 }}>
+                        <span style={{ fontWeight: 'bold' }}>التاريخ:</span>
+                        <span style={{ fontWeight: 600 }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                       </div>
                       
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', lineHeight: 1.3, fontSize: '9pt' }}>
-                        <span>دخول:</span>
-                        <span style={{ fontWeight: 600 }}>{ticket.weightIn} كلغ</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', lineHeight: 1.3, fontSize: '9pt' }}>
-                        <span>خروج:</span>
-                        <span style={{ fontWeight: 600 }}>{weightOut} كلغ</span>
-                      </div>
+                      {/* Net Weight */}
                       <div style={{
                         display: 'flex',
                         justifyContent: 'space-between',
                         backgroundColor: '#ecfdf5',
-                        padding: '1mm',
+                        padding: '2mm',
                         borderRadius: '1mm',
-                        marginBottom: '1mm',
+                        marginTop: '2mm',
                         lineHeight: 1.3,
-                        fontSize: '9pt',
+                        fontSize: '12pt',
                       }}>
-                        <span style={{ fontWeight: 'bold' }}>صافي:</span>
+                        <span style={{ fontWeight: 'bold' }}>الوزن الصافي:</span>
                         <span style={{ color: '#059669', fontWeight: 'bold' }}>{safeNetWeight} كلغ</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', lineHeight: 1.3, fontSize: '8pt' }}>
-                        <span>البدونات المجلوبة:</span>
-                        <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{numberOfBidons} بدون</span>
+
+                      {/* Total */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        backgroundColor: '#eff6ff',
+                        padding: '2mm',
+                        borderRadius: '1mm',
+                        lineHeight: 1.3,
+                        fontSize: '12pt',
+                      }}>
+                        <span style={{ fontWeight: 'bold' }}>المبلغ الإجمالي:</span>
+                        <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', lineHeight: 1.3, fontSize: '8pt' }}>
-                        <span>بدونات إضافية:</span>
-                        <span style={{ color: additionalBidonsForClient > 0 ? '#ea580c' : '#6b7280', fontWeight: 'bold' }}>
-                          {additionalBidonsForClient > 0 ? `+${additionalBidonsForClient}` : '+0'} بدون
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', lineHeight: 1.3, fontSize: '7pt' }}>
-                        <span>تكلفة البدونات الإضافية:</span>
-                        <span style={{ color: additionalBidonsForClient > 0 ? '#ea580c' : '#6b7280', fontWeight: 'bold' }}>
-                          {additionalBidonsForClient > 0
-                            ? `${additionalBidonsForClient}×${(currentPrices?.emptyBidonPrice || 0).toFixed(2)} = ${bidonCost.toFixed(3)} د.ت`
-                            : '0.000 د.ت'}
-                        </span>
-                      </div>
-                      
-                      <div style={{ borderTop: '1px solid #059669', paddingTop: '1mm', marginTop: '1mm' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', lineHeight: 1.3, fontSize: '8pt' }}>
-                          <span>سعر/كلغ:</span>
-                          <span style={{ fontWeight: 'bold' }}>{derivedUnitPrice > 0 ? derivedUnitPrice.toFixed(3) : '—'}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', lineHeight: 1.3, fontSize: '7pt' }}>
-                          <span>أساسي ({safeNetWeight}×{derivedUnitPrice.toFixed(2)}):</span>
-                          <span style={{ fontWeight: 600 }}>{baseAmount > 0 ? baseAmount.toFixed(3) : '—'}</span>
-                        </div>
-                        {additionalBidonsForClient > 0 && (
-                          <>
-                            <div style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              backgroundColor: '#fff7ed',
-                              padding: '1mm',
-                              borderRadius: '1mm',
-                              marginBottom: '1mm',
-                              fontSize: '7pt',
-                              lineHeight: 1.3,
-                            }}>
-                              <span>بدونات إضافية:</span>
-                              <span style={{ color: '#ea580c', fontWeight: 'bold' }}>{additionalBidonsForClient} بدون</span>
-                            </div>
-                            <div style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              backgroundColor: '#fff7ed',
-                              padding: '1mm',
-                              borderRadius: '1mm',
-                              marginBottom: '1mm',
-                              fontSize: '7pt',
-                              lineHeight: 1.3,
-                            }}>
-                              <span>سعر ({additionalBidonsForClient}×{(currentPrices?.emptyBidonPrice || 0).toFixed(2)}):</span>
-                              <span style={{ color: '#ea580c', fontWeight: 'bold' }}>{bidonCost.toFixed(3)}</span>
-                            </div>
-                          </>
-                        )}
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          backgroundColor: '#ecfdf5',
-                          padding: '1mm',
-                          borderRadius: '1mm',
-                          marginBottom: '1mm',
-                          lineHeight: 1.3,
-                          fontSize: '9pt',
-                        }}>
-                          <span style={{ fontWeight: 'bold' }}>مجموع:</span>
-                          <span style={{ color: '#059669', fontWeight: 'bold' }}>
-                            {derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'}
-                          </span>
-                        </div>
-                        <div style={{
-                          textAlign: 'center',
-                          fontSize: '8pt',
-                          fontWeight: 'bold',
-                          color: ticket.isPaid ? '#10b981' : '#f97316',
-                          lineHeight: 1.3,
-                        }}>
-                          {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
-                        </div>
+
+                      {/* Payment State */}
+                      <div style={{
+                        textAlign: 'center',
+                        padding: '2mm',
+                        borderRadius: '1mm',
+                        fontSize: '12pt',
+                        fontWeight: 'bold',
+                        backgroundColor: ticket.isPaid ? '#dcfce7' : '#fed7aa',
+                        color: ticket.isPaid ? '#166534' : '#9a3412',
+                      }}>
+                        {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                       </div>
                     </div>
 
+                    {/* Spacer */}
+                    <div style={{ flex: 1 }}></div>
+
+                    {/* Big QR Code at Bottom */}
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      borderTop: '1px solid #000',
-                      paddingTop: '2mm',
+                      borderTop: '1px solid #d1d5db',
+                      paddingTop: '3mm',
+                      paddingBottom: '2mm',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={140} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={180} level="H" includeMargin={false} />
+                    </div>
+
+                    {/* Special Message to Client */}
+                    <div style={{
+                      textAlign: 'center',
+                      borderTop: '1px solid #d1d5db',
+                      paddingTop: '2mm',
+                      marginTop: '2mm',
+                    }}>
+                      <p style={{ fontSize: '9pt', color: '#4b5563', margin: 0, lineHeight: 1.3 }}>
+                        شكراً لثقتكم بنا. نتمنى لكم تجربة ممتازة
+                      </p>
+                      <p style={{ fontSize: '8pt', color: '#6b7280', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
+                        للاستفسار: يرجى الاتصال بنا
+                      </p>
                     </div>
                   </div>
                 </div>
