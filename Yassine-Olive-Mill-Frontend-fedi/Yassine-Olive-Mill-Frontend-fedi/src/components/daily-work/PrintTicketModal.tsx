@@ -54,10 +54,10 @@ export function PrintTicketModal({
     'box-labels';
 
   const getPageStyle = () => {
-    // Use 70x150mm for arrival and exit receipts (taller/longer), 58x43mm for box labels
+    // Use 70x180mm for arrival and exit receipts (bigger/taller), 58x43mm for box labels
     const isReceipt = ticketType === 'arrival-receipt' || ticketType === 'exit-receipt';
     const width = isReceipt ? '70mm' : '58mm';
-    const height = isReceipt ? '150mm' : '43mm';
+    const height = isReceipt ? '180mm' : '43mm';
     
     return `
     @page {
@@ -307,6 +307,19 @@ export function PrintTicketModal({
     dateReceived: ticket.dateReceived,
   });
 
+  // Parse client name to get first and last name
+  const parseClientName = (fullName: string) => {
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length === 1) {
+      return { firstname: parts[0], lastname: '' };
+    }
+    const firstname = parts[0];
+    const lastname = parts.slice(1).join(' ');
+    return { firstname, lastname };
+  };
+  
+  const clientNames = ticket?.clientName ? parseClientName(ticket.clientName) : { firstname: '', lastname: '' };
+
   const weightIn = ticket.weightIn || 0;
   const weightOut = ticket.weightOut || 0;
   const calculatedNetWeight = weightIn - weightOut;
@@ -387,26 +400,31 @@ export function PrintTicketModal({
             </h3>
 
             {ticketType === 'arrival-receipt' && (
-              <div className="bg-white border border-black p-3 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '150mm' }}>
+              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '180mm' }}>
                 {/* Big Title and Logo */}
-                <div className="text-center mb-4">
+                <div className="text-center mb-5">
                   <div className="flex justify-center mb-2">
                     <img 
                       src="/favicon.svg" 
                       alt="Logo" 
-                      className="h-12 w-12"
+                      className="h-14 w-14"
                     />
                   </div>
-                  <h2 className="text-[18px] font-bold text-emerald-700 leading-tight mb-1">معصرة الحاج لطفي</h2>
-                  <p className="text-[10px] text-gray-600 leading-tight">إيصال الوصول</p>
+                  <h2 className="text-[20px] font-bold text-emerald-700 leading-tight mb-1">معصرة الحاج لطفي</h2>
+                  <p className="text-[11px] text-gray-600 leading-tight">إيصال الوصول</p>
                 </div>
 
-                {/* Client Info */}
-                <div className="flex flex-col text-right space-y-2 mb-4">
-                  <div className="text-center">
-                    <div className="font-bold text-[16px] mb-1">{ticket.clientName}</div>
+                {/* Client Info - Centered */}
+                <div className="flex flex-col text-center space-y-3 mb-5">
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-gray-600 font-semibold">الاسم الأول</div>
+                    <div className="font-bold text-[20px] text-gray-900">{clientNames.firstname}</div>
                   </div>
-                  <div className="flex justify-between leading-tight text-[11px]">
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-gray-600 font-semibold">اسم العائلة</div>
+                    <div className="font-bold text-[20px] text-gray-900">{clientNames.lastname}</div>
+                  </div>
+                  <div className="flex justify-between leading-tight text-[11px] mt-4">
                     <span className="font-bold">رقم التذكرة:</span>
                     <span className="font-semibold">{ticketIdText}</span>
                   </div>
@@ -419,15 +437,18 @@ export function PrintTicketModal({
                 {/* Spacer */}
                 <div className="flex-1"></div>
 
-                {/* Big QR Code at Bottom */}
-                <div className="flex items-center justify-center border-t border-gray-300 pt-3 pb-2">
-                  <QRCodeSVG value={qrCodeValue} size={180} level="H" includeMargin={false} />
+                {/* Big QR Code in Center */}
+                <div className="flex items-center justify-center py-4">
+                  <QRCodeSVG value={qrCodeValue} size={220} level="H" includeMargin={false} />
                 </div>
 
-                {/* Special Message to Client */}
-                <div className="text-center border-t border-gray-300 pt-2 mt-2">
-                  <p className="text-[9px] text-gray-600 leading-tight">
-                    شكراً لثقتكم بنا. نتمنى لكم تجربة ممتازة
+                {/* Cute Message to Client */}
+                <div className="text-center pt-3">
+                  <p className="text-[10px] text-gray-700 leading-tight font-medium">
+                    🌿 شكراً لثقتكم بنا 🌿
+                  </p>
+                  <p className="text-[9px] text-gray-600 leading-tight mt-1">
+                    نتمنى لكم تجربة ممتازة معنا
                   </p>
                   <p className="text-[8px] text-gray-500 leading-tight mt-1">
                     للاستفسار: يرجى الاتصال بنا
@@ -464,48 +485,45 @@ export function PrintTicketModal({
             )}
 
             {ticketType === 'exit-receipt' && (
-              <div className="bg-white border border-black p-3 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '150mm' }}>
+              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '180mm' }}>
                 {/* Big Title and Logo */}
-                <div className="text-center mb-4">
+                <div className="text-center mb-5">
                   <div className="flex justify-center mb-2">
                     <img 
                       src="/favicon.svg" 
                       alt="Logo" 
-                      className="h-12 w-12"
+                      className="h-14 w-14"
                     />
                   </div>
-                  <h2 className="text-[18px] font-bold text-emerald-700 leading-tight mb-1">معصرة الحاج لطفي</h2>
-                  <p className="text-[10px] text-gray-600 leading-tight">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
+                  <h2 className="text-[20px] font-bold text-emerald-700 leading-tight mb-1">معصرة الحاج لطفي</h2>
+                  <p className="text-[11px] text-gray-600 leading-tight">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
                 </div>
 
                 {/* Client Info */}
-                <div className="flex flex-col text-right space-y-2 mb-3">
-                  <div className="text-center">
-                    <div className="font-bold text-[16px] mb-1">{ticket.clientName}</div>
+                <div className="flex flex-col text-center space-y-3 mb-5">
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-gray-600 font-semibold">الاسم الأول</div>
+                    <div className="font-bold text-[20px] text-gray-900">{clientNames.firstname}</div>
                   </div>
-                  <div className="flex justify-between leading-tight text-[11px]">
-                    <span className="font-bold">رقم التذكرة:</span>
-                    <span className="font-semibold">{ticketIdText}</span>
-                  </div>
-                  <div className="flex justify-between leading-tight text-[11px]">
-                    <span className="font-bold">التاريخ:</span>
-                    <span className="font-semibold">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                  <div className="space-y-2">
+                    <div className="text-[10px] text-gray-600 font-semibold">اسم العائلة</div>
+                    <div className="font-bold text-[20px] text-gray-900">{clientNames.lastname}</div>
                   </div>
                   
                   {/* Net Weight */}
-                  <div className="flex justify-between leading-tight bg-emerald-50 px-2 py-1 rounded text-[12px] mt-2">
+                  <div className="flex justify-between leading-tight bg-emerald-50 px-3 py-2 rounded text-[14px] mt-3">
                     <span className="font-bold">الوزن الصافي:</span>
                     <span className="text-emerald-700 font-bold">{safeNetWeight} كلغ</span>
                   </div>
 
                   {/* Total */}
-                  <div className="flex justify-between leading-tight bg-blue-50 px-2 py-1 rounded text-[12px]">
+                  <div className="flex justify-between leading-tight bg-blue-50 px-3 py-2 rounded text-[14px]">
                     <span className="font-bold">المبلغ الإجمالي:</span>
                     <span className="text-blue-700 font-bold">{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
                   </div>
 
                   {/* Payment State */}
-                  <div className={`text-center py-2 rounded text-[12px] font-bold ${ticket.isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                  <div className={`text-center py-3 rounded text-[14px] font-bold ${ticket.isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                     {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                   </div>
                 </div>
@@ -513,15 +531,18 @@ export function PrintTicketModal({
                 {/* Spacer */}
                 <div className="flex-1"></div>
 
-                {/* Big QR Code at Bottom */}
-                <div className="flex items-center justify-center border-t border-gray-300 pt-3 pb-2">
-                  <QRCodeSVG value={qrCodeValue} size={180} level="H" includeMargin={false} />
+                {/* Big QR Code in Center */}
+                <div className="flex items-center justify-center py-4">
+                  <QRCodeSVG value={qrCodeValue} size={220} level="H" includeMargin={false} />
                 </div>
 
-                {/* Special Message to Client */}
-                <div className="text-center border-t border-gray-300 pt-2 mt-2">
-                  <p className="text-[9px] text-gray-600 leading-tight">
-                    شكراً لثقتكم بنا. نتمنى لكم تجربة ممتازة
+                {/* Cute Message to Client */}
+                <div className="text-center pt-3">
+                  <p className="text-[10px] text-gray-700 leading-tight font-medium">
+                    🌿 شكراً لثقتكم بنا 🌿
+                  </p>
+                  <p className="text-[9px] text-gray-600 leading-tight mt-1">
+                    نتمنى لكم تجربة ممتازة معنا
                   </p>
                   <p className="text-[8px] text-gray-500 leading-tight mt-1">
                     للاستفسار: يرجى الاتصال بنا
@@ -540,11 +561,10 @@ export function PrintTicketModal({
                   <div style={{
                     width: '100%',
                     height: '100%',
-                    padding: '3mm',
+                    padding: '4mm',
                     boxSizing: 'border-box',
                     fontFamily: 'Arial, sans-serif',
                     backgroundColor: 'white',
-                    border: '1px solid #000',
                     direction: 'rtl',
                     display: 'flex',
                     flexDirection: 'column',
@@ -552,35 +572,38 @@ export function PrintTicketModal({
                     {/* Big Title and Logo */}
                     <div style={{
                       textAlign: 'center',
-                      marginBottom: '4mm',
+                      marginBottom: '5mm',
                     }}>
                       <div style={{ marginBottom: '2mm' }}>
                         <img 
                           src="/favicon.svg" 
                           alt="Logo" 
-                          style={{ height: '12mm', width: '12mm' }}
+                          style={{ height: '14mm', width: '14mm' }}
                         />
                       </div>
-                      <h2 style={{ fontSize: '18pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '1mm' }}>
+                      <h2 style={{ fontSize: '20pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '1mm' }}>
                         معصرة الحاج لطفي
                       </h2>
-                      <p style={{ fontSize: '10pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>إيصال الوصول</p>
+                      <p style={{ fontSize: '11pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>إيصال الوصول</p>
                     </div>
 
-                    {/* Client Info */}
+                    {/* Client Info - Centered */}
                     <div style={{ 
                       display: 'flex', 
                       flexDirection: 'column', 
-                      textAlign: 'right',
-                      marginBottom: '4mm',
-                      gap: '2mm',
+                      textAlign: 'center',
+                      marginBottom: '5mm',
+                      gap: '3mm',
                     }}>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '16pt', fontWeight: 'bold', marginBottom: '1mm' }}>
-                          {ticket.clientName}
-                        </div>
+                      <div style={{ gap: '2mm' }}>
+                        <div style={{ fontSize: '10pt', color: '#4b5563', fontWeight: 600, marginBottom: '1mm' }}>الاسم الأول</div>
+                        <div style={{ fontSize: '20pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.firstname}</div>
                       </div>
-                      <div style={{ fontSize: '11pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3 }}>
+                      <div style={{ gap: '2mm' }}>
+                        <div style={{ fontSize: '10pt', color: '#4b5563', fontWeight: 600, marginBottom: '1mm' }}>اسم العائلة</div>
+                        <div style={{ fontSize: '20pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.lastname}</div>
+                      </div>
+                      <div style={{ fontSize: '11pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3, marginTop: '4mm' }}>
                         <span style={{ fontWeight: 'bold' }}>رقم التذكرة:</span>
                         <span style={{ fontWeight: 600 }}>{ticketIdText}</span>
                       </div>
@@ -593,27 +616,26 @@ export function PrintTicketModal({
                     {/* Spacer */}
                     <div style={{ flex: 1 }}></div>
 
-                    {/* Big QR Code at Bottom */}
+                    {/* Big QR Code in Center */}
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      borderTop: '1px solid #d1d5db',
-                      paddingTop: '3mm',
-                      paddingBottom: '2mm',
+                      padding: '4mm 0',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={180} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={220} level="H" includeMargin={false} />
                     </div>
 
-                    {/* Special Message to Client */}
+                    {/* Cute Message to Client */}
                     <div style={{
                       textAlign: 'center',
-                      borderTop: '1px solid #d1d5db',
-                      paddingTop: '2mm',
-                      marginTop: '2mm',
+                      paddingTop: '3mm',
                     }}>
-                      <p style={{ fontSize: '9pt', color: '#4b5563', margin: 0, lineHeight: 1.3 }}>
-                        شكراً لثقتكم بنا. نتمنى لكم تجربة ممتازة
+                      <p style={{ fontSize: '10pt', color: '#374151', margin: 0, lineHeight: 1.3, fontWeight: 500 }}>
+                        🌿 شكراً لثقتكم بنا 🌿
+                      </p>
+                      <p style={{ fontSize: '9pt', color: '#4b5563', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
+                        نتمنى لكم تجربة ممتازة معنا
                       </p>
                       <p style={{ fontSize: '8pt', color: '#6b7280', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
                         للاستفسار: يرجى الاتصال بنا
@@ -716,11 +738,10 @@ export function PrintTicketModal({
                   <div style={{
                     width: '100%',
                     height: '100%',
-                    padding: '3mm',
+                    padding: '4mm',
                     boxSizing: 'border-box',
                     fontFamily: 'Arial, sans-serif',
                     backgroundColor: 'white',
-                    border: '1px solid #000',
                     direction: 'rtl',
                     display: 'flex',
                     flexDirection: 'column',
@@ -728,19 +749,19 @@ export function PrintTicketModal({
                     {/* Big Title and Logo */}
                     <div style={{
                       textAlign: 'center',
-                      marginBottom: '4mm',
+                      marginBottom: '5mm',
                     }}>
                       <div style={{ marginBottom: '2mm' }}>
                         <img 
                           src="/favicon.svg" 
                           alt="Logo" 
-                          style={{ height: '12mm', width: '12mm' }}
+                          style={{ height: '14mm', width: '14mm' }}
                         />
                       </div>
-                      <h2 style={{ fontSize: '18pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '1mm' }}>
+                      <h2 style={{ fontSize: '20pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '1mm' }}>
                         معصرة الحاج لطفي
                       </h2>
-                      <p style={{ fontSize: '10pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>
+                      <p style={{ fontSize: '11pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>
                         إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}
                       </p>
                     </div>
@@ -749,22 +770,17 @@ export function PrintTicketModal({
                     <div style={{ 
                       display: 'flex', 
                       flexDirection: 'column', 
-                      textAlign: 'right',
-                      marginBottom: '3mm',
-                      gap: '2mm',
+                      textAlign: 'center',
+                      marginBottom: '5mm',
+                      gap: '3mm',
                     }}>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '16pt', fontWeight: 'bold', marginBottom: '1mm' }}>
-                          {ticket.clientName}
-                        </div>
+                      <div style={{ gap: '2mm' }}>
+                        <div style={{ fontSize: '10pt', color: '#4b5563', fontWeight: 600, marginBottom: '1mm' }}>الاسم الأول</div>
+                        <div style={{ fontSize: '20pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.firstname}</div>
                       </div>
-                      <div style={{ fontSize: '11pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3 }}>
-                        <span style={{ fontWeight: 'bold' }}>رقم التذكرة:</span>
-                        <span style={{ fontWeight: 600 }}>{ticketIdText}</span>
-                      </div>
-                      <div style={{ fontSize: '11pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3 }}>
-                        <span style={{ fontWeight: 'bold' }}>التاريخ:</span>
-                        <span style={{ fontWeight: 600 }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                      <div style={{ gap: '2mm' }}>
+                        <div style={{ fontSize: '10pt', color: '#4b5563', fontWeight: 600, marginBottom: '1mm' }}>اسم العائلة</div>
+                        <div style={{ fontSize: '20pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.lastname}</div>
                       </div>
                       
                       {/* Net Weight */}
@@ -772,11 +788,11 @@ export function PrintTicketModal({
                         display: 'flex',
                         justifyContent: 'space-between',
                         backgroundColor: '#ecfdf5',
-                        padding: '2mm',
+                        padding: '3mm',
                         borderRadius: '1mm',
-                        marginTop: '2mm',
+                        marginTop: '3mm',
                         lineHeight: 1.3,
-                        fontSize: '12pt',
+                        fontSize: '14pt',
                       }}>
                         <span style={{ fontWeight: 'bold' }}>الوزن الصافي:</span>
                         <span style={{ color: '#059669', fontWeight: 'bold' }}>{safeNetWeight} كلغ</span>
@@ -787,10 +803,10 @@ export function PrintTicketModal({
                         display: 'flex',
                         justifyContent: 'space-between',
                         backgroundColor: '#eff6ff',
-                        padding: '2mm',
+                        padding: '3mm',
                         borderRadius: '1mm',
                         lineHeight: 1.3,
-                        fontSize: '12pt',
+                        fontSize: '14pt',
                       }}>
                         <span style={{ fontWeight: 'bold' }}>المبلغ الإجمالي:</span>
                         <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
@@ -799,9 +815,9 @@ export function PrintTicketModal({
                       {/* Payment State */}
                       <div style={{
                         textAlign: 'center',
-                        padding: '2mm',
+                        padding: '3mm',
                         borderRadius: '1mm',
-                        fontSize: '12pt',
+                        fontSize: '14pt',
                         fontWeight: 'bold',
                         backgroundColor: ticket.isPaid ? '#dcfce7' : '#fed7aa',
                         color: ticket.isPaid ? '#166534' : '#9a3412',
@@ -813,27 +829,26 @@ export function PrintTicketModal({
                     {/* Spacer */}
                     <div style={{ flex: 1 }}></div>
 
-                    {/* Big QR Code at Bottom */}
+                    {/* Big QR Code in Center */}
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      borderTop: '1px solid #d1d5db',
-                      paddingTop: '3mm',
-                      paddingBottom: '2mm',
+                      padding: '4mm 0',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={180} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={220} level="H" includeMargin={false} />
                     </div>
 
-                    {/* Special Message to Client */}
+                    {/* Cute Message to Client */}
                     <div style={{
                       textAlign: 'center',
-                      borderTop: '1px solid #d1d5db',
-                      paddingTop: '2mm',
-                      marginTop: '2mm',
+                      paddingTop: '3mm',
                     }}>
-                      <p style={{ fontSize: '9pt', color: '#4b5563', margin: 0, lineHeight: 1.3 }}>
-                        شكراً لثقتكم بنا. نتمنى لكم تجربة ممتازة
+                      <p style={{ fontSize: '10pt', color: '#374151', margin: 0, lineHeight: 1.3, fontWeight: 500 }}>
+                        🌿 شكراً لثقتكم بنا 🌿
+                      </p>
+                      <p style={{ fontSize: '9pt', color: '#4b5563', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
+                        نتمنى لكم تجربة ممتازة معنا
                       </p>
                       <p style={{ fontSize: '8pt', color: '#6b7280', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
                         للاستفسار: يرجى الاتصال بنا
