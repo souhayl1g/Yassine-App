@@ -60,15 +60,16 @@ export function PrintTicketModal({
         margin: 0;
       }
       @media print {
-        body {
+        html, body {
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
           margin: 0;
           padding: 0;
+          width: 58mm;
+          height: 43mm;
         }
-        .page-break {
-          page-break-after: always;
-        }
+        .page-break { page-break-after: always; break-after: page; }
+        .avoid-break { page-break-inside: avoid; break-inside: avoid; }
       }
     `;
   };
