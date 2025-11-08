@@ -68,9 +68,9 @@ export function PrintTicketModal({
   };
 
   const getPageStyle = () => {
-    // Use 70x200mm for exit receipt (taller to fit QR code and logo), 70x180mm for arrival receipt, 80x85mm for box labels
+    // Use 70x200mm for exit receipt (taller to fit QR code and logo), 70x180mm for arrival receipt, 85x85mm for box labels
     const isReceipt = ticketType === 'arrival-receipt' || ticketType === 'exit-receipt';
-    const width = isReceipt ? '70mm' : '80mm';
+    const width = isReceipt ? '70mm' : '85mm';
     const height = ticketType === 'exit-receipt' ? '200mm' : isReceipt ? '180mm' : '85mm';
     
     return `
@@ -204,38 +204,38 @@ export function PrintTicketModal({
     
     const labelStyle = `
       @page {
-        size: 80mm 85mm;
+        size: 85mm 85mm;
         margin: 0;
       }
       body {
         margin: 0;
         padding: 0;
-        width: 80mm;
+        width: 85mm;
         background: white;
         direction: rtl;
       }
       .label-page {
-        width: 80mm;
+        width: 85mm;
         height: 85mm;
         page-break-after: always;
         box-sizing: border-box;
-        padding: 3mm;
+        padding: 2mm;
         font-family: Arial, sans-serif;
         display: flex;
         flex-direction: column;
         position: relative;
         border: none;
-        overflow: hidden;
+        overflow: visible;
       }
       .label-page:last-child {
         page-break-after: auto;
       }
       .label-index {
         text-align: center;
-        font-size: 24pt;
+        font-size: 22pt;
         font-weight: bold;
         color: #000;
-        margin-bottom: 4mm;
+        margin-bottom: 3mm;
       }
       .label-client-name {
         flex: 1;
@@ -244,37 +244,45 @@ export function PrintTicketModal({
         align-items: center;
         justify-content: center;
         text-align: center;
-        margin: 4mm 0;
+        margin: 3mm 0;
       }
       .label-client-firstname {
-        font-size: 14pt;
+        font-size: 13pt;
         font-weight: bold;
         color: #000;
-        margin-bottom: 2mm;
+        margin-bottom: 1.5mm;
       }
       .label-client-lastname {
-        font-size: 14pt;
+        font-size: 13pt;
         font-weight: bold;
         color: #000;
-        margin-bottom: 2mm;
+        margin-bottom: 1.5mm;
       }
       .label-text {
         font-size: 7pt;
         color: #000;
         text-align: center;
-        margin-top: 2mm;
+        margin-top: 1.5mm;
       }
       .label-qr {
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-top: 4mm;
-        padding-top: 4mm;
+        margin-top: 2mm;
+        padding-top: 2mm;
+        width: 100%;
+        height: auto;
+        overflow: visible;
+      }
+      .label-qr svg {
+        max-width: 100%;
+        height: auto;
+        display: block;
       }
     `;
 
     const qrSvgMarkup = renderToStaticMarkup(
-      <QRCodeSVG value={qrCodeValue} size={130} level="H" includeMargin={false} />
+      <QRCodeSVG value={qrCodeValue} size={120} level="H" includeMargin={false} />
     );
 
     const labelsToPrintArray = Array.from({ length: boxesCount }, (_, i) => i + 1);
@@ -536,20 +544,20 @@ export function PrintTicketModal({
                 {labelsToPrint.map((boxNum) => (
                   <div
                     key={boxNum}
-                    className="bg-white rounded p-3 shadow-sm flex flex-col"
-                    style={{ aspectRatio: '80/85' }}
+                    className="bg-white rounded p-2 shadow-sm flex flex-col"
+                    style={{ aspectRatio: '85/85' }}
                   >
-                    <div className="text-center text-[12px] font-bold text-black mb-3">
+                    <div className="text-center text-[11px] font-bold text-black mb-2">
                       {boxNum}/{totalLabels}
                     </div>
-                    <div className="flex-1 flex flex-col items-center justify-center text-center mb-3">
-                      <div className="text-[11px] font-bold text-black mb-1">{clientNames.firstname}</div>
-                      <div className="text-[11px] font-bold text-black mb-2">{clientNames.lastname}</div>
-                      <div className="text-[8px] text-black">رقم: {ticketIdText}</div>
-                      <div className="text-[8px] text-black">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</div>
+                    <div className="flex-1 flex flex-col items-center justify-center text-center mb-2">
+                      <div className="text-[10px] font-bold text-black mb-1">{clientNames.firstname}</div>
+                      <div className="text-[10px] font-bold text-black mb-1">{clientNames.lastname}</div>
+                      <div className="text-[7px] text-black">رقم: {ticketIdText}</div>
+                      <div className="text-[7px] text-black">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</div>
                     </div>
-                    <div className="flex items-center justify-center mt-3 pt-3">
-                      <QRCodeSVG value={qrCodeValue} size={80} level="H" includeMargin={false} />
+                    <div className="flex items-center justify-center mt-2 pt-2 overflow-visible">
+                      <QRCodeSVG value={qrCodeValue} size={75} level="H" includeMargin={false} />
                     </div>
                   </div>
                 ))}
@@ -722,20 +730,21 @@ export function PrintTicketModal({
                   <div style={{
                     width: '100%',
                     height: '100%',
-                    padding: '3mm',
+                    padding: '2mm',
                     boxSizing: 'border-box',
                     display: 'flex',
                     flexDirection: 'column',
                     fontFamily: 'Arial, sans-serif',
                     backgroundColor: 'white',
                     border: 'none',
+                    overflow: 'visible',
                   }}>
                     <div style={{
                       textAlign: 'center',
-                      fontSize: '24pt',
+                      fontSize: '22pt',
                       fontWeight: 'bold',
                       color: '#000',
-                      marginBottom: '4mm',
+                      marginBottom: '3mm',
                     }}>
                       {boxNum}/{totalLabels}
                     </div>
@@ -746,28 +755,28 @@ export function PrintTicketModal({
                       alignItems: 'center',
                       justifyContent: 'center',
                       textAlign: 'center',
-                      margin: '4mm 0',
+                      margin: '3mm 0',
                     }}>
                       <div style={{
-                        fontSize: '14pt',
+                        fontSize: '13pt',
                         fontWeight: 'bold',
                         color: '#000',
-                        marginBottom: '2mm',
+                        marginBottom: '1.5mm',
                       }}>
                         {clientNames.firstname}
                       </div>
                       <div style={{
-                        fontSize: '14pt',
+                        fontSize: '13pt',
                         fontWeight: 'bold',
                         color: '#000',
-                        marginBottom: '2mm',
+                        marginBottom: '1.5mm',
                       }}>
                         {clientNames.lastname}
                       </div>
                       <div style={{
                         fontSize: '7pt',
                         color: '#000',
-                        marginTop: '2mm',
+                        marginTop: '1.5mm',
                       }}>
                         رقم: {ticketIdText}
                       </div>
@@ -782,10 +791,13 @@ export function PrintTicketModal({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      marginTop: '4mm',
-                      paddingTop: '4mm',
+                      marginTop: '2mm',
+                      paddingTop: '2mm',
+                      width: '100%',
+                      height: 'auto',
+                      overflow: 'visible',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={130} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={120} level="H" includeMargin={false} />
                     </div>
                   </div>
                 </div>
