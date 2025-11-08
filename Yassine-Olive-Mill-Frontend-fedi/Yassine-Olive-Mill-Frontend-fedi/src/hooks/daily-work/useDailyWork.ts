@@ -405,6 +405,25 @@ export const useDailyWork = () => {
         )
       };
 
+      // Optimistic guidance: if user is finishing operation (entered weightOut) show print modal immediately
+      if (hasWeightOut && isFinishingOperation && ticketManagement.scannedTicket) {
+        try {
+          const optimisticTicket: Ticket = {
+            ...ticketManagement.scannedTicket,
+            weightOut: weightOut,
+            netWeight: ticketManagement.scannedTicket.netWeight ?? weightOut,
+            status: 'completed',
+            ticketNumber: ticketManagement.scannedTicket.ticketNumber,
+            clientName: ticketManagement.scannedTicket.clientName,
+            qrCode: ticketManagement.scannedTicket.qrCode,
+          } as Ticket;
+          setTicketToPrint(optimisticTicket);
+          setIsPrintModalOpen(true); // Open immediately so user sees print screen
+        } catch (e) {
+          console.warn('⚠️ OPTIMISTIC PRINT FAILED, will fallback after server response', e);
+        }
+      }
+
       console.log('💾 TICKET DEBUG: Ticket payload being sent:', JSON.stringify(ticketPayload, null, 2));
 
       // Update the ticket first
