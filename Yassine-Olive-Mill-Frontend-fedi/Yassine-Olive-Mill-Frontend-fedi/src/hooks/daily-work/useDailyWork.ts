@@ -1208,6 +1208,9 @@ export const useDailyWork = () => {
                 <div class="qr-code">
                   <img src="${ticketToPrint.qrCode}" alt="QR Code" style="width: 100px; height: 100px;">
                 </div>
+                <div class="footer" style="margin-top: 30px; font-size: 16px; color: #008000; font-weight: bold;">
+                  شكراً لاختياركم معصرة الزيتون. نتمنى لكم يوماً سعيداً!
+                </div>
               ` : ''}
               
               <div class="footer">
