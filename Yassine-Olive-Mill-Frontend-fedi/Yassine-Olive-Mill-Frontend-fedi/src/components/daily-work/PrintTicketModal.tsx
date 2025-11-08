@@ -133,6 +133,7 @@ export function PrintTicketModal({
           // Small delay to ensure exit receipt print is complete
           setTimeout(() => {
             handleLabelPrint(numBoxes);
+            // Don't call onPrint() here - let the label print cleanup handle it
           }, 500);
         } else {
           onPrint();
@@ -1030,7 +1031,9 @@ export function PrintTicketModal({
                 <Printer className="h-5 w-5 mr-2" />
                 {ticketType === 'arrival-receipt' && 'طباعة إيصال الوصول'}
                 {ticketType === 'box-labels' && `طباعة ${totalLabels} ملصقات`}
-                {ticketType === 'exit-receipt' && 'طباعة إيصال الخروج'}
+                {ticketType === 'exit-receipt' && (ticket?.numberOfBoxes && ticket.numberOfBoxes > 0 
+                  ? `طباعة إيصال الخروج و ${ticket.numberOfBoxes} ملصقات`
+                  : 'طباعة إيصال الخروج')}
               </OliveButton>
               <OliveButton 
                 variant="outline" 
