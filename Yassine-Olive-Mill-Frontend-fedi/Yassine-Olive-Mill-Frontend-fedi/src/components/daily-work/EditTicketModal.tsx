@@ -347,7 +347,13 @@ export function EditTicketModal({
         <div className="space-y-3">
           {/* Primary Action */}
           <OliveButton 
-            onClick={onSave} 
+            onClick={async () => {
+              await onSave();
+              if (isFinishingOperation) {
+                // After saving, open the print modal for quitting ticket
+                // This is handled by the logic in useDailyWork, but you can show a toast or guide here if needed
+              }
+            }}
             disabled={isSaving || !isFormValid()}
             className="w-full"
             size="lg"
