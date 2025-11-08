@@ -245,7 +245,8 @@ export function PrintTicketModal({
         display: flex;
         align-items: center;
         justify-content: center;
-        padding-right: 1.5mm;
+        padding-right: 3mm;
+        margin-right: 3mm;
         border-right: none;
       }
       .label-details {
@@ -253,7 +254,7 @@ export function PrintTicketModal({
         display: flex;
         flex-direction: column;
         justify-content: center;
-        padding-left: 2mm;
+        padding-left: 3mm;
         text-align: right;
       }
       .label-text {
@@ -551,10 +552,10 @@ export function PrintTicketModal({
                       {boxNum}/{totalLabels}
                     </div>
                     <div className="h-full w-full flex">
-                      <div className="w-1/2 flex items-center justify-center pr-1">
+                      <div className="w-1/2 flex items-center justify-center pr-3">
                         <QRCodeSVG value={qrCodeValue} size={80} level="H" includeMargin={false} />
                       </div>
-                      <div className="w-1/2 pl-1 flex flex-col justify-center text-right" dir="rtl">
+                      <div className="w-1/2 pl-3 flex flex-col justify-center text-right" dir="rtl">
                         <div className="text-[9px] font-bold text-black leading-tight">{clientNames.firstname}</div>
                         <div className="text-[9px] font-bold text-black leading-tight mb-1">{clientNames.lastname}</div>
                         <div className="text-[7px] text-black leading-tight">رقم: {ticketIdText}</div>
@@ -758,7 +759,8 @@ export function PrintTicketModal({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      paddingRight: '1.5mm',
+                      paddingRight: '3mm',
+                      marginRight: '3mm',
                       borderRight: 'none',
                     }}>
                       <QRCodeSVG value={qrCodeValue} size={130} level="H" includeMargin={false} />
@@ -768,7 +770,7 @@ export function PrintTicketModal({
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'center',
-                      paddingLeft: '2mm',
+                      paddingLeft: '3mm',
                       textAlign: 'right',
                     }} dir="rtl">
                       <div style={{
