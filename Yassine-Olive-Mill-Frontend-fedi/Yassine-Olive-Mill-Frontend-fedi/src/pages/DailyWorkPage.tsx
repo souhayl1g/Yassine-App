@@ -14,14 +14,10 @@ import { PaymentModal } from '@/components/payments/PaymentModal';
 import { PaymentHistoryModal } from '@/components/payments/PaymentHistoryModal';
 import { useDailyWork } from '@/hooks/daily-work/useDailyWork';
 import { usePaymentOperations } from '@/hooks/usePaymentOperations';
-import { useState } from 'react';
-import { Ticket } from '@/types/daily-work';
 
 export function DailyWorkPage() {
   const dailyWork = useDailyWork();
   const payment = usePaymentOperations();
-  const [oilQuantityTicket, setOilQuantityTicket] = useState<Ticket | null>(null);
-  const [isOilQuantityModalOpen, setIsOilQuantityModalOpen] = useState(false);
 
   // Handle payment completion
   const handlePaymentComplete = () => {
@@ -59,10 +55,7 @@ export function DailyWorkPage() {
           onPayTicket={payment.openPaymentModal}
           onViewPaymentHistory={(clientId, clientName) => payment.openPaymentHistory(clientId, clientName)}
           getPaymentStatus={dailyWork.getTicketPaymentStatus}
-          onScanOilQuantity={(ticket) => {
-            setOilQuantityTicket(ticket);
-            setIsOilQuantityModalOpen(true);
-          }}
+          onScanOilQuantity={dailyWork.handleScanOilQuantity}
         />
       </div>
 
@@ -194,11 +187,12 @@ export function DailyWorkPage() {
 
       {/* Oil Quantity Modal */}
       <OilQuantityModal
-        isOpen={isOilQuantityModalOpen}
-        ticket={oilQuantityTicket}
+        isOpen={dailyWork.isOilQuantityModalOpen}
+        ticket={dailyWork.oilQuantityTicket}
         onClose={() => {
-          setIsOilQuantityModalOpen(false);
-          setOilQuantityTicket(null);
+          dailyWork.setIsOilQuantityModalOpen(false);
+          dailyWork.setOilQuantityTicket(null);
+          dailyWork.loadRecentTickets(dailyWork.currentPage, true);
         }}
         onSave={() => {
           dailyWork.loadRecentTickets(dailyWork.currentPage, true);

@@ -115,7 +115,7 @@ export const useDailyWork = () => {
         ticket_number: ticketNumber,
         weight_in: weightIn,
         net_weight: weightIn,
-        operation_type: newTicket.operationType,
+        operation_type: 'milling', // Always default to milling for arrival
         status: 'received',
       };
 
@@ -463,8 +463,6 @@ export const useDailyWork = () => {
           }
         }
         
-  setIsEditModalOpen(false);
-  setIsFinishingOperation(false);
   // Refresh the tickets list silently and keep current page
   ticketManagement.loadRecentTickets(ticketManagement.currentPage, true);
         
@@ -503,11 +501,21 @@ export const useDailyWork = () => {
           
           // If finishing operation and status is completed, show exit receipt print
           if (isFinishingOperation && response.data?.status === 'completed') {
+            // Close edit modal first
+            setIsEditModalOpen(false);
+            setIsFinishingOperation(false);
+            // Show print modal for exit receipt
             setTicketToPrint(normalizedTicket);
             setIsPrintModalOpen(true);
-          } else if (response.data?.status === 'in_process') {
-            // For in_process, don't auto-show print modal (let user decide)
+          } else {
+            // For other cases, close edit modal
+            setIsEditModalOpen(false);
+            setIsFinishingOperation(false);
           }
+        } else {
+          // If status didn't change to completed/in_process, just close the modal
+          setIsEditModalOpen(false);
+          setIsFinishingOperation(false);
         }
       }
     } catch (error) {
@@ -1534,6 +1542,7 @@ export const useDailyWork = () => {
     handleTicketClick,
     handlePrintTicket,
     handleOpenQuitWindow,
+    handleScanOilQuantity,
     handleShowQrCode,
     minimizeTicket,
     maximizeTicket,
@@ -1547,6 +1556,12 @@ export const useDailyWork = () => {
     isMinimumPriceApplied,
     printTicket,
     handleDeleteTicket,
+    
+    // Oil Quantity Modal
+    oilQuantityTicket,
+    setOilQuantityTicket,
+    isOilQuantityModalOpen,
+    setIsOilQuantityModalOpen,
 
     // Payment Management
     ticketPayments,

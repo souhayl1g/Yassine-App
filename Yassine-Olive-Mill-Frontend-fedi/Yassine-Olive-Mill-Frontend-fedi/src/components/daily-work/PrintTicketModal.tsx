@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { X, Printer, Minimize2, Tag, LogOut } from 'lucide-react';
 import { OliveButton } from '@/components/ui/olive-button';
+import { Input } from '@/components/ui/input';
 import { Ticket } from '@/types/daily-work';
 import { QRCodeSVG } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
@@ -185,7 +186,8 @@ export function PrintTicketModal({
     setTimeout(cleanup, 60000);
   };
 
-  const buildLabelDocumentHtml = () => {
+  const buildLabelDocumentHtml = (numBoxes?: number) => {
+    const boxesCount = numBoxes || ticket?.numberOfBoxes || 1;
     const labelStyle = `
       @page {
         size: 58mm 43mm;
@@ -270,9 +272,10 @@ export function PrintTicketModal({
       <QRCodeSVG value={qrCodeValue} size={95} level="H" includeMargin={false} />
     );
 
-    const labelsMarkup = labelsToPrint.map((boxNum) => `
+    const labelsToPrintArray = Array.from({ length: boxesCount }, (_, i) => i + 1);
+    const labelsMarkup = labelsToPrintArray.map((boxNum) => `
       <div class="label-page">
-        <div class="label-index">${boxNum}/${totalLabels}</div>
+        <div class="label-index">${boxNum}/${boxesCount}</div>
         <div class="label-qr">${qrSvgMarkup}</div>
         <div class="label-details">
           <div class="label-title">معصرة الحاج لطفي</div>
@@ -296,12 +299,14 @@ export function PrintTicketModal({
       </html>`;
   };
 
-  const handleLabelPrint = () => {
+  const handleLabelPrint = (numberOfBoxes?: number) => {
     if (!ticket) {
       return;
     }
 
-    const html = buildLabelDocumentHtml();
+    // If numberOfBoxes is provided, use it; otherwise use ticket's numberOfBoxes
+    const boxesToPrint = numberOfBoxes || ticket.numberOfBoxes || 1;
+    const html = buildLabelDocumentHtml(boxesToPrint);
     printHtmlDocument(html);
   };
 
@@ -316,10 +321,19 @@ export function PrintTicketModal({
 
   const handlePrintLabels = () => {
     if (!ticket) return;
-    // Prompt for number of boxes first
+    // Always prompt for number of boxes when printing sticky labels
     setBoxNumberInput(String(ticket.numberOfBoxes || ''));
     setShowBoxNumberPrompt(true);
   };
+  
+  // Always prompt for box number when printing labels from print button
+  useEffect(() => {
+    if (isOpen && ticket && forceBoxLabels && ticketType === 'box-labels') {
+      // Auto-show prompt when modal opens with forceBoxLabels
+      setBoxNumberInput(String(ticket.numberOfBoxes || ''));
+      setShowBoxNumberPrompt(true);
+    }
+  }, [isOpen, ticket, forceBoxLabels, ticketType]);
 
   const confirmPrintLabels = () => {
     if (!ticket) return;
@@ -329,138 +343,12 @@ export function PrintTicketModal({
       return;
     }
     
-    // Update ticket with new box count
-    const updatedTicket = { ...ticket, numberOfBoxes: numBoxes };
     setShowBoxNumberPrompt(false);
     
-    // Create a temporary ticket with updated box count for printing
-    const originalTicket = ticket;
-    const tempTicket = { ...originalTicket, numberOfBoxes: numBoxes };
+    // Print labels with the specified number of boxes using the existing function
+    handleLabelPrint(numBoxes);
     
-    // Build and print labels with updated box count
-    const qrCodeValue = JSON.stringify({
-      ticketId: tempTicket.id,
-      ticketNumber: tempTicket.ticketNumber,
-      clientName: tempTicket.clientName,
-      weightIn: tempTicket.weightIn,
-      dateReceived: tempTicket.dateReceived,
-    });
-    
-    const qrSvgMarkup = renderToStaticMarkup(
-      <QRCodeSVG value={qrCodeValue} size={95} level="H" includeMargin={false} />
-    );
-    
-    const labelsMarkup = Array.from({ length: numBoxes }, (_, i) => i + 1).map((boxNum) => {
-      const ticketIdText = tempTicket.ticketNumber ?? String(tempTicket.id);
-      return `
-        <div class="label-page">
-          <div class="label-index">${boxNum}/${numBoxes}</div>
-          <div class="label-qr">${qrSvgMarkup}</div>
-          <div class="label-details">
-            <div class="label-title">معصرة الحاج لطفي</div>
-            <div class="label-client">${tempTicket.clientName ?? ''}</div>
-            <div class="label-text">رقم: ${ticketIdText}</div>
-            <div class="label-text">${tempTicket ? new Date(tempTicket.dateReceived).toLocaleDateString('ar-TN') : ''}</div>
-          </div>
-        </div>
-      `;
-    }).join('');
-    
-    const labelStyle = `
-      @page {
-        size: 58mm 43mm;
-        margin: 0;
-      }
-      body {
-        margin: 0;
-        padding: 0;
-        width: 58mm;
-        background: white;
-        direction: rtl;
-      }
-      .label-page {
-        width: 58mm;
-        height: 43mm;
-        page-break-after: always;
-        box-sizing: border-box;
-        padding: 1.5mm;
-        font-family: Arial, sans-serif;
-        display: flex;
-        flex-direction: row;
-        position: relative;
-        border: 1.2px solid #000;
-        overflow: hidden;
-      }
-      .label-page:last-child {
-        page-break-after: auto;
-      }
-      .label-index {
-        position: absolute;
-        top: 0;
-        right: 0;
-        font-size: 6pt;
-        font-weight: bold;
-        color: #000;
-        background-color: #e5e7eb;
-        padding: 0.5mm 1mm;
-        border-bottom-left-radius: 1mm;
-      }
-      .label-qr {
-        width: 26mm;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding-right: 1mm;
-        border-right: 1px solid #000;
-      }
-      .label-details {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        padding-left: 1.5mm;
-        text-align: right;
-      }
-      .label-title {
-        font-size: 8pt;
-        font-weight: 700;
-        color: #000;
-        line-height: 1.1;
-        border-bottom: 1px solid #000;
-        padding-bottom: 0.5mm;
-        margin-bottom: 0.5mm;
-      }
-      .label-text {
-        font-size: 6pt;
-        color: #000;
-        margin-bottom: 0.3mm;
-      }
-      .label-client {
-        font-size: 7pt;
-        font-weight: 600;
-        color: #000;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        margin-bottom: 0.5mm;
-      }
-    `;
-    
-    const html = `<!DOCTYPE html>
-      <html lang="ar" dir="rtl">
-        <head>
-          <meta charSet="utf-8" />
-          <title>طباعة الملصقات - ${tempTicket?.clientName ?? ''}</title>
-          <style>${labelStyle}</style>
-        </head>
-        <body>
-          ${labelsMarkup}
-        </body>
-      </html>`;
-    
-    printHtmlDocument(html);
-    
-    // After printing labels, close or show options again
+    // After printing labels, keep options open if arrival receipt was printed
     setTimeout(() => {
       if (arrivalReceiptPrinted) {
         setArrivalReceiptPrinted(true);
