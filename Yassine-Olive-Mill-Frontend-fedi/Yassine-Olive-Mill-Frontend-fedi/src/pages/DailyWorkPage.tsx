@@ -9,14 +9,19 @@ import { PrintTicketModal } from '@/components/daily-work/PrintTicketModal';
 import { QRDisplayModal } from '@/components/daily-work/QRDisplayModal';
 import { TicketDetailsModal } from '@/components/daily-work/TicketDetailsModal';
 import { OperationButtons } from '@/components/daily-work/OperationButtons';
+import { OilQuantityModal } from '@/components/daily-work/OilQuantityModal';
 import { PaymentModal } from '@/components/payments/PaymentModal';
 import { PaymentHistoryModal } from '@/components/payments/PaymentHistoryModal';
 import { useDailyWork } from '@/hooks/daily-work/useDailyWork';
 import { usePaymentOperations } from '@/hooks/usePaymentOperations';
+import { useState } from 'react';
+import { Ticket } from '@/types/daily-work';
 
 export function DailyWorkPage() {
   const dailyWork = useDailyWork();
   const payment = usePaymentOperations();
+  const [oilQuantityTicket, setOilQuantityTicket] = useState<Ticket | null>(null);
+  const [isOilQuantityModalOpen, setIsOilQuantityModalOpen] = useState(false);
 
   // Handle payment completion
   const handlePaymentComplete = () => {
@@ -54,6 +59,10 @@ export function DailyWorkPage() {
           onPayTicket={payment.openPaymentModal}
           onViewPaymentHistory={(clientId, clientName) => payment.openPaymentHistory(clientId, clientName)}
           getPaymentStatus={dailyWork.getTicketPaymentStatus}
+          onScanOilQuantity={(ticket) => {
+            setOilQuantityTicket(ticket);
+            setIsOilQuantityModalOpen(true);
+          }}
         />
       </div>
 
@@ -181,6 +190,19 @@ export function DailyWorkPage() {
         onClose={payment.closePaymentHistory}
         clientId={payment.selectedClientId}
         clientName={payment.selectedClientName}
+      />
+
+      {/* Oil Quantity Modal */}
+      <OilQuantityModal
+        isOpen={isOilQuantityModalOpen}
+        ticket={oilQuantityTicket}
+        onClose={() => {
+          setIsOilQuantityModalOpen(false);
+          setOilQuantityTicket(null);
+        }}
+        onSave={() => {
+          dailyWork.loadRecentTickets(dailyWork.currentPage, true);
+        }}
       />
     </>
   );

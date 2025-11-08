@@ -27,6 +27,8 @@ export function PrintTicketModal({
   const printRef = useRef<HTMLDivElement>(null);
   const [currentPrices, setCurrentPrices] = useState<any>(null);
   const [arrivalReceiptPrinted, setArrivalReceiptPrinted] = useState(false);
+  const [showBoxNumberPrompt, setShowBoxNumberPrompt] = useState(false);
+  const [boxNumberInput, setBoxNumberInput] = useState<string>('');
 
   const PRINT_ROOT_ID = 'olive-print-root';
 
@@ -305,7 +307,8 @@ export function PrintTicketModal({
 
   const handlePrint = () => {
     if (ticketType === 'box-labels') {
-      handleLabelPrint();
+      // For box-labels, always prompt for number of boxes
+      handlePrintLabels();
     } else {
       standardPrint();
     }
@@ -313,9 +316,150 @@ export function PrintTicketModal({
 
   const handlePrintLabels = () => {
     if (!ticket) return;
-    // Set ticket to null temporarily to trigger box-labels mode
+    // Prompt for number of boxes first
+    setBoxNumberInput(String(ticket.numberOfBoxes || ''));
+    setShowBoxNumberPrompt(true);
+  };
+
+  const confirmPrintLabels = () => {
+    if (!ticket) return;
+    const numBoxes = parseInt(boxNumberInput) || 0;
+    if (numBoxes <= 0) {
+      alert('يرجى إدخال عدد صحيح من الصناديق');
+      return;
+    }
+    
+    // Update ticket with new box count
+    const updatedTicket = { ...ticket, numberOfBoxes: numBoxes };
+    setShowBoxNumberPrompt(false);
+    
+    // Create a temporary ticket with updated box count for printing
     const originalTicket = ticket;
-    handleLabelPrint();
+    const tempTicket = { ...originalTicket, numberOfBoxes: numBoxes };
+    
+    // Build and print labels with updated box count
+    const qrCodeValue = JSON.stringify({
+      ticketId: tempTicket.id,
+      ticketNumber: tempTicket.ticketNumber,
+      clientName: tempTicket.clientName,
+      weightIn: tempTicket.weightIn,
+      dateReceived: tempTicket.dateReceived,
+    });
+    
+    const qrSvgMarkup = renderToStaticMarkup(
+      <QRCodeSVG value={qrCodeValue} size={95} level="H" includeMargin={false} />
+    );
+    
+    const labelsMarkup = Array.from({ length: numBoxes }, (_, i) => i + 1).map((boxNum) => {
+      const ticketIdText = tempTicket.ticketNumber ?? String(tempTicket.id);
+      return `
+        <div class="label-page">
+          <div class="label-index">${boxNum}/${numBoxes}</div>
+          <div class="label-qr">${qrSvgMarkup}</div>
+          <div class="label-details">
+            <div class="label-title">معصرة الحاج لطفي</div>
+            <div class="label-client">${tempTicket.clientName ?? ''}</div>
+            <div class="label-text">رقم: ${ticketIdText}</div>
+            <div class="label-text">${tempTicket ? new Date(tempTicket.dateReceived).toLocaleDateString('ar-TN') : ''}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    const labelStyle = `
+      @page {
+        size: 58mm 43mm;
+        margin: 0;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        width: 58mm;
+        background: white;
+        direction: rtl;
+      }
+      .label-page {
+        width: 58mm;
+        height: 43mm;
+        page-break-after: always;
+        box-sizing: border-box;
+        padding: 1.5mm;
+        font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: row;
+        position: relative;
+        border: 1.2px solid #000;
+        overflow: hidden;
+      }
+      .label-page:last-child {
+        page-break-after: auto;
+      }
+      .label-index {
+        position: absolute;
+        top: 0;
+        right: 0;
+        font-size: 6pt;
+        font-weight: bold;
+        color: #000;
+        background-color: #e5e7eb;
+        padding: 0.5mm 1mm;
+        border-bottom-left-radius: 1mm;
+      }
+      .label-qr {
+        width: 26mm;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-right: 1mm;
+        border-right: 1px solid #000;
+      }
+      .label-details {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding-left: 1.5mm;
+        text-align: right;
+      }
+      .label-title {
+        font-size: 8pt;
+        font-weight: 700;
+        color: #000;
+        line-height: 1.1;
+        border-bottom: 1px solid #000;
+        padding-bottom: 0.5mm;
+        margin-bottom: 0.5mm;
+      }
+      .label-text {
+        font-size: 6pt;
+        color: #000;
+        margin-bottom: 0.3mm;
+      }
+      .label-client {
+        font-size: 7pt;
+        font-weight: 600;
+        color: #000;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-bottom: 0.5mm;
+      }
+    `;
+    
+    const html = `<!DOCTYPE html>
+      <html lang="ar" dir="rtl">
+        <head>
+          <meta charSet="utf-8" />
+          <title>طباعة الملصقات - ${tempTicket?.clientName ?? ''}</title>
+          <style>${labelStyle}</style>
+        </head>
+        <body>
+          ${labelsMarkup}
+        </body>
+      </html>`;
+    
+    printHtmlDocument(html);
+    
     // After printing labels, close or show options again
     setTimeout(() => {
       if (arrivalReceiptPrinted) {
@@ -964,6 +1108,45 @@ export function PrintTicketModal({
           )}
         </div>
       </div>
+
+      {/* Box Number Prompt Modal */}
+      {showBoxNumberPrompt && ticket && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold mb-4">عدد الصناديق</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              يرجى إدخال عدد الصناديق المراد طباعة الملصقات لها:
+            </p>
+            <Input
+              type="number"
+              min="1"
+              value={boxNumberInput}
+              onChange={(e) => setBoxNumberInput(e.target.value)}
+              placeholder="عدد الصناديق"
+              className="mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <OliveButton
+                onClick={confirmPrintLabels}
+                className="flex-1"
+              >
+                طباعة
+              </OliveButton>
+              <OliveButton
+                variant="outline"
+                onClick={() => {
+                  setShowBoxNumberPrompt(false);
+                  setBoxNumberInput('');
+                }}
+                className="flex-1"
+              >
+                إلغاء
+              </OliveButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

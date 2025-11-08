@@ -500,8 +500,14 @@ export const useDailyWork = () => {
             notes: d.notes || '',
             qrCode: undefined
           } as Ticket;
-          setTicketToPrint(normalizedTicket);
-          setIsPrintModalOpen(true);
+          
+          // If finishing operation and status is completed, show exit receipt print
+          if (isFinishingOperation && response.data?.status === 'completed') {
+            setTicketToPrint(normalizedTicket);
+            setIsPrintModalOpen(true);
+          } else if (response.data?.status === 'in_process') {
+            // For in_process, don't auto-show print modal (let user decide)
+          }
         }
       }
     } catch (error) {

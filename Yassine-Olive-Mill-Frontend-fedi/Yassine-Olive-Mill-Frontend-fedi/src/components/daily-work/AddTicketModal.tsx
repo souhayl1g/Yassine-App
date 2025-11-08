@@ -138,25 +138,6 @@ export function AddTicketModal({
             ) : null}
           </div>
 
-          {/* Operation Type */}
-          <div className="space-y-2">
-            <Label htmlFor="operationType">نوع العملية *</Label>
-            <Select
-              value={newTicket.operationType}
-              onValueChange={(value: 'milling' | 'sale') => {
-                setNewTicket((prev) => ({ ...prev, operationType: value }));
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="اختر نوع العملية" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="milling">عصر</SelectItem>
-                <SelectItem value="sale">بيع</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Weight In */}
           <div className="space-y-2">
             <Label htmlFor="weightIn">الوزن الداخل (كيلو) *</Label>

@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OliveCard, OliveCardHeader, OliveCardContent, OliveCardTitle } from '@/components/ui/olive-card';
 import { OliveButton } from '@/components/ui/olive-button';
-import { FileText, RefreshCw, QrCode, Printer, Edit, Trash2, DollarSign, History, Calendar } from 'lucide-react';
+import { FileText, RefreshCw, QrCode, Printer, Edit, Trash2, DollarSign, History, Calendar, Scan } from 'lucide-react';
 import { Ticket } from '@/types/daily-work';
 
 interface RecentTicketsSectionProps {
@@ -19,6 +19,7 @@ interface RecentTicketsSectionProps {
   onPayTicket?: (ticket: Ticket) => void;
   onViewPaymentHistory?: (clientId: string, clientName: string) => void;
   getPaymentStatus?: (ticketId: string) => { isPaid: boolean; totalPaid: number; payments: any[]; paymentCount: number };
+  onScanOilQuantity?: (ticket: Ticket) => void;
 }
 
 export function RecentTicketsSection({
@@ -35,6 +36,7 @@ export function RecentTicketsSection({
   onPayTicket,
   onViewPaymentHistory,
   getPaymentStatus,
+  onScanOilQuantity,
 }: RecentTicketsSectionProps) {
   const { t } = useTranslation();
   const scrollPositionRef = useRef<number>(0);
@@ -284,6 +286,20 @@ export function RecentTicketsSection({
                           >
                             <Printer className="h-4 w-4" />
                           </OliveButton>
+                          {onScanOilQuantity && (
+                            <OliveButton
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onScanOilQuantity(ticket);
+                              }}
+                              title={ticket.operationType === 'milling' ? 'إدخال كمية الزيت' : 'إدخال كمية الزيتون'}
+                              className="bg-blue-50 hover:bg-blue-100 border-blue-300"
+                            >
+                              <Scan className="h-4 w-4" />
+                            </OliveButton>
+                          )}
                           <OliveButton
                             variant="outline"
                             size="sm"
