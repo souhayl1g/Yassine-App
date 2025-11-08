@@ -224,7 +224,7 @@ export function PrintTicketModal({
         display: flex;
         flex-direction: row;
         position: relative;
-        border: 1.2px solid #000;
+        border: none;
         overflow: hidden;
       }
       .label-page:last-child {
@@ -235,23 +235,10 @@ export function PrintTicketModal({
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        font-size: 24pt;
-        font-weight: bold;
-        color: #000;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 2mm;
-        z-index: 10;
-      }
-      .label-index-logo {
-        width: 15mm;
-        height: 15mm;
-      }
-      .label-index-number {
         font-size: 28pt;
         font-weight: bold;
+        color: #000;
+        z-index: 10;
       }
       .label-qr {
         width: 35mm;
@@ -259,7 +246,7 @@ export function PrintTicketModal({
         align-items: center;
         justify-content: center;
         padding-right: 1.5mm;
-        border-right: 1px solid #000;
+        border-right: none;
       }
       .label-details {
         flex: 1;
@@ -301,10 +288,7 @@ export function PrintTicketModal({
     const labelsToPrintArray = Array.from({ length: boxesCount }, (_, i) => i + 1);
     const labelsMarkup = labelsToPrintArray.map((boxNum) => `
       <div class="label-page">
-        <div class="label-index">
-          <img src="/favicon.svg" alt="Logo" class="label-index-logo" />
-          <div class="label-index-number">${boxNum}/${boxesCount}</div>
-        </div>
+        <div class="label-index">${boxNum}/${boxesCount}</div>
         <div class="label-qr">${qrSvgMarkup}</div>
         <div class="label-details">
           <div class="label-client-firstname">${clientNames.firstname}</div>
@@ -560,17 +544,14 @@ export function PrintTicketModal({
                 {labelsToPrint.map((boxNum) => (
                   <div
                     key={boxNum}
-                    className="bg-white border border-black rounded p-2 shadow-sm relative"
+                    className="bg-white rounded p-2 shadow-sm relative"
                     style={{ aspectRatio: '80/80' }}
                   >
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center justify-center gap-1">
-                      <img src="/favicon.svg" alt="Logo" className="w-4 h-4" />
-                      <div className="text-[10px] font-bold text-black">
-                        {boxNum}/{totalLabels}
-                      </div>
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 text-[10px] font-bold text-black">
+                      {boxNum}/{totalLabels}
                     </div>
                     <div className="h-full w-full flex">
-                      <div className="w-1/2 flex items-center justify-center pr-1 border-r border-black">
+                      <div className="w-1/2 flex items-center justify-center pr-1">
                         <QRCodeSVG value={qrCodeValue} size={80} level="H" includeMargin={false} />
                       </div>
                       <div className="w-1/2 pl-1 flex flex-col justify-center text-right" dir="rtl">
@@ -758,7 +739,7 @@ export function PrintTicketModal({
                     position: 'relative',
                     fontFamily: 'Arial, sans-serif',
                     backgroundColor: 'white',
-                    border: '1.2px solid #000',
+                    border: 'none',
                   }}>
                     <div style={{
                       position: 'absolute',
@@ -768,17 +749,9 @@ export function PrintTicketModal({
                       fontSize: '28pt',
                       fontWeight: 'bold',
                       color: '#000',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '2mm',
                       zIndex: 10,
                     }}>
-                      <img src="/favicon.svg" alt="Logo" style={{ width: '15mm', height: '15mm' }} />
-                      <div style={{ fontSize: '28pt', fontWeight: 'bold' }}>
-                        {boxNum}/{totalLabels}
-                      </div>
+                      {boxNum}/{totalLabels}
                     </div>
                     <div style={{
                       width: '35mm',
@@ -786,7 +759,7 @@ export function PrintTicketModal({
                       alignItems: 'center',
                       justifyContent: 'center',
                       paddingRight: '1.5mm',
-                      borderRight: '1px solid #000',
+                      borderRight: 'none',
                     }}>
                       <QRCodeSVG value={qrCodeValue} size={130} level="H" includeMargin={false} />
                     </div>
