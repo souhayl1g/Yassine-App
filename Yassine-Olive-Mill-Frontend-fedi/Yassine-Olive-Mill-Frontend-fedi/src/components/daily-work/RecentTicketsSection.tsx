@@ -277,9 +277,10 @@ export function RecentTicketsSection({
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onPrintTicket(ticket);
+                              // Always print sticky labels (box labels) regardless of ticket state
+                              onPrintTicket({ ...ticket, _forceBoxLabels: true } as any);
                             }}
-                            title="طباعة التذكرة"
+                            title="طباعة ملصقات الصناديق"
                           >
                             <Printer className="h-4 w-4" />
                           </OliveButton>

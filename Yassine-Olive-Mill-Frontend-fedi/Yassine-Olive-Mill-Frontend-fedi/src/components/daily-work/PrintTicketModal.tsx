@@ -30,7 +30,11 @@ export function PrintTicketModal({
 
   const PRINT_ROOT_ID = 'olive-print-root';
 
+  // Check if we should force box-labels printing (when called from print button in ticket list)
+  const forceBoxLabels = (ticket as any)?._forceBoxLabels === true;
+  
   const ticketType = !ticket ? 'box-labels' : 
+    forceBoxLabels ? 'box-labels' :
     ticket.status === 'received' ? 'arrival-receipt' :
     ticket.status === 'completed' ? 'exit-receipt' :
     'box-labels';

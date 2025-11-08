@@ -352,7 +352,7 @@ export function EditTicketModal({
             className="w-full"
             size="lg"
           >
-            {isSaving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
+            {isSaving ? 'جارٍ الحفظ...' : isFinishingOperation ? 'طباعة ايصال الخروج' : 'حفظ التغييرات'}
           </OliveButton>
           
           {/* Secondary Actions */}

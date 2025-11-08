@@ -162,6 +162,9 @@ export function DailyWorkPage() {
         videoRef={dailyWork.videoRef}
         onStartCamera={dailyWork.initializeCamera}
         onStopCamera={dailyWork.stopCamera}
+        recentTickets={dailyWork.recentTickets}
+        onTicketSelect={dailyWork.handleOpenQuitWindow}
+        isFinishingOperation={dailyWork.isFinishingOperation}
       />
 
       {/* Payment Modal */}

@@ -23,6 +23,10 @@ interface QRScanModalProps {
   videoRef?: React.RefObject<HTMLVideoElement>;
   onStartCamera?: () => void;
   onStopCamera?: () => void;
+  // Ticket list for quitting
+  recentTickets?: any[];
+  onTicketSelect?: (ticket: any) => void;
+  isFinishingOperation?: boolean;
 }
 
 export function QRScanModal({
@@ -34,8 +38,19 @@ export function QRScanModal({
   videoRef,
   onStartCamera,
   onStopCamera,
+  recentTickets = [],
+  onTicketSelect,
+  isFinishingOperation = false,
 }: QRScanModalProps) {
-  const [activeTab, setActiveTab] = useState<'device' | 'camera' | 'upload'>('device');
+  // Default to 'tickets' tab when finishing operation, otherwise 'device'
+  const [activeTab, setActiveTab] = useState<'tickets' | 'device' | 'camera' | 'upload'>(isFinishingOperation ? 'tickets' : 'device');
+  
+  // Reset to tickets tab when finishing operation changes
+  React.useEffect(() => {
+    if (isFinishingOperation && isOpen) {
+      setActiveTab('tickets');
+    }
+  }, [isFinishingOperation, isOpen]);
 
   // Auto start/stop camera when switching tabs or opening/closing modal
   useEffect(() => {
@@ -60,11 +75,65 @@ export function QRScanModal({
 
         <div className="space-y-4">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-            <TabsList className="grid grid-cols-3 w-full">
+            <TabsList className={`grid w-full ${isFinishingOperation ? 'grid-cols-4' : 'grid-cols-3'}`}>
+              {isFinishingOperation && (
+                <TabsTrigger value="tickets">اختر التذكرة</TabsTrigger>
+              )}
               <TabsTrigger value="device">ماسح الجهاز</TabsTrigger>
               <TabsTrigger value="camera">الكاميرا</TabsTrigger>
               <TabsTrigger value="upload">رفع ملف</TabsTrigger>
             </TabsList>
+
+            {isFinishingOperation && (
+              <TabsContent value="tickets" className="mt-4">
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                  {recentTickets && recentTickets.length > 0 ? (
+                    <div className="space-y-2">
+                      {recentTickets.map((ticket) => (
+                        <div
+                          key={ticket.id}
+                          onClick={() => {
+                            if (onTicketSelect) {
+                              onTicketSelect(ticket);
+                              onOpenChange(false);
+                            }
+                          }}
+                          className="p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-semibold">{ticket.clientName}</div>
+                              <div className="text-sm text-muted-foreground">
+                                رقم التذكرة: {ticket.ticketNumber || `#${ticket.id}`}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                الوزن الداخل: {ticket.weightIn} كيلو
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className={`text-xs px-2 py-1 rounded ${
+                                ticket.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                ticket.status === 'in_process' ? 'bg-blue-100 text-blue-700' :
+                                'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {ticket.status === 'completed' ? 'مكتملة' :
+                                 ticket.status === 'in_process' ? 'قيد المعالجة' :
+                                 'مستلمة'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <QrCode className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>لا توجد تذاكر متاحة</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            )}
 
             <TabsContent value="device" className="mt-4">
               {onDeviceScan ? (
