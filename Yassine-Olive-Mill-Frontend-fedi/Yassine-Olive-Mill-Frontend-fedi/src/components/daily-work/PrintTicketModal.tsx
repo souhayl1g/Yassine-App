@@ -68,10 +68,10 @@ export function PrintTicketModal({
   };
 
   const getPageStyle = () => {
-    // Use 70x200mm for exit receipt (taller to fit QR code and logo), 70x180mm for arrival receipt, 58x43mm for box labels
+    // Use 70x200mm for exit receipt (taller to fit QR code and logo), 70x180mm for arrival receipt, 80x80mm for box labels
     const isReceipt = ticketType === 'arrival-receipt' || ticketType === 'exit-receipt';
-    const width = isReceipt ? '70mm' : '58mm';
-    const height = ticketType === 'exit-receipt' ? '200mm' : isReceipt ? '180mm' : '43mm';
+    const width = isReceipt ? '70mm' : '80mm';
+    const height = ticketType === 'exit-receipt' ? '200mm' : isReceipt ? '180mm' : '80mm';
     
     return `
     @page {
@@ -188,24 +188,38 @@ export function PrintTicketModal({
 
   const buildLabelDocumentHtml = (numBoxes?: number) => {
     const boxesCount = numBoxes || ticket?.numberOfBoxes || 1;
+    
+    // Parse client name to get first and last name
+    const parseClientName = (fullName: string) => {
+      const parts = fullName.trim().split(/\s+/);
+      if (parts.length === 1) {
+        return { firstname: parts[0], lastname: '' };
+      }
+      const firstname = parts[0];
+      const lastname = parts.slice(1).join(' ');
+      return { firstname, lastname };
+    };
+    
+    const clientNames = ticket?.clientName ? parseClientName(ticket.clientName) : { firstname: '', lastname: '' };
+    
     const labelStyle = `
       @page {
-        size: 58mm 43mm;
+        size: 80mm 80mm;
         margin: 0;
       }
       body {
         margin: 0;
         padding: 0;
-        width: 58mm;
+        width: 80mm;
         background: white;
         direction: rtl;
       }
       .label-page {
-        width: 58mm;
-        height: 43mm;
+        width: 80mm;
+        height: 80mm;
         page-break-after: always;
         box-sizing: border-box;
-        padding: 1.5mm;
+        padding: 2mm;
         font-family: Arial, sans-serif;
         display: flex;
         flex-direction: row;
@@ -221,30 +235,30 @@ export function PrintTicketModal({
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        font-size: 14pt;
+        font-size: 24pt;
         font-weight: bold;
         color: #000;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 1mm;
+        gap: 2mm;
         z-index: 10;
       }
       .label-index-logo {
-        width: 8mm;
-        height: 8mm;
+        width: 15mm;
+        height: 15mm;
       }
       .label-index-number {
-        font-size: 16pt;
+        font-size: 28pt;
         font-weight: bold;
       }
       .label-qr {
-        width: 26mm;
+        width: 35mm;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding-right: 1mm;
+        padding-right: 1.5mm;
         border-right: 1px solid #000;
       }
       .label-details {
@@ -252,25 +266,16 @@ export function PrintTicketModal({
         display: flex;
         flex-direction: column;
         justify-content: center;
-        padding-left: 1.5mm;
+        padding-left: 2mm;
         text-align: right;
       }
       .label-text {
-        font-size: 6pt;
+        font-size: 7pt;
         color: #000;
-        margin-bottom: 0.3mm;
+        margin-bottom: 0.5mm;
       }
       .label-client-firstname {
-        font-size: 8pt;
-        font-weight: bold;
-        color: #000;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        margin-bottom: 0.3mm;
-      }
-      .label-client-lastname {
-        font-size: 8pt;
+        font-size: 10pt;
         font-weight: bold;
         color: #000;
         white-space: nowrap;
@@ -278,20 +283,32 @@ export function PrintTicketModal({
         text-overflow: ellipsis;
         margin-bottom: 0.5mm;
       }
+      .label-client-lastname {
+        font-size: 10pt;
+        font-weight: bold;
+        color: #000;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-bottom: 0.8mm;
+      }
     `;
 
     const qrSvgMarkup = renderToStaticMarkup(
-      <QRCodeSVG value={qrCodeValue} size={95} level="H" includeMargin={false} />
+      <QRCodeSVG value={qrCodeValue} size={130} level="H" includeMargin={false} />
     );
 
     const labelsToPrintArray = Array.from({ length: boxesCount }, (_, i) => i + 1);
     const labelsMarkup = labelsToPrintArray.map((boxNum) => `
       <div class="label-page">
-        <div class="label-index">${boxNum}/${boxesCount}</div>
+        <div class="label-index">
+          <img src="/favicon.svg" alt="Logo" class="label-index-logo" />
+          <div class="label-index-number">${boxNum}/${boxesCount}</div>
+        </div>
         <div class="label-qr">${qrSvgMarkup}</div>
         <div class="label-details">
-          <div class="label-title">معصرة الحاج لطفي</div>
-          <div class="label-client">${ticket?.clientName ?? ''}</div>
+          <div class="label-client-firstname">${clientNames.firstname}</div>
+          <div class="label-client-lastname">${clientNames.lastname}</div>
           <div class="label-text">رقم: ${ticketIdText}</div>
           <div class="label-text">${ticket ? new Date(ticket.dateReceived).toLocaleDateString('ar-TN') : ''}</div>
         </div>
@@ -539,25 +556,28 @@ export function PrintTicketModal({
             )}
 
             {ticketType === 'box-labels' && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {labelsToPrint.map((boxNum) => (
                   <div
                     key={boxNum}
                     className="bg-white border border-black rounded p-2 shadow-sm relative"
-                    style={{ aspectRatio: '58/43' }}
+                    style={{ aspectRatio: '80/80' }}
                   >
-                    <div className="absolute top-0 right-0 text-[6px] font-bold text-black bg-gray-200 px-1 rounded-bl">
-                      {boxNum}/{totalLabels}
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center justify-center gap-1">
+                      <img src="/favicon.svg" alt="Logo" className="w-4 h-4" />
+                      <div className="text-[10px] font-bold text-black">
+                        {boxNum}/{totalLabels}
+                      </div>
                     </div>
                     <div className="h-full w-full flex">
                       <div className="w-1/2 flex items-center justify-center pr-1 border-r border-black">
-                        <QRCodeSVG value={qrCodeValue} size={56} level="H" includeMargin={false} />
+                        <QRCodeSVG value={qrCodeValue} size={80} level="H" includeMargin={false} />
                       </div>
                       <div className="w-1/2 pl-1 flex flex-col justify-center text-right" dir="rtl">
-                        <div className="text-[8px] font-bold text-black leading-none border-b border-black pb-0.5 mb-0.5">معصرة الحاج لطفي</div>
-                        <div className="text-[7px] font-semibold text-black truncate leading-tight">{ticket.clientName}</div>
-                        <div className="text-[6px] text-black leading-tight">رقم: {ticketIdText}</div>
-                        <div className="text-[6px] text-black leading-tight">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</div>
+                        <div className="text-[9px] font-bold text-black leading-tight">{clientNames.firstname}</div>
+                        <div className="text-[9px] font-bold text-black leading-tight mb-1">{clientNames.lastname}</div>
+                        <div className="text-[7px] text-black leading-tight">رقم: {ticketIdText}</div>
+                        <div className="text-[7px] text-black leading-tight">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</div>
                       </div>
                     </div>
                   </div>
@@ -731,7 +751,7 @@ export function PrintTicketModal({
                   <div style={{
                     width: '100%',
                     height: '100%',
-                    padding: '1.5mm',
+                    padding: '2mm',
                     boxSizing: 'border-box',
                     display: 'flex',
                     flexDirection: 'row',
@@ -742,70 +762,74 @@ export function PrintTicketModal({
                   }}>
                     <div style={{
                       position: 'absolute',
-                      top: '0',
-                      right: '0',
-                      fontSize: '6pt',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      fontSize: '28pt',
                       fontWeight: 'bold',
                       color: '#000',
-                      backgroundColor: '#e5e7eb',
-                      padding: '0.5mm 1mm',
-                      borderBottomLeftRadius: '1mm',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '2mm',
+                      zIndex: 10,
                     }}>
-                      {boxNum}/{totalLabels}
+                      <img src="/favicon.svg" alt="Logo" style={{ width: '15mm', height: '15mm' }} />
+                      <div style={{ fontSize: '28pt', fontWeight: 'bold' }}>
+                        {boxNum}/{totalLabels}
+                      </div>
                     </div>
                     <div style={{
-                      width: '26mm',
+                      width: '35mm',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      paddingRight: '1mm',
+                      paddingRight: '1.5mm',
                       borderRight: '1px solid #000',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={95} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={130} level="H" includeMargin={false} />
                     </div>
                     <div style={{
                       flex: 1,
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'center',
-                      paddingLeft: '1.5mm',
+                      paddingLeft: '2mm',
+                      textAlign: 'right',
                     }} dir="rtl">
                       <div style={{
-                        fontSize: '8pt',
-                        fontWeight: 700,
-                        color: '#000',
-                        lineHeight: 1.1,
-                        borderBottom: '1px solid #000',
-                        paddingBottom: '0.5mm',
-                        marginBottom: '0.5mm',
-                        textAlign: 'right',
-                      }}>
-                        معصرة الحاج لطفي
-                      </div>
-                      <div style={{
-                        fontSize: '7pt',
-                        fontWeight: 600,
+                        fontSize: '10pt',
+                        fontWeight: 'bold',
                         color: '#000',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         marginBottom: '0.5mm',
-                        textAlign: 'right',
                       }}>
-                        {ticket.clientName}
+                        {clientNames.firstname}
                       </div>
                       <div style={{
-                        fontSize: '6.2pt',
+                        fontSize: '10pt',
+                        fontWeight: 'bold',
                         color: '#000',
-                        marginBottom: '0.3mm',
-                        textAlign: 'right',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        marginBottom: '0.8mm',
+                      }}>
+                        {clientNames.lastname}
+                      </div>
+                      <div style={{
+                        fontSize: '7pt',
+                        color: '#000',
+                        marginBottom: '0.5mm',
                       }}>
                         رقم: {ticketIdText}
                       </div>
                       <div style={{
-                        fontSize: '6pt',
+                        fontSize: '7pt',
                         color: '#000',
-                        textAlign: 'right',
                       }}>
                         {new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}
                       </div>
