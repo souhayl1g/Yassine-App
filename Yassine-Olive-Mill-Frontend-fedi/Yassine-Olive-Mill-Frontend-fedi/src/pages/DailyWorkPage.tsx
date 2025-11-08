@@ -99,6 +99,7 @@ export function DailyWorkPage() {
         onPrint={dailyWork.printTicket}
         onMinimize={dailyWork.minimizeTicket}
         onClose={() => dailyWork.setIsPrintModalOpen(false)}
+        onOpenQuitWindow={dailyWork.handleOpenQuitWindow}
       />
 
       {/* QR Display Modal */}

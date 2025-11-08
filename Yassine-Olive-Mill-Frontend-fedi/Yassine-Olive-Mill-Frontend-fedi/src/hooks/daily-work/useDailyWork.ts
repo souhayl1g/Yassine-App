@@ -290,6 +290,19 @@ export const useDailyWork = () => {
     setIsPrintModalOpen(true);
   };
 
+  // Handle open quit window (without scanner constraint)
+  const handleOpenQuitWindow = async (ticket: Ticket) => {
+    try {
+      // Load the ticket data to edit
+      await handleTicketClick(ticket);
+      // Set finishing operation flag so EditTicketModal knows it's for quitting
+      setIsFinishingOperation(true);
+    } catch (error: any) {
+      console.error('Error opening quit window:', error);
+      toast({ variant: 'destructive', title: t('common.error'), description: 'فشل في فتح نافذة الخروج' });
+    }
+  };
+
   // Handle show QR code
   const handleShowQrCode = (ticket: Ticket) => {
     if (ticket.qrCode) {
@@ -1514,6 +1527,7 @@ export const useDailyWork = () => {
     handleCancelAddTicket,
     handleTicketClick,
     handlePrintTicket,
+    handleOpenQuitWindow,
     handleShowQrCode,
     minimizeTicket,
     maximizeTicket,

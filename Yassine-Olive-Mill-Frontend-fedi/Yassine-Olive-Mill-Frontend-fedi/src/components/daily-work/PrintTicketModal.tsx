@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { X, Printer, Minimize2 } from 'lucide-react';
+import { X, Printer, Minimize2, Tag, LogOut } from 'lucide-react';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Ticket } from '@/types/daily-work';
 import { QRCodeSVG } from 'qrcode.react';
@@ -13,6 +13,7 @@ interface PrintTicketModalProps {
   onPrint: () => void;
   onMinimize: (ticket: Ticket) => void;
   onClose: () => void;
+  onOpenQuitWindow?: (ticket: Ticket) => void;
 }
 
 export function PrintTicketModal({
@@ -21,15 +22,28 @@ export function PrintTicketModal({
   onPrint,
   onMinimize,
   onClose,
+  onOpenQuitWindow,
 }: PrintTicketModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const [currentPrices, setCurrentPrices] = useState<any>(null);
+  const [arrivalReceiptPrinted, setArrivalReceiptPrinted] = useState(false);
+
+  const PRINT_ROOT_ID = 'olive-print-root';
+
+  const ticketType = !ticket ? 'box-labels' : 
+    ticket.status === 'received' ? 'arrival-receipt' :
+    ticket.status === 'completed' ? 'exit-receipt' :
+    'box-labels';
 
   useEffect(() => {
     if (isOpen && ticketType === 'exit-receipt') {
       loadCurrentPrices();
     }
-  }, [isOpen]);
+    // Reset arrival receipt printed state when modal opens/closes
+    if (!isOpen) {
+      setArrivalReceiptPrinted(false);
+    }
+  }, [isOpen, ticketType]);
 
   const loadCurrentPrices = async () => {
     try {
@@ -46,18 +60,11 @@ export function PrintTicketModal({
     }
   };
 
-  const PRINT_ROOT_ID = 'olive-print-root';
-
-  const ticketType = !ticket ? 'box-labels' : 
-    ticket.status === 'received' ? 'arrival-receipt' :
-    ticket.status === 'completed' ? 'exit-receipt' :
-    'box-labels';
-
   const getPageStyle = () => {
-    // Use 70x180mm for arrival and exit receipts (bigger/taller), 58x43mm for box labels
+    // Use 70x200mm for exit receipt (taller to fit QR code and logo), 70x180mm for arrival receipt, 58x43mm for box labels
     const isReceipt = ticketType === 'arrival-receipt' || ticketType === 'exit-receipt';
     const width = isReceipt ? '70mm' : '58mm';
-    const height = isReceipt ? '180mm' : '43mm';
+    const height = ticketType === 'exit-receipt' ? '200mm' : isReceipt ? '180mm' : '43mm';
     
     return `
     @page {
@@ -108,7 +115,14 @@ export function PrintTicketModal({
     contentRef: printRef,
     documentTitle: `Ticket-${ticket?.ticketNumber}`,
     pageStyle: getPageStyle(),
-    onAfterPrint: onPrint,
+    onAfterPrint: () => {
+      // If we just printed arrival receipt, show options
+      if (ticketType === 'arrival-receipt' && ticket) {
+        setArrivalReceiptPrinted(true);
+      } else {
+        onPrint();
+      }
+    },
   });
 
   const printHtmlDocument = (html: string) => {
@@ -291,6 +305,25 @@ export function PrintTicketModal({
     } else {
       standardPrint();
     }
+  };
+
+  const handlePrintLabels = () => {
+    if (!ticket) return;
+    // Set ticket to null temporarily to trigger box-labels mode
+    const originalTicket = ticket;
+    handleLabelPrint();
+    // After printing labels, close or show options again
+    setTimeout(() => {
+      if (arrivalReceiptPrinted) {
+        setArrivalReceiptPrinted(true);
+      }
+    }, 100);
+  };
+
+  const handleOpenQuitWindow = () => {
+    if (!ticket || !onOpenQuitWindow) return;
+    onClose();
+    onOpenQuitWindow(ticket);
   };
 
   if (!isOpen || !ticket) return null;
@@ -485,66 +518,66 @@ export function PrintTicketModal({
             )}
 
             {ticketType === 'exit-receipt' && (
-              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '180mm' }}>
-                {/* Big Title and Logo */}
-                <div className="text-center mb-5">
+              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', minHeight: '200mm' }}>
+                {/* Big Title and Logo - Centered */}
+                <div className="text-center mb-4">
                   <div className="flex justify-center mb-2">
                     <img 
                       src="/favicon.svg" 
                       alt="Logo" 
-                      className="h-14 w-14"
+                      className="h-12 w-12"
                     />
                   </div>
-                  <h2 className="text-[20px] font-bold text-emerald-700 leading-tight mb-1">معصرة الحاج لطفي</h2>
-                  <p className="text-[11px] text-gray-600 leading-tight">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
+                  <h2 className="text-[18px] font-bold text-emerald-700 leading-tight mb-1">معصرة الحاج لطفي</h2>
+                  <p className="text-[10px] text-gray-600 leading-tight">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
                 </div>
 
                 {/* Client Info */}
-                <div className="flex flex-col text-center space-y-3 mb-5">
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-gray-600 font-semibold">الاسم الأول</div>
-                    <div className="font-bold text-[20px] text-gray-900">{clientNames.firstname}</div>
+                <div className="flex flex-col text-center space-y-2 mb-4">
+                  <div className="space-y-1">
+                    <div className="text-[9px] text-gray-600 font-semibold">الاسم الأول</div>
+                    <div className="font-bold text-[18px] text-gray-900">{clientNames.firstname}</div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-gray-600 font-semibold">اسم العائلة</div>
-                    <div className="font-bold text-[20px] text-gray-900">{clientNames.lastname}</div>
+                  <div className="space-y-1">
+                    <div className="text-[9px] text-gray-600 font-semibold">اسم العائلة</div>
+                    <div className="font-bold text-[18px] text-gray-900">{clientNames.lastname}</div>
                   </div>
                   
                   {/* Net Weight */}
-                  <div className="flex justify-between leading-tight bg-emerald-50 px-3 py-2 rounded text-[14px] mt-3">
+                  <div className="flex justify-between leading-tight bg-emerald-50 px-3 py-2 rounded text-[13px] mt-2">
                     <span className="font-bold">الوزن الصافي:</span>
                     <span className="text-emerald-700 font-bold">{safeNetWeight} كلغ</span>
                   </div>
 
                   {/* Total */}
-                  <div className="flex justify-between leading-tight bg-blue-50 px-3 py-2 rounded text-[14px]">
+                  <div className="flex justify-between leading-tight bg-blue-50 px-3 py-2 rounded text-[13px]">
                     <span className="font-bold">المبلغ الإجمالي:</span>
                     <span className="text-blue-700 font-bold">{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
                   </div>
 
                   {/* Payment State */}
-                  <div className={`text-center py-3 rounded text-[14px] font-bold ${ticket.isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                  <div className={`text-center py-2 rounded text-[13px] font-bold ${ticket.isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                     {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                   </div>
                 </div>
 
                 {/* Spacer */}
-                <div className="flex-1"></div>
+                <div className="flex-1 min-h-[10mm]"></div>
 
                 {/* Big QR Code in Center */}
-                <div className="flex items-center justify-center py-4">
-                  <QRCodeSVG value={qrCodeValue} size={220} level="H" includeMargin={false} />
+                <div className="flex items-center justify-center py-3">
+                  <QRCodeSVG value={qrCodeValue} size={200} level="H" includeMargin={false} />
                 </div>
 
                 {/* Cute Message to Client */}
-                <div className="text-center pt-3">
-                  <p className="text-[10px] text-gray-700 leading-tight font-medium">
+                <div className="text-center pt-2">
+                  <p className="text-[9px] text-gray-700 leading-tight font-medium">
                     🌿 شكراً لثقتكم بنا 🌿
                   </p>
-                  <p className="text-[9px] text-gray-600 leading-tight mt-1">
+                  <p className="text-[8px] text-gray-600 leading-tight mt-1">
                     نتمنى لكم تجربة ممتازة معنا
                   </p>
-                  <p className="text-[8px] text-gray-500 leading-tight mt-1">
+                  <p className="text-[7px] text-gray-500 leading-tight mt-1">
                     للاستفسار: يرجى الاتصال بنا
                   </p>
                 </div>
@@ -738,7 +771,7 @@ export function PrintTicketModal({
                   <div style={{
                     width: '100%',
                     height: '100%',
-                    padding: '4mm',
+                    padding: '3mm',
                     boxSizing: 'border-box',
                     fontFamily: 'Arial, sans-serif',
                     backgroundColor: 'white',
@@ -746,22 +779,22 @@ export function PrintTicketModal({
                     display: 'flex',
                     flexDirection: 'column',
                   }}>
-                    {/* Big Title and Logo */}
+                    {/* Big Title and Logo - Centered */}
                     <div style={{
                       textAlign: 'center',
-                      marginBottom: '5mm',
+                      marginBottom: '4mm',
                     }}>
-                      <div style={{ marginBottom: '2mm' }}>
+                      <div style={{ marginBottom: '2mm', display: 'flex', justifyContent: 'center' }}>
                         <img 
                           src="/favicon.svg" 
                           alt="Logo" 
-                          style={{ height: '14mm', width: '14mm' }}
+                          style={{ height: '12mm', width: '12mm' }}
                         />
                       </div>
-                      <h2 style={{ fontSize: '20pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '1mm' }}>
+                      <h2 style={{ fontSize: '18pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '1mm' }}>
                         معصرة الحاج لطفي
                       </h2>
-                      <p style={{ fontSize: '11pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>
+                      <p style={{ fontSize: '10pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>
                         إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}
                       </p>
                     </div>
@@ -771,16 +804,16 @@ export function PrintTicketModal({
                       display: 'flex', 
                       flexDirection: 'column', 
                       textAlign: 'center',
-                      marginBottom: '5mm',
-                      gap: '3mm',
+                      marginBottom: '4mm',
+                      gap: '2mm',
                     }}>
-                      <div style={{ gap: '2mm' }}>
-                        <div style={{ fontSize: '10pt', color: '#4b5563', fontWeight: 600, marginBottom: '1mm' }}>الاسم الأول</div>
-                        <div style={{ fontSize: '20pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.firstname}</div>
+                      <div style={{ gap: '1mm' }}>
+                        <div style={{ fontSize: '9pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>الاسم الأول</div>
+                        <div style={{ fontSize: '18pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.firstname}</div>
                       </div>
-                      <div style={{ gap: '2mm' }}>
-                        <div style={{ fontSize: '10pt', color: '#4b5563', fontWeight: 600, marginBottom: '1mm' }}>اسم العائلة</div>
-                        <div style={{ fontSize: '20pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.lastname}</div>
+                      <div style={{ gap: '1mm' }}>
+                        <div style={{ fontSize: '9pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>اسم العائلة</div>
+                        <div style={{ fontSize: '18pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.lastname}</div>
                       </div>
                       
                       {/* Net Weight */}
@@ -788,11 +821,11 @@ export function PrintTicketModal({
                         display: 'flex',
                         justifyContent: 'space-between',
                         backgroundColor: '#ecfdf5',
-                        padding: '3mm',
+                        padding: '2.5mm',
                         borderRadius: '1mm',
-                        marginTop: '3mm',
+                        marginTop: '2mm',
                         lineHeight: 1.3,
-                        fontSize: '14pt',
+                        fontSize: '13pt',
                       }}>
                         <span style={{ fontWeight: 'bold' }}>الوزن الصافي:</span>
                         <span style={{ color: '#059669', fontWeight: 'bold' }}>{safeNetWeight} كلغ</span>
@@ -803,10 +836,10 @@ export function PrintTicketModal({
                         display: 'flex',
                         justifyContent: 'space-between',
                         backgroundColor: '#eff6ff',
-                        padding: '3mm',
+                        padding: '2.5mm',
                         borderRadius: '1mm',
                         lineHeight: 1.3,
-                        fontSize: '14pt',
+                        fontSize: '13pt',
                       }}>
                         <span style={{ fontWeight: 'bold' }}>المبلغ الإجمالي:</span>
                         <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
@@ -815,9 +848,9 @@ export function PrintTicketModal({
                       {/* Payment State */}
                       <div style={{
                         textAlign: 'center',
-                        padding: '3mm',
+                        padding: '2.5mm',
                         borderRadius: '1mm',
-                        fontSize: '14pt',
+                        fontSize: '13pt',
                         fontWeight: 'bold',
                         backgroundColor: ticket.isPaid ? '#dcfce7' : '#fed7aa',
                         color: ticket.isPaid ? '#166534' : '#9a3412',
@@ -827,30 +860,30 @@ export function PrintTicketModal({
                     </div>
 
                     {/* Spacer */}
-                    <div style={{ flex: 1 }}></div>
+                    <div style={{ flex: 1, minHeight: '10mm' }}></div>
 
                     {/* Big QR Code in Center */}
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      padding: '4mm 0',
+                      padding: '3mm 0',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={220} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={200} level="H" includeMargin={false} />
                     </div>
 
                     {/* Cute Message to Client */}
                     <div style={{
                       textAlign: 'center',
-                      paddingTop: '3mm',
+                      paddingTop: '2mm',
                     }}>
-                      <p style={{ fontSize: '10pt', color: '#374151', margin: 0, lineHeight: 1.3, fontWeight: 500 }}>
+                      <p style={{ fontSize: '9pt', color: '#374151', margin: 0, lineHeight: 1.3, fontWeight: 500 }}>
                         🌿 شكراً لثقتكم بنا 🌿
                       </p>
-                      <p style={{ fontSize: '9pt', color: '#4b5563', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
+                      <p style={{ fontSize: '8pt', color: '#4b5563', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
                         نتمنى لكم تجربة ممتازة معنا
                       </p>
-                      <p style={{ fontSize: '8pt', color: '#6b7280', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
+                      <p style={{ fontSize: '7pt', color: '#6b7280', margin: '1mm 0 0 0', lineHeight: 1.3 }}>
                         للاستفسار: يرجى الاتصال بنا
                       </p>
                     </div>
@@ -861,32 +894,70 @@ export function PrintTicketModal({
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <OliveButton
-              onClick={handlePrint}
-              className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white text-lg py-6"
-            >
-              <Printer className="h-5 w-5 mr-2" />
-              {ticketType === 'arrival-receipt' && 'طباعة إيصال الوصول'}
-              {ticketType === 'box-labels' && `طباعة ${totalLabels} ملصقات`}
-              {ticketType === 'exit-receipt' && 'طباعة إيصال الخروج'}
-            </OliveButton>
-            <OliveButton 
-              variant="outline" 
-              onClick={() => onMinimize(ticket)}
-              className="flex-1 text-lg py-6"
-            >
-              <Minimize2 className="h-4 w-4 mr-2" />
-              تصغير
-            </OliveButton>
-            <OliveButton 
-              variant="outline" 
-              onClick={onClose}
-              className="flex-1 text-lg py-6"
-            >
-              إغلاق
-            </OliveButton>
-          </div>
+          {arrivalReceiptPrinted && ticketType === 'arrival-receipt' ? (
+            // Show two options after printing arrival receipt
+            <div className="space-y-3">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+                <p className="text-sm text-blue-800 dark:text-blue-200 text-center font-medium">
+                  اختر الإجراء التالي:
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <OliveButton
+                  onClick={handlePrintLabels}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-lg py-6"
+                >
+                  <Tag className="h-5 w-5 mr-2" />
+                  طباعة ملصقات الصناديق
+                </OliveButton>
+                <OliveButton
+                  onClick={handleOpenQuitWindow}
+                  className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white text-lg py-6"
+                >
+                  <LogOut className="h-5 w-5 mr-2" />
+                  إدخال وزن الخروج
+                </OliveButton>
+              </div>
+              <OliveButton 
+                variant="outline" 
+                onClick={() => {
+                  setArrivalReceiptPrinted(false);
+                  onClose();
+                }}
+                className="w-full text-lg py-6"
+              >
+                إغلاق
+              </OliveButton>
+            </div>
+          ) : (
+            // Normal print buttons
+            <div className="flex gap-3">
+              <OliveButton
+                onClick={handlePrint}
+                className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white text-lg py-6"
+              >
+                <Printer className="h-5 w-5 mr-2" />
+                {ticketType === 'arrival-receipt' && 'طباعة إيصال الوصول'}
+                {ticketType === 'box-labels' && `طباعة ${totalLabels} ملصقات`}
+                {ticketType === 'exit-receipt' && 'طباعة إيصال الخروج'}
+              </OliveButton>
+              <OliveButton 
+                variant="outline" 
+                onClick={() => onMinimize(ticket)}
+                className="flex-1 text-lg py-6"
+              >
+                <Minimize2 className="h-4 w-4 mr-2" />
+                تصغير
+              </OliveButton>
+              <OliveButton 
+                variant="outline" 
+                onClick={onClose}
+                className="flex-1 text-lg py-6"
+              >
+                إغلاق
+              </OliveButton>
+            </div>
+          )}
         </div>
       </div>
     </div>
