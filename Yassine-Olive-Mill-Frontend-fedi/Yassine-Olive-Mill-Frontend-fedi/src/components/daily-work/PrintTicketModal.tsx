@@ -402,6 +402,10 @@ export function PrintTicketModal({
   
   const clientNames = ticket?.clientName ? parseClientName(ticket.clientName) : { firstname: '', lastname: '' };
 
+  // Ensure isPaid is properly evaluated as boolean
+  // Handle cases where isPaid might be undefined, false, or truthy
+  const isPaid = Boolean(ticket.isPaid) || (ticket as any).isPaid === 'true' || (ticket as any).isPaid === 1;
+
   const weightIn = ticket.weightIn || 0;
   const weightOut = ticket.weightOut || 0;
   const calculatedNetWeight = weightIn - weightOut;
@@ -603,8 +607,8 @@ export function PrintTicketModal({
                   </div>
 
                   {/* Payment State */}
-                  <div className={`text-center py-2 rounded text-[13px] font-bold ${ticket.isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                    {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
+                  <div className={`text-center py-2 rounded text-[13px] font-bold ${isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                    {isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                   </div>
                 </div>
 
@@ -889,10 +893,10 @@ export function PrintTicketModal({
                         borderRadius: '1mm',
                         fontSize: '13pt',
                         fontWeight: 'bold',
-                        backgroundColor: ticket.isPaid ? '#dcfce7' : '#fed7aa',
-                        color: ticket.isPaid ? '#166534' : '#9a3412',
+                        backgroundColor: isPaid ? '#dcfce7' : '#fed7aa',
+                        color: isPaid ? '#166534' : '#9a3412',
                       }}>
-                        {ticket.isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
+                        {isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                       </div>
                     </div>
 
