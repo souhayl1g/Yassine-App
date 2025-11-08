@@ -218,14 +218,26 @@ export function PrintTicketModal({
       }
       .label-index {
         position: absolute;
-        top: 0;
-        right: 0;
-        font-size: 6pt;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 14pt;
         font-weight: bold;
         color: #000;
-        background-color: #e5e7eb;
-        padding: 0.5mm 1mm;
-        border-bottom-left-radius: 1mm;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1mm;
+        z-index: 10;
+      }
+      .label-index-logo {
+        width: 8mm;
+        height: 8mm;
+      }
+      .label-index-number {
+        font-size: 16pt;
+        font-weight: bold;
       }
       .label-qr {
         width: 26mm;
@@ -243,23 +255,23 @@ export function PrintTicketModal({
         padding-left: 1.5mm;
         text-align: right;
       }
-      .label-title {
-        font-size: 8pt;
-        font-weight: 700;
-        color: #000;
-        line-height: 1.1;
-        border-bottom: 1px solid #000;
-        padding-bottom: 0.5mm;
-        margin-bottom: 0.5mm;
-      }
       .label-text {
         font-size: 6pt;
         color: #000;
         margin-bottom: 0.3mm;
       }
-      .label-client {
-        font-size: 7pt;
-        font-weight: 600;
+      .label-client-firstname {
+        font-size: 8pt;
+        font-weight: bold;
+        color: #000;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-bottom: 0.3mm;
+      }
+      .label-client-lastname {
+        font-size: 8pt;
+        font-weight: bold;
         color: #000;
         white-space: nowrap;
         overflow: hidden;
