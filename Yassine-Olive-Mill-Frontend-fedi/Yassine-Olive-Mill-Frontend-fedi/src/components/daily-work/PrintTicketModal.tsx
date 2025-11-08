@@ -126,6 +126,17 @@ export function PrintTicketModal({
       // If we just printed arrival receipt, show options
       if (ticketType === 'arrival-receipt' && ticket) {
         setArrivalReceiptPrinted(true);
+      } else if (ticketType === 'exit-receipt' && ticket) {
+        // After printing exit receipt, automatically print box labels
+        const numBoxes = ticket.numberOfBoxes || 0;
+        if (numBoxes > 0) {
+          // Small delay to ensure exit receipt print is complete
+          setTimeout(() => {
+            handleLabelPrint(numBoxes);
+          }, 500);
+        } else {
+          onPrint();
+        }
       } else {
         onPrint();
       }
@@ -187,6 +198,8 @@ export function PrintTicketModal({
   };
 
   const buildLabelDocumentHtml = (numBoxes?: number) => {
+    if (!ticket) return '';
+    
     const boxesCount = numBoxes || ticket?.numberOfBoxes || 1;
     
     // Parse client name to get first and last name
@@ -201,6 +214,22 @@ export function PrintTicketModal({
     };
     
     const clientNames = ticket?.clientName ? parseClientName(ticket.clientName) : { firstname: '', lastname: '' };
+    
+    // Calculate net weight for labels
+    const weightIn = ticket?.weightIn || 0;
+    const weightOut = ticket?.weightOut || 0;
+    const calculatedNetWeight = weightIn - weightOut;
+    const netWeight = calculatedNetWeight > 0 ? calculatedNetWeight : 0;
+    
+    // Calculate ticket ID text and QR code value
+    const ticketIdText = ticket.ticketNumber ?? String(ticket.id);
+    const qrCodeValue = JSON.stringify({
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      clientName: ticket.clientName,
+      weightIn: ticket.weightIn,
+      dateReceived: ticket.dateReceived,
+    });
     
     const labelStyle = `
       @page {
@@ -264,6 +293,13 @@ export function PrintTicketModal({
         text-align: center;
         margin-top: 1mm;
       }
+      .label-net-weight {
+        font-size: 7pt;
+        font-weight: bold;
+        color: #000;
+        text-align: center;
+        margin-top: 1mm;
+      }
       .label-qr {
         display: flex;
         align-items: center;
@@ -294,6 +330,7 @@ export function PrintTicketModal({
           <div class="label-client-lastname">${clientNames.lastname}</div>
           <div class="label-text">رقم: ${ticketIdText}</div>
           <div class="label-text">${ticket ? new Date(ticket.dateReceived).toLocaleDateString('ar-TN') : ''}</div>
+          ${netWeight > 0 ? `<div class="label-net-weight">الوزن الصافي: ${netWeight.toFixed(2)} كلغ</div>` : ''}
         </div>
         <div class="label-qr">${qrSvgMarkup}</div>
       </div>
@@ -559,6 +596,9 @@ export function PrintTicketModal({
                       <div className="text-[9px] font-bold text-black mb-0.5">{clientNames.lastname}</div>
                       <div className="text-[6px] text-black">رقم: {ticketIdText}</div>
                       <div className="text-[6px] text-black">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</div>
+                      {safeNetWeight > 0 && (
+                        <div className="text-[7px] font-bold text-black mt-0.5">الوزن الصافي: {safeNetWeight.toFixed(2)} كلغ</div>
+                      )}
                     </div>
                     <div className="flex items-center justify-center mt-1 pt-1 overflow-visible">
                       <QRCodeSVG value={qrCodeValue} size={65} level="H" includeMargin={false} />
@@ -790,6 +830,16 @@ export function PrintTicketModal({
                       }}>
                         {new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}
                       </div>
+                      {safeNetWeight > 0 && (
+                        <div style={{
+                          fontSize: '7pt',
+                          fontWeight: 'bold',
+                          color: '#000',
+                          marginTop: '1mm',
+                        }}>
+                          الوزن الصافي: {safeNetWeight.toFixed(2)} كلغ
+                        </div>
+                      )}
                     </div>
                     <div style={{
                       display: 'flex',
