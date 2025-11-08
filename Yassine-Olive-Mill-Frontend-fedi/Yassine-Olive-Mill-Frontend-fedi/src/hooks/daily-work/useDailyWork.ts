@@ -501,6 +501,7 @@ export const useDailyWork = () => {
             operationType: d.operation_type || 'milling',
             notes: d.notes || '',
             qrCode: undefined
+          // If the ticket is being completed (quitting), the print modal for exit receipt will open automatically after updateBatch.
           } as Ticket;
           
           // If finishing operation and status is completed, show exit receipt print
