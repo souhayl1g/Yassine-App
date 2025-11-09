@@ -70,7 +70,7 @@ export function PrintTicketModal({
   const getPageStyle = () => {
     // Use 70x85mm for exit receipt (more compact), 70x80mm for arrival receipt, 120x120mm for box labels (wider and taller)
     const isReceipt = ticketType === 'arrival-receipt' || ticketType === 'exit-receipt';
-    const width = isReceipt ? '70mm' : '120mm';
+    const width = isReceipt ? '100mm' : '120mm';
     const height = ticketType === 'exit-receipt' ? '85mm' : isReceipt ? '80mm' : '120mm';
     const pageMargin = isReceipt ? '0' : '5mm';
     
