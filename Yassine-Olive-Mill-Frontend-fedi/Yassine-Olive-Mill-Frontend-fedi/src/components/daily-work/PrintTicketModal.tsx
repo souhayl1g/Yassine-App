@@ -68,10 +68,10 @@ export function PrintTicketModal({
   };
 
   const getPageStyle = () => {
-    // Use 70x140mm for exit receipt (more compact), 70x130mm for arrival receipt, 85x85mm for box labels
+    // Use 70x110mm for exit receipt (more compact), 70x100mm for arrival receipt, 85x85mm for box labels
     const isReceipt = ticketType === 'arrival-receipt' || ticketType === 'exit-receipt';
     const width = isReceipt ? '70mm' : '85mm';
-    const height = ticketType === 'exit-receipt' ? '140mm' : isReceipt ? '130mm' : '85mm';
+    const height = ticketType === 'exit-receipt' ? '110mm' : isReceipt ? '100mm' : '85mm';
     
     return `
     @page {
@@ -128,7 +128,8 @@ export function PrintTicketModal({
         setArrivalReceiptPrinted(true);
       } else if (ticketType === 'exit-receipt' && ticket) {
         // After printing exit receipt, automatically print box labels
-        const numBoxes = ticket.numberOfBoxes || 0;
+        // Use the actual numberOfBoxes value, don't default to 0 if it's undefined/null
+        const numBoxes = ticket.numberOfBoxes ?? 0;
         if (numBoxes > 0) {
           // Small delay to ensure exit receipt print is complete
           setTimeout(() => {
@@ -201,7 +202,12 @@ export function PrintTicketModal({
   const buildLabelDocumentHtml = (numBoxes?: number) => {
     if (!ticket) return '';
     
-    const boxesCount = numBoxes || ticket?.numberOfBoxes || 1;
+    // Use the provided numBoxes, or the ticket's numberOfBoxes, but only if it's a valid positive number
+    // Don't default to 1 - use the actual value
+    const boxesCount = numBoxes !== undefined ? numBoxes : (ticket?.numberOfBoxes ?? 0);
+    if (boxesCount <= 0) {
+      return ''; // Don't generate labels if no boxes
+    }
     
     // Parse client name to get first and last name
     const parseClientName = (fullName: string) => {
@@ -327,7 +333,7 @@ export function PrintTicketModal({
     `;
 
     const qrSvgMarkup = renderToStaticMarkup(
-      <QRCodeSVG value={qrCodeValue} size={70} level="H" includeMargin={false} />
+      <QRCodeSVG value={qrCodeValue} size={50} level="H" includeMargin={false} />
     );
 
     const labelsToPrintArray = Array.from({ length: boxesCount }, (_, i) => i + 1);
@@ -363,10 +369,17 @@ export function PrintTicketModal({
       return;
     }
 
-    // If numberOfBoxes is provided, use it; otherwise use ticket's numberOfBoxes
-    const boxesToPrint = numberOfBoxes || ticket.numberOfBoxes || 1;
+    // Use the provided numberOfBoxes, or the ticket's numberOfBoxes (can be 0 or undefined)
+    // Don't default to 1 - use the actual value from the ticket
+    const boxesToPrint = numberOfBoxes !== undefined ? numberOfBoxes : (ticket.numberOfBoxes ?? 0);
+    if (boxesToPrint <= 0) {
+      console.warn('No boxes to print labels for');
+      return;
+    }
     const html = buildLabelDocumentHtml(boxesToPrint);
-    printHtmlDocument(html);
+    if (html) {
+      printHtmlDocument(html);
+    }
   };
 
   const handlePrint = () => {
@@ -381,7 +394,9 @@ export function PrintTicketModal({
   const handlePrintLabels = () => {
     if (!ticket) return;
     // Always prompt for number of boxes when printing sticky labels
-    setBoxNumberInput(String(ticket.numberOfBoxes || ''));
+    // Use the actual numberOfBoxes value (can be 0, undefined, or a number)
+    const boxesValue = ticket.numberOfBoxes ?? 0;
+    setBoxNumberInput(boxesValue > 0 ? String(boxesValue) : '');
     setShowBoxNumberPrompt(true);
   };
   
@@ -389,7 +404,9 @@ export function PrintTicketModal({
   useEffect(() => {
     if (isOpen && ticket && forceBoxLabels && ticketType === 'box-labels') {
       // Auto-show prompt when modal opens with forceBoxLabels
-      setBoxNumberInput(String(ticket.numberOfBoxes || ''));
+      // Use the actual numberOfBoxes value (can be 0, undefined, or a number)
+      const boxesValue = ticket.numberOfBoxes ?? 0;
+      setBoxNumberInput(boxesValue > 0 ? String(boxesValue) : '');
       setShowBoxNumberPrompt(true);
     }
   }, [isOpen, ticket, forceBoxLabels, ticketType]);
@@ -423,9 +440,10 @@ export function PrintTicketModal({
 
   if (!isOpen || !ticket) return null;
 
-  const numberOfBoxes = ticket.numberOfBoxes || 0;
-  const totalLabels = Math.max(1, numberOfBoxes);
-  const labelsToPrint = Array.from({ length: totalLabels }, (_, i) => i + 1);
+  // Use the actual numberOfBoxes value, don't default to 1
+  const numberOfBoxes = ticket.numberOfBoxes ?? 0;
+  const totalLabels = numberOfBoxes > 0 ? numberOfBoxes : 0;
+  const labelsToPrint = totalLabels > 0 ? Array.from({ length: totalLabels }, (_, i) => i + 1) : [];
   const ticketIdText = ticket.ticketNumber ?? String(ticket.id);
   const qrCodeValue = JSON.stringify({
     ticketId: ticket.id,
@@ -506,7 +524,7 @@ export function PrintTicketModal({
   const getModalDescription = () => {
     if (ticketType === 'arrival-receipt') return `إيصال وصول لـ ${ticket.clientName}`;
     if (ticketType === 'exit-receipt') return `إيصال نهائي لـ ${ticket.clientName}`;
-    return `${totalLabels} ملصقات لـ ${ticket.clientName}`;
+    return totalLabels > 0 ? `${totalLabels} ملصقات لـ ${ticket.clientName}` : `ملصقات لـ ${ticket.clientName}`;
   };
 
   return (
@@ -532,35 +550,35 @@ export function PrintTicketModal({
             </h3>
 
             {ticketType === 'arrival-receipt' && (
-              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '130mm' }}>
+              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '100mm' }}>
                 {/* Big Title and Logo */}
-                <div className="text-center mb-3">
+                <div className="text-center mb-2">
                   <div className="flex justify-center mb-1">
                     <img 
                       src="/favicon.svg" 
                       alt="Logo" 
-                      className="h-10 w-10"
+                      className="h-8 w-8"
                     />
                   </div>
-                  <h2 className="text-[18px] font-bold text-emerald-700 leading-tight mb-0.5">معصرة الحاج لطفي</h2>
-                  <p className="text-[10px] text-gray-600 leading-tight">إيصال الوصول</p>
+                  <h2 className="text-[16px] font-bold text-emerald-700 leading-tight mb-0.5">معصرة الحاج لطفي</h2>
+                  <p className="text-[9px] text-gray-600 leading-tight">إيصال الوصول</p>
                 </div>
 
                 {/* Client Info - Centered */}
-                <div className="flex flex-col text-center space-y-2 mb-3">
-                  <div className="space-y-1">
-                    <div className="text-[9px] text-gray-600 font-semibold">الاسم الأول</div>
-                    <div className="font-bold text-[18px] text-gray-900">{clientNames.firstname}</div>
+                <div className="flex flex-col text-center space-y-1.5 mb-2">
+                  <div className="space-y-0.5">
+                    <div className="text-[8px] text-gray-600 font-semibold">الاسم الأول</div>
+                    <div className="font-bold text-[16px] text-gray-900">{clientNames.firstname}</div>
                   </div>
-                  <div className="space-y-1">
-                    <div className="text-[9px] text-gray-600 font-semibold">اسم العائلة</div>
-                    <div className="font-bold text-[18px] text-gray-900">{clientNames.lastname}</div>
+                  <div className="space-y-0.5">
+                    <div className="text-[8px] text-gray-600 font-semibold">اسم العائلة</div>
+                    <div className="font-bold text-[16px] text-gray-900">{clientNames.lastname}</div>
                   </div>
-                  <div className="flex justify-between leading-tight text-[10px] mt-2">
+                  <div className="flex justify-between leading-tight text-[9px] mt-1.5">
                     <span className="font-bold">رقم التذكرة:</span>
                     <span className="font-semibold">{ticketIdText}</span>
                   </div>
-                  <div className="flex justify-between leading-tight text-[10px]">
+                  <div className="flex justify-between leading-tight text-[9px]">
                     <span className="font-bold">التاريخ:</span>
                     <span className="font-semibold">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                   </div>
@@ -571,7 +589,7 @@ export function PrintTicketModal({
 
                 {/* Big QR Code in Center */}
                 <div className="flex items-center justify-center py-2">
-                  <QRCodeSVG value={qrCodeValue} size={140} level="H" includeMargin={false} />
+                  <QRCodeSVG value={qrCodeValue} size={100} level="H" includeMargin={false} />
                 </div>
 
                 {/* Cute Message to Client */}
@@ -591,7 +609,7 @@ export function PrintTicketModal({
 
             {ticketType === 'box-labels' && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {labelsToPrint.map((boxNum) => (
+                {totalLabels > 0 ? labelsToPrint.map((boxNum) => (
                   <div
                     key={boxNum}
                     className="bg-white rounded p-1.5 shadow-sm flex flex-col"
@@ -613,50 +631,54 @@ export function PrintTicketModal({
                       <QRCodeSVG value={qrCodeValue} size={50} level="H" includeMargin={false} />
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div className="col-span-full text-center text-gray-500 py-8">
+                    لا توجد صناديق لطباعة الملصقات
+                  </div>
+                )}
               </div>
             )}
 
             {ticketType === 'exit-receipt' && (
-              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', minHeight: '140mm' }}>
+              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', minHeight: '110mm' }}>
                 {/* Big Title and Logo - Centered */}
-                <div className="text-center mb-3">
+                <div className="text-center mb-2">
                   <div className="flex justify-center mb-1">
                     <img 
                       src="/favicon.svg" 
                       alt="Logo" 
-                      className="h-10 w-10"
+                      className="h-8 w-8"
                     />
                   </div>
-                  <h2 className="text-[16px] font-bold text-emerald-700 leading-tight mb-0.5">معصرة الحاج لطفي</h2>
-                  <p className="text-[9px] text-gray-600 leading-tight">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
+                  <h2 className="text-[14px] font-bold text-emerald-700 leading-tight mb-0.5">معصرة الحاج لطفي</h2>
+                  <p className="text-[8px] text-gray-600 leading-tight">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
                 </div>
 
                 {/* Client Info */}
-                <div className="flex flex-col text-center space-y-1.5 mb-3">
+                <div className="flex flex-col text-center space-y-1 mb-2">
                   <div className="space-y-0.5">
-                    <div className="text-[8px] text-gray-600 font-semibold">الاسم الأول</div>
-                    <div className="font-bold text-[16px] text-gray-900">{clientNames.firstname}</div>
+                    <div className="text-[7px] text-gray-600 font-semibold">الاسم الأول</div>
+                    <div className="font-bold text-[14px] text-gray-900">{clientNames.firstname}</div>
                   </div>
                   <div className="space-y-0.5">
-                    <div className="text-[8px] text-gray-600 font-semibold">اسم العائلة</div>
-                    <div className="font-bold text-[16px] text-gray-900">{clientNames.lastname}</div>
+                    <div className="text-[7px] text-gray-600 font-semibold">اسم العائلة</div>
+                    <div className="font-bold text-[14px] text-gray-900">{clientNames.lastname}</div>
                   </div>
                   
                   {/* Net Weight */}
-                  <div className="flex justify-between leading-tight bg-emerald-50 px-2 py-1.5 rounded text-[11px] mt-1.5">
+                  <div className="flex justify-between leading-tight bg-emerald-50 px-2 py-1 rounded text-[9px] mt-1">
                     <span className="font-bold">الوزن الصافي:</span>
                     <span className="text-emerald-700 font-bold">{safeNetWeight} كلغ</span>
                   </div>
 
                   {/* Total */}
-                  <div className="flex justify-between leading-tight bg-blue-50 px-2 py-1.5 rounded text-[11px]">
+                  <div className="flex justify-between leading-tight bg-blue-50 px-2 py-1 rounded text-[9px]">
                     <span className="font-bold">المبلغ الإجمالي:</span>
                     <span className="text-blue-700 font-bold">{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
                   </div>
 
                   {/* Payment State */}
-                  <div className={`text-center py-1.5 rounded text-[11px] font-bold ${isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                  <div className={`text-center py-1 rounded text-[9px] font-bold ${isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                     {isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                   </div>
                 </div>
@@ -666,7 +688,7 @@ export function PrintTicketModal({
 
                 {/* Big QR Code in Center */}
                 <div className="flex items-center justify-center py-2">
-                  <QRCodeSVG value={qrCodeValue} size={140} level="H" includeMargin={false} />
+                  <QRCodeSVG value={qrCodeValue} size={100} level="H" includeMargin={false} />
                 </div>
 
                 {/* Cute Message to Client */}
@@ -694,7 +716,7 @@ export function PrintTicketModal({
                     <div style={{
                       width: '100%',
                       height: '100%',
-                      padding: '3mm',
+                      padding: '2.5mm',
                       boxSizing: 'border-box',
                       fontFamily: 'Arial, sans-serif',
                       backgroundColor: 'white',
@@ -705,19 +727,19 @@ export function PrintTicketModal({
                     {/* Big Title and Logo */}
                     <div style={{
                       textAlign: 'center',
-                      marginBottom: '3mm',
+                      marginBottom: '2mm',
                     }}>
-                      <div style={{ marginBottom: '1mm' }}>
+                      <div style={{ marginBottom: '0.5mm' }}>
                         <img 
                           src="/favicon.svg" 
                           alt="Logo" 
-                          style={{ height: '10mm', width: '10mm' }}
+                          style={{ height: '8mm', width: '8mm' }}
                         />
                       </div>
-                      <h2 style={{ fontSize: '18pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '0.5mm' }}>
+                      <h2 style={{ fontSize: '16pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '0.5mm' }}>
                         معصرة الحاج لطفي
                       </h2>
-                      <p style={{ fontSize: '10pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>إيصال الوصول</p>
+                      <p style={{ fontSize: '9pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>إيصال الوصول</p>
                     </div>
 
                     {/* Client Info - Centered */}
@@ -725,22 +747,22 @@ export function PrintTicketModal({
                       display: 'flex', 
                       flexDirection: 'column', 
                       textAlign: 'center',
-                      marginBottom: '3mm',
-                      gap: '2mm',
+                      marginBottom: '2mm',
+                      gap: '1.5mm',
                     }}>
-                      <div style={{ gap: '1mm' }}>
-                        <div style={{ fontSize: '9pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>الاسم الأول</div>
-                        <div style={{ fontSize: '18pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.firstname}</div>
+                      <div style={{ gap: '0.5mm' }}>
+                        <div style={{ fontSize: '8pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>الاسم الأول</div>
+                        <div style={{ fontSize: '16pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.firstname}</div>
                       </div>
-                      <div style={{ gap: '1mm' }}>
-                        <div style={{ fontSize: '9pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>اسم العائلة</div>
-                        <div style={{ fontSize: '18pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.lastname}</div>
+                      <div style={{ gap: '0.5mm' }}>
+                        <div style={{ fontSize: '8pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>اسم العائلة</div>
+                        <div style={{ fontSize: '16pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.lastname}</div>
                       </div>
-                      <div style={{ fontSize: '10pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3, marginTop: '2mm' }}>
+                      <div style={{ fontSize: '9pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3, marginTop: '1.5mm' }}>
                         <span style={{ fontWeight: 'bold' }}>رقم التذكرة:</span>
                         <span style={{ fontWeight: 600 }}>{ticketIdText}</span>
                       </div>
-                      <div style={{ fontSize: '10pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3 }}>
+                      <div style={{ fontSize: '9pt', display: 'flex', justifyContent: 'space-between', lineHeight: 1.3 }}>
                         <span style={{ fontWeight: 'bold' }}>التاريخ:</span>
                         <span style={{ fontWeight: 600 }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                       </div>
@@ -756,21 +778,21 @@ export function PrintTicketModal({
                       justifyContent: 'center',
                       padding: '2mm 0',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={140} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={100} level="H" includeMargin={false} />
                     </div>
 
                     {/* Cute Message to Client */}
                     <div style={{
                       textAlign: 'center',
-                      paddingTop: '2mm',
+                      paddingTop: '1.5mm',
                     }}>
-                      <p style={{ fontSize: '9pt', color: '#374151', margin: 0, lineHeight: 1.3, fontWeight: 500 }}>
+                      <p style={{ fontSize: '8pt', color: '#374151', margin: 0, lineHeight: 1.3, fontWeight: 500 }}>
                         🌿 شكراً لثقتكم بنا 🌿
                       </p>
-                      <p style={{ fontSize: '8pt', color: '#4b5563', margin: '0.5mm 0 0 0', lineHeight: 1.3 }}>
+                      <p style={{ fontSize: '7pt', color: '#4b5563', margin: '0.5mm 0 0 0', lineHeight: 1.3 }}>
                         نتمنى لكم تجربة ممتازة معنا
                       </p>
-                      <p style={{ fontSize: '7pt', color: '#6b7280', margin: '0.5mm 0 0 0', lineHeight: 1.3 }}>
+                      <p style={{ fontSize: '6pt', color: '#6b7280', margin: '0.5mm 0 0 0', lineHeight: 1.3 }}>
                         للاستفسار: يرجى الاتصال بنا
                       </p>
                     </div>
@@ -778,7 +800,7 @@ export function PrintTicketModal({
                 </div>
               )}
 
-              {ticketType === 'box-labels' && labelsToPrint.map((boxNum) => (
+              {ticketType === 'box-labels' && totalLabels > 0 && labelsToPrint.map((boxNum) => (
                 <div key={boxNum} className="print-page">
                   <div style={{
                     width: '100%',
@@ -860,7 +882,7 @@ export function PrintTicketModal({
                       height: 'auto',
                       overflow: 'visible',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={70} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={50} level="H" includeMargin={false} />
                     </div>
                   </div>
                 </div>
@@ -871,7 +893,7 @@ export function PrintTicketModal({
                   <div style={{
                     width: '100%',
                     height: '100%',
-                    padding: '3mm',
+                    padding: '2.5mm',
                     boxSizing: 'border-box',
                     fontFamily: 'Arial, sans-serif',
                     backgroundColor: 'white',
@@ -882,19 +904,19 @@ export function PrintTicketModal({
                     {/* Big Title and Logo - Centered */}
                     <div style={{
                       textAlign: 'center',
-                      marginBottom: '3mm',
+                      marginBottom: '2mm',
                     }}>
-                      <div style={{ marginBottom: '1mm', display: 'flex', justifyContent: 'center' }}>
+                      <div style={{ marginBottom: '0.5mm', display: 'flex', justifyContent: 'center' }}>
                         <img 
                           src="/favicon.svg" 
                           alt="Logo" 
-                          style={{ height: '10mm', width: '10mm' }}
+                          style={{ height: '8mm', width: '8mm' }}
                         />
                       </div>
-                      <h2 style={{ fontSize: '16pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '0.5mm' }}>
+                      <h2 style={{ fontSize: '14pt', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.2, marginBottom: '0.5mm' }}>
                         معصرة الحاج لطفي
                       </h2>
-                      <p style={{ fontSize: '9pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>
+                      <p style={{ fontSize: '8pt', color: '#4b5563', margin: 0, lineHeight: 1.2 }}>
                         إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}
                       </p>
                     </div>
@@ -904,16 +926,16 @@ export function PrintTicketModal({
                       display: 'flex', 
                       flexDirection: 'column', 
                       textAlign: 'center',
-                      marginBottom: '3mm',
-                      gap: '1.5mm',
+                      marginBottom: '2mm',
+                      gap: '1mm',
                     }}>
                       <div style={{ gap: '0.5mm' }}>
-                        <div style={{ fontSize: '8pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>الاسم الأول</div>
-                        <div style={{ fontSize: '16pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.firstname}</div>
+                        <div style={{ fontSize: '7pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>الاسم الأول</div>
+                        <div style={{ fontSize: '14pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.firstname}</div>
                       </div>
                       <div style={{ gap: '0.5mm' }}>
-                        <div style={{ fontSize: '8pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>اسم العائلة</div>
-                        <div style={{ fontSize: '16pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.lastname}</div>
+                        <div style={{ fontSize: '7pt', color: '#4b5563', fontWeight: 600, marginBottom: '0.5mm' }}>اسم العائلة</div>
+                        <div style={{ fontSize: '14pt', fontWeight: 'bold', color: '#111827' }}>{clientNames.lastname}</div>
                       </div>
                       
                       {/* Net Weight */}
@@ -921,11 +943,11 @@ export function PrintTicketModal({
                         display: 'flex',
                         justifyContent: 'space-between',
                         backgroundColor: '#ecfdf5',
-                        padding: '2mm',
+                        padding: '1.5mm',
                         borderRadius: '1mm',
-                        marginTop: '1.5mm',
+                        marginTop: '1mm',
                         lineHeight: 1.3,
-                        fontSize: '11pt',
+                        fontSize: '9pt',
                       }}>
                         <span style={{ fontWeight: 'bold' }}>الوزن الصافي:</span>
                         <span style={{ color: '#059669', fontWeight: 'bold' }}>{safeNetWeight} كلغ</span>
@@ -936,10 +958,10 @@ export function PrintTicketModal({
                         display: 'flex',
                         justifyContent: 'space-between',
                         backgroundColor: '#eff6ff',
-                        padding: '2mm',
+                        padding: '1.5mm',
                         borderRadius: '1mm',
                         lineHeight: 1.3,
-                        fontSize: '11pt',
+                        fontSize: '9pt',
                       }}>
                         <span style={{ fontWeight: 'bold' }}>المبلغ الإجمالي:</span>
                         <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
@@ -948,9 +970,9 @@ export function PrintTicketModal({
                       {/* Payment State */}
                       <div style={{
                         textAlign: 'center',
-                        padding: '2mm',
+                        padding: '1.5mm',
                         borderRadius: '1mm',
-                        fontSize: '11pt',
+                        fontSize: '9pt',
                         fontWeight: 'bold',
                         backgroundColor: isPaid ? '#dcfce7' : '#fed7aa',
                         color: isPaid ? '#166534' : '#9a3412',
@@ -960,7 +982,7 @@ export function PrintTicketModal({
                     </div>
 
                     {/* Spacer */}
-                    <div style={{ flex: 1, minHeight: '5mm' }}></div>
+                    <div style={{ flex: 1, minHeight: '3mm' }}></div>
 
                     {/* Big QR Code in Center */}
                     <div style={{
@@ -969,7 +991,7 @@ export function PrintTicketModal({
                       justifyContent: 'center',
                       padding: '2mm 0',
                     }}>
-                      <QRCodeSVG value={qrCodeValue} size={140} level="H" includeMargin={false} />
+                      <QRCodeSVG value={qrCodeValue} size={100} level="H" includeMargin={false} />
                     </div>
 
                     {/* Cute Message to Client */}
@@ -1038,9 +1060,9 @@ export function PrintTicketModal({
               >
                 <Printer className="h-5 w-5 mr-2" />
                 {ticketType === 'arrival-receipt' && 'طباعة إيصال الوصول'}
-                {ticketType === 'box-labels' && `طباعة ${totalLabels} ملصقات`}
-                {ticketType === 'exit-receipt' && (ticket?.numberOfBoxes && ticket.numberOfBoxes > 0 
-                  ? `طباعة إيصال الخروج و ${ticket.numberOfBoxes} ملصقات`
+                {ticketType === 'box-labels' && (totalLabels > 0 ? `طباعة ${totalLabels} ملصقات` : 'طباعة ملصقات')}
+                {ticketType === 'exit-receipt' && (numberOfBoxes > 0 
+                  ? `طباعة إيصال الخروج و ${numberOfBoxes} ملصقات`
                   : 'طباعة إيصال الخروج')}
               </OliveButton>
               <OliveButton 
