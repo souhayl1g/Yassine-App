@@ -312,13 +312,13 @@ export function PrintTicketModal({
         flex-shrink: 0;
       }
       .label-client-firstname {
-        font-size: 16pt;
+        font-size: 24pt;
         font-weight: bold;
         color: #000;
         margin-bottom: 1mm;
       }
       .label-client-lastname {
-        font-size: 16pt;
+        font-size: 24pt;
         font-weight: bold;
         color: #000;
         margin-bottom: 1mm;
@@ -330,7 +330,7 @@ export function PrintTicketModal({
         margin-top: 1mm;
       }
       .label-net-weight {
-        font-size: 10pt;
+        font-size: 16pt;
         font-weight: bold;
         color: #000;
         text-align: center;
@@ -340,8 +340,8 @@ export function PrintTicketModal({
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-top: 2mm;
-        padding-top: 2mm;
+        margin-top: 5mm;
+        padding-top: 5mm;
         width: 100%;
         height: 100%;
         overflow: visible;
