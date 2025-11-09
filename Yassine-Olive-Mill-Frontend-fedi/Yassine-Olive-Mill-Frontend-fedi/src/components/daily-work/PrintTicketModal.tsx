@@ -240,7 +240,7 @@ export function PrintTicketModal({
     
     const labelStyle = `
       @page {
-        size: 120mm 85mm;
+        size: 120mm 120mm;
         margin: 0;
       }
       body {
@@ -270,7 +270,7 @@ export function PrintTicketModal({
       }
       .label-page {
         width: 120mm;
-        height: 85mm;
+        height: 120mm;
         page-break-after: always !important;
         page-break-before: always !important;
         break-after: page !important;
@@ -323,7 +323,7 @@ export function PrintTicketModal({
         margin-bottom: 1mm;
       }
       .label-text {
-        font-size: 9pt;
+        font-size: 11pt;
         color: #000;
         text-align: center;
         margin-top: 1mm;
