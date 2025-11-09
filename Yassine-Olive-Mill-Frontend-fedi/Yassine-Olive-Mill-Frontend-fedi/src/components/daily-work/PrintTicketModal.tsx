@@ -343,14 +343,14 @@ export function PrintTicketModal({
         margin-top: 2mm;
         padding-top: 2mm;
         width: 100%;
-        height: auto;
+        height: 100%;
         overflow: visible;
         flex: 1;
         align-self: center;
       }
       .label-qr svg {
         max-width: 100%;
-        height: auto;
+        height: 100%;
         display: block;
         margin: 0 auto;
       }
