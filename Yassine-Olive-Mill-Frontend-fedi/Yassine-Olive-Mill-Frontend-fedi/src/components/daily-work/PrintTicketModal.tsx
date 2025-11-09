@@ -324,7 +324,7 @@ export function PrintTicketModal({
         margin-bottom: 1mm;
       }
       .label-text {
-        font-size: 11pt;
+        font-size: 20pt;
         color: #000;
         text-align: center;
         margin-top: 1mm;
