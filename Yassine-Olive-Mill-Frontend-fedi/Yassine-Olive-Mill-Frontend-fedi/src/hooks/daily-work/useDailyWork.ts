@@ -953,12 +953,8 @@ export const useDailyWork = () => {
     };
   };
 
-  // Calculate minimum price based on 200 kg * unit price (only applies to non-sale operations)
+  // Calculate minimum price based on 200 kg * unit price (applies to all operations now)
   const calculateMinimumPrice = (unitPrice: number, operationType?: string) => {
-    // For sale operations, no minimum price is applied
-    if (operationType === 'sale') {
-      return 0;
-    }
     return 200 * unitPrice;
   };
 
@@ -973,55 +969,15 @@ export const useDailyWork = () => {
       return { amount: 0, calculationMethod: 'milling' as const };
     }
 
-    let unitPrice = 0;
+    // Use milling price for both milling and sale operations
+    let unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
     let calculationMethod: 'taux' | 'container' | 'milling' = 'milling';
-    let containerWeight: number | undefined = undefined;
-    
-    if (operationType === 'sale') {
-      // For sale operations, use olive buying price per kg (no minimum price applied)
-      unitPrice = ticketManagement.currentPrices.olive_buying_price_per_kg;
-      
-      // Check if taux is provided in the edit form
-      const tauxValue = parseFloat(ticketManagement.editForm.taux) || 0;
-      let effectiveWeight = netWeight;
-      
-      if (tauxValue > 0) {
-        // If taux is provided, calculate oil amount from net weight
-        effectiveWeight = (netWeight * tauxValue) / 100;
-        calculationMethod = 'taux';
-        
-        console.log('💰 SALE DEBUG: Using taux-based calculation:');
-        console.log('  - Net weight:', netWeight, 'kg');
-        console.log('  - Taux rate:', tauxValue, '%');
-        console.log('  - Calculated oil amount:', effectiveWeight, 'kg');
-        console.log('  - Olive buying price:', unitPrice, 'dinars/kg');
-        console.log('  - Total amount:', effectiveWeight * unitPrice, 'dinars');
-        console.log('  - No minimum price applied for sale operations');
-      } else {
-        console.log('💰 SALE DEBUG: Using direct net weight calculation:');
-        console.log('  - Net weight:', netWeight, 'kg');
-        console.log('  - Olive buying price:', unitPrice, 'dinars/kg');
-        console.log('  - Total amount:', effectiveWeight * unitPrice, 'dinars');
-        console.log('  - No minimum price applied for sale operations');
-      }
-      
-      const totalAmount = effectiveWeight * unitPrice;
-      const minimumPrice = calculateMinimumPrice(unitPrice, operationType);
-      return { 
-        amount: Math.max(totalAmount, minimumPrice), 
-        calculationMethod,
-        containerWeight: tauxValue > 0 ? effectiveWeight : undefined
-      };
-    } else {
-      // For milling operations, use milling price
-      unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
-    }
-    
+
     const totalAmount = netWeight * unitPrice;
     const minimumPrice = calculateMinimumPrice(unitPrice, operationType);
-    return { 
-      amount: Math.max(totalAmount, minimumPrice), 
-      calculationMethod 
+    return {
+      amount: Math.max(totalAmount, minimumPrice),
+      calculationMethod
     };
   };
 
@@ -1042,29 +998,10 @@ export const useDailyWork = () => {
       return false;
     }
 
-    let unitPrice = 0;
-    let baseAmount = 0;
-    
-    if (operationType === 'sale') {
-      // For sale operations, use olive buying price per kg (no minimum price applied)
-      unitPrice = ticketManagement.currentPrices.olive_buying_price_per_kg;
-      
-      // Check if taux is provided in the edit form
-      const tauxValue = parseFloat(ticketManagement.editForm.taux) || 0;
-      let effectiveWeight = netWeight;
-      
-      if (tauxValue > 0) {
-        // If taux is provided, calculate oil amount from net weight
-        effectiveWeight = (netWeight * tauxValue) / 100;
-      }
-      
-      baseAmount = effectiveWeight * unitPrice;
-    } else {
-      // For milling operations, use milling price
-      unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
-      baseAmount = netWeight * unitPrice;
-    }
-    
+    // Use milling price for both milling and sale operations
+    let unitPrice = ticketManagement.currentPrices.milling_price_per_kg;
+    let baseAmount = netWeight * unitPrice;
+
     const minimumPrice = calculateMinimumPrice(unitPrice, operationType);
     return baseAmount < minimumPrice;
   };

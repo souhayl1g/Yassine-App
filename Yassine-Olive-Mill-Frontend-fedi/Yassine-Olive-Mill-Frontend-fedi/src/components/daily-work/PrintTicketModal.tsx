@@ -527,43 +527,29 @@ export function PrintTicketModal({
   const calculatedNetWeight = weightIn - weightOut;
   const safeNetWeight = calculatedNetWeight > 0 ? calculatedNetWeight : 0;
 
-  let baseUnitPrice = 0;
-  if (currentPrices && ticket.operationType) {
-    if (ticket.operationType === 'milling') {
-      baseUnitPrice = currentPrices.millingPricePerKg || 0;
-    } else if (ticket.operationType === 'sale') {
-      // For sale operations, use olive buying price per kg
-      baseUnitPrice = currentPrices.oliveBuyingPricePerKg || 0;
-    }
-  }
+  // Unified pricing logic: both milling and sale use milling price per kg
+  // (olive buying price is no longer used for service calculation)
+  const unifiedBaseUnitPrice = currentPrices?.millingPricePerKg || 0;
 
-  // Use ticket's unitPrice if available and valid, otherwise use the base price from current prices
-  // For sale operations, prioritize ticket.unitPrice if it exists, otherwise use oliveBuyingPricePerKg
+  // Prefer ticket.unitPrice if explicitly stored (and > 0), else fall back to unified milling price
   let derivedUnitPrice = 0;
   if (typeof ticket.unitPrice === 'number' && ticket.unitPrice > 0) {
-    // Use ticket's stored unitPrice if available
     derivedUnitPrice = ticket.unitPrice;
-  } else if (baseUnitPrice > 0) {
-    // Use price from currentPrices
-    derivedUnitPrice = baseUnitPrice;
-  } else if (ticket.operationType === 'sale' && currentPrices) {
-    // Fallback: try to get price directly from currentPrices
-    derivedUnitPrice = currentPrices.oliveBuyingPricePerKg || 0;
-  } else if (ticket.operationType === 'sale') {
-    // Last resort: if no prices loaded, log warning but don't break
-    console.warn('⚠️ Sale operation: No prices loaded yet, calculation may be incorrect');
+  } else if (unifiedBaseUnitPrice > 0) {
+    derivedUnitPrice = unifiedBaseUnitPrice;
+  } else if (!currentPrices) {
+    console.warn('⚠️ Unified pricing: currentPrices not loaded yet, calculation may be 0');
   }
 
-  // Calculate base amount - ensure we have a valid price
-  const baseAmount = derivedUnitPrice > 0 && safeNetWeight > 0 
-    ? derivedUnitPrice * safeNetWeight 
+  // Calculate base amount
+  const baseAmount = (derivedUnitPrice > 0 && safeNetWeight > 0)
+    ? derivedUnitPrice * safeNetWeight
     : 0;
-  
-  // Minimum weight only applies to milling operations, not sales
-  const MINIMUM_MILLING_WEIGHT = 200;
-  const minimumEligibleWeight = ticket.operationType === 'sale' ? 0 : MINIMUM_MILLING_WEIGHT;
-  const minimumServiceAmount = derivedUnitPrice > 0 ? derivedUnitPrice * minimumEligibleWeight : 0;
-  const minimumApplied = ticket.operationType !== 'sale' && derivedUnitPrice > 0 && baseAmount < minimumServiceAmount;
+
+  // Minimum rule applies to ALL operation types now (e.g. 200kg * unitPrice)
+  const MINIMUM_WEIGHT = 200;
+  const minimumServiceAmount = derivedUnitPrice > 0 ? derivedUnitPrice * MINIMUM_WEIGHT : 0;
+  const minimumApplied = derivedUnitPrice > 0 && baseAmount < minimumServiceAmount;
   const serviceAmount = derivedUnitPrice > 0 ? Math.max(baseAmount, minimumServiceAmount) : baseAmount;
 
   const numberOfBidons = ticket.numberOfBidons || 0;
@@ -606,15 +592,16 @@ export function PrintTicketModal({
     console.warn('⚠️ Sale operation: Cannot calculate total amount - prices may not be loaded');
   }
 
-  // Debug logging for sale operations
-  if (ticket.operationType === 'sale' && ticketType === 'exit-receipt') {
-    console.log('💰 SALE EXIT RECEIPT CALCULATION:', {
+  // Debug logging for exit receipt unified pricing
+  if (ticketType === 'exit-receipt') {
+    console.log('🧮 EXIT RECEIPT CALCULATION (Unified Pricing):', {
       operationType: ticket.operationType,
       currentPrices,
-      baseUnitPrice,
       derivedUnitPrice,
       safeNetWeight,
       baseAmount,
+      minimumServiceAmount,
+      minimumApplied,
       serviceAmount,
       bidonCost,
       computedTotal,

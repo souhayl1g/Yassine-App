@@ -180,30 +180,8 @@ export function EditTicketModal({
             </div>
           </div>
           
-          {/* Taux field for sale operations */}
-          {ticket?.operationType === 'sale' && (
-            <div className="mb-2">
-              <label className="text-sm">
-                <span className="block mb-2">معدل الاستخراج (التوكس) - اختياري</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={editForm.taux}
-                  onChange={(e) => setEditForm((p) => ({ ...p, taux: e.target.value }))}
-                  placeholder="أدخل نسبة استخراج الزيت (مثال: 18.5)"
-                  className="w-full"
-                />
-              </label>
-            </div>
-          )}
-          
-          {ticket?.operationType === 'sale' && (
-            <div className="text-xs text-muted-foreground">
-              إذا تم إدخال معدل الاستخراج، سيتم حساب كمية الزيت ثم ضربها في سعر شراء الزيتون. وإلا سيتم حساب السعر مباشرة على الوزن الصافي.
-            </div>
-          )}
+          {/* Note: For both milling and sale operations we now calculate with milling price per kg.
+              The sale-specific taux field is removed to avoid confusion. */}
         </div>
 
         {/* Display current pricing information */}
@@ -217,26 +195,14 @@ export function EditTicketModal({
               </div>
             ) : currentPrices ? (
               <div>
-                {ticket?.operationType === 'sale' ? (
-                  currentPrices.olive_buying_price_per_kg > 0 ? (
-                    <p className="text-sm text-olive-600">
-                      سعر شراء الزيتون: {currentPrices.olive_buying_price_per_kg} دينار/كيلو
-                    </p>
-                  ) : (
-                    <div className="text-red-700 dark:text-red-400 text-sm">
-                      لا يوجد سعر شراء الزيتون محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
-                    </div>
-                  )
+                {currentPrices.milling_price_per_kg > 0 ? (
+                  <div className="text-base font-bold text-blue-700 dark:text-blue-300">
+                    سعر العصر: {currentPrices.milling_price_per_kg} دينار/كيلو
+                  </div>
                 ) : (
-                  currentPrices.milling_price_per_kg > 0 ? (
-                    <div className="text-base font-bold text-blue-700 dark:text-blue-300">
-                      سعر العصر: {currentPrices.milling_price_per_kg} دينار/كيلو
-                    </div>
-                  ) : (
-                    <div className="text-red-700 dark:text-red-400 text-sm">
-                      لا يوجد سعر العصر محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
-                    </div>
-                  )
+                  <div className="text-red-700 dark:text-red-400 text-sm">
+                    لا يوجد سعر العصر محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                  </div>
                 )}
               </div>
             ) : (
