@@ -589,25 +589,62 @@ const batchController = {
 
   // DELETE /api/batches/:id
   deleteBatch: async (req, res) => {
+    const transaction = await db.sequelize.transaction();
     try {
       const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ error: 'Invalid batch ID' });
+      if (isNaN(id)) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'Invalid batch ID' });
+      }
 
       const batch = await Batch.findByPk(id);
-      if (!batch) return res.status(404).json({ error: 'Batch not found' });
+      if (!batch) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Batch not found' });
+      }
 
       // Delete related ticket payments first to avoid foreign key constraint violation
       if (TicketPayment) {
         const deletedPayments = await TicketPayment.destroy({
-          where: { ticketId: id }
+          where: { ticketId: id },
+          transaction
         });
         console.log(`Deleted ${deletedPayments} related ticket payment(s) for batch ${id}`);
       }
 
+      // Delete related pressing sessions
+      if (PressingSession) {
+        const deletedSessions = await PressingSession.destroy({
+          where: { batch_id: id },
+          transaction
+        });
+        console.log(`Deleted ${deletedSessions} related pressing session(s) for batch ${id}`);
+      }
+
+      // Delete related batch loadings
+      if (BatchLoading) {
+        const deletedLoadings = await BatchLoading.destroy({
+          where: { batch_id: id },
+          transaction
+        });
+        console.log(`Deleted ${deletedLoadings} related batch loading(s) for batch ${id}`);
+      }
+
+      // Delete related oil batches
+      if (OilBatch) {
+        const deletedOilBatches = await OilBatch.destroy({
+          where: { batch_id: id },
+          transaction
+        });
+        console.log(`Deleted ${deletedOilBatches} related oil batch(es) for batch ${id}`);
+      }
+
       // Now delete the batch
-      await batch.destroy();
+      await batch.destroy({ transaction });
+      await transaction.commit();
       res.json({ success: true, id });
     } catch (error) {
+      await transaction.rollback();
       console.error('Delete batch error:', error);
       res.status(400).json({ error: error.message });
     }
