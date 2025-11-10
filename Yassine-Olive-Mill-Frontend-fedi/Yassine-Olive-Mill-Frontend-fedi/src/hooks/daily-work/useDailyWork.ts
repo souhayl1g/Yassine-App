@@ -416,6 +416,7 @@ export const useDailyWork = () => {
             ticketNumber: ticketManagement.scannedTicket.ticketNumber,
             clientName: ticketManagement.scannedTicket.clientName,
             qrCode: ticketManagement.scannedTicket.qrCode,
+            isPaid: isPaidNow, // Include payment state from editForm
           } as Ticket;
           setTicketToPrint(optimisticTicket);
           setIsPrintModalOpen(true); // Open immediately so user sees print screen
