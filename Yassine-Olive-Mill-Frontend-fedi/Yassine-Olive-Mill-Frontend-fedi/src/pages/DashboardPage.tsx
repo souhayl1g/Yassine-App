@@ -140,7 +140,7 @@ export function DashboardPage() {
   ];
 
   const filteredActions = quickActions.filter(action => 
-    user && action.roles.includes(user.role)
+    user && user.role && action.roles && action.roles.includes(user.role)
   );
 
   const getActivityIcon = (type: string) => {
