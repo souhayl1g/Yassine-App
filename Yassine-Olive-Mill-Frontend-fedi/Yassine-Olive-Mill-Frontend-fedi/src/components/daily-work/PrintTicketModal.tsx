@@ -43,14 +43,15 @@ export function PrintTicketModal({
     'box-labels';
 
   useEffect(() => {
-    if (isOpen && ticketType === 'exit-receipt') {
+    // Always load prices when modal opens to ensure correct pricing for exit receipts
+    if (isOpen) {
       loadCurrentPrices();
     }
     // Reset arrival receipt printed state when modal opens/closes
     if (!isOpen) {
       setArrivalReceiptPrinted(false);
     }
-  }, [isOpen, ticketType]);
+  }, [isOpen, ticketType, ticket?.id]); // Reload prices when ticket changes
 
   const loadCurrentPrices = async () => {
     try {
@@ -513,10 +514,22 @@ export function PrintTicketModal({
     }
   }
 
-  // Use ticket's unitPrice if available, otherwise use the base price from current prices
-  const derivedUnitPrice = typeof ticket.unitPrice === 'number' && ticket.unitPrice > 0
-    ? ticket.unitPrice
-    : baseUnitPrice;
+  // Use ticket's unitPrice if available and valid, otherwise use the base price from current prices
+  // For sale operations, prioritize ticket.unitPrice if it exists, otherwise use oliveBuyingPricePerKg
+  let derivedUnitPrice = 0;
+  if (typeof ticket.unitPrice === 'number' && ticket.unitPrice > 0) {
+    // Use ticket's stored unitPrice if available
+    derivedUnitPrice = ticket.unitPrice;
+  } else if (baseUnitPrice > 0) {
+    // Use price from currentPrices
+    derivedUnitPrice = baseUnitPrice;
+  } else if (ticket.operationType === 'sale' && currentPrices) {
+    // Fallback: try to get price directly from currentPrices
+    derivedUnitPrice = currentPrices.oliveBuyingPricePerKg || 0;
+  } else if (ticket.operationType === 'sale') {
+    // Last resort: if no prices loaded, log warning but don't break
+    console.warn('⚠️ Sale operation: No prices loaded yet, calculation may be incorrect');
+  }
 
   // Calculate base amount - ensure we have a valid price
   const baseAmount = derivedUnitPrice > 0 && safeNetWeight > 0 
@@ -554,9 +567,21 @@ export function PrintTicketModal({
 
   // Calculate total amount: use ticket's totalAmount if available and valid, otherwise calculate it
   const computedTotal = serviceAmount + bidonCost;
-  const derivedTotalAmount = typeof ticket.totalAmount === 'number' && ticket.totalAmount > 0
-    ? Math.max(ticket.totalAmount, computedTotal) // Use the higher of stored or calculated
-    : computedTotal; // Always calculate if no stored amount
+  
+  // For sale operations, always calculate if we have valid price and weight
+  // Only use ticket.totalAmount if it's valid AND we don't have a better calculated value
+  let derivedTotalAmount = computedTotal;
+  if (typeof ticket.totalAmount === 'number' && ticket.totalAmount > 0) {
+    // Use the higher of stored or calculated, but prefer calculated for sale operations
+    if (ticket.operationType === 'sale' && computedTotal > 0) {
+      derivedTotalAmount = Math.max(ticket.totalAmount, computedTotal);
+    } else {
+      derivedTotalAmount = Math.max(ticket.totalAmount, computedTotal);
+    }
+  } else if (ticket.operationType === 'sale' && computedTotal === 0 && derivedUnitPrice === 0) {
+    // If we can't calculate and no stored amount, show 0 but log warning
+    console.warn('⚠️ Sale operation: Cannot calculate total amount - prices may not be loaded');
+  }
 
   // Debug logging for sale operations
   if (ticket.operationType === 'sale' && ticketType === 'exit-receipt') {
@@ -738,7 +763,13 @@ export function PrintTicketModal({
                   {/* Total */}
                   <div className="flex justify-between leading-tight bg-blue-50 px-1.5 py-0.5 rounded text-[13px]">
                     <span className="font-bold">المبلغ الإجمالي:</span>
-                    <span className="text-blue-700 font-bold">{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
+                    <span className="text-blue-700 font-bold">
+                      {derivedTotalAmount > 0 
+                        ? `${derivedTotalAmount.toFixed(3)} د.ت`
+                        : computedTotal > 0 
+                          ? `${computedTotal.toFixed(3)} د.ت`
+                          : '— د.ت'}
+                    </span>
                   </div>
 
                   {/* Payment State */}
@@ -1035,7 +1066,13 @@ export function PrintTicketModal({
                         fontSize: '13px',
                       }}>
                         <span style={{ fontWeight: 'bold' }}>المبلغ الإجمالي:</span>
-                        <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{derivedTotalAmount > 0 ? derivedTotalAmount.toFixed(3) : '—'} د.ت</span>
+                        <span style={{ color: '#2563eb', fontWeight: 'bold' }}>
+                          {derivedTotalAmount > 0 
+                            ? `${derivedTotalAmount.toFixed(3)} د.ت`
+                            : computedTotal > 0 
+                              ? `${computedTotal.toFixed(3)} د.ت`
+                              : '— د.ت'}
+                        </span>
                       </div>
 
                       {/* Payment State */}
