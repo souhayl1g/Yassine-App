@@ -3,7 +3,7 @@ import { Op } from 'sequelize';
 import Fuse from 'fuse.js';
 
 
-const { Batch, Client, Price, OilBatch, QualityTest, PressingSession, PressingRoom, BatchLoading, QueuerSession } = db;
+const { Batch, Client, Price, OilBatch, QualityTest, PressingSession, PressingRoom, BatchLoading, QueuerSession, TicketPayment } = db;
 
 
 const batchController = {
@@ -596,6 +596,15 @@ const batchController = {
       const batch = await Batch.findByPk(id);
       if (!batch) return res.status(404).json({ error: 'Batch not found' });
 
+      // Delete related ticket payments first to avoid foreign key constraint violation
+      if (TicketPayment) {
+        const deletedPayments = await TicketPayment.destroy({
+          where: { ticketId: id }
+        });
+        console.log(`Deleted ${deletedPayments} related ticket payment(s) for batch ${id}`);
+      }
+
+      // Now delete the batch
       await batch.destroy();
       res.json({ success: true, id });
     } catch (error) {
