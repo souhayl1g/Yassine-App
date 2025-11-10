@@ -119,7 +119,7 @@ export const useDailyWork = () => {
         ticket_number: ticketNumber,
         weight_in: weightIn,
         net_weight: weightIn,
-        operation_type: 'milling', // Always default to milling for arrival
+        operation_type: newTicket.operationType || 'milling', // Use selected operation type
         status: 'received',
       };
 

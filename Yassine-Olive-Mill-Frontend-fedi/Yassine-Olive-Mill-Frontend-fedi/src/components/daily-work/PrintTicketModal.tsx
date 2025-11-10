@@ -603,6 +603,10 @@ export function PrintTicketModal({
                     <span className="font-semibold">{ticketIdText}</span>
                   </div>
                   <div className="flex justify-between leading-tight text-[13px]">
+                    <span className="font-bold">نوع العملية:</span>
+                    <span className="font-semibold">{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
+                  </div>
+                  <div className="flex justify-between leading-tight text-[13px]">
                     <span className="font-bold">التاريخ:</span>
                     <span className="font-semibold">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                   </div>
@@ -785,6 +789,10 @@ export function PrintTicketModal({
                       <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', lineHeight: 1.2, marginTop: '0.5mm' }}>
                         <span style={{ fontWeight: 'bold' }}>رقم التذكرة:</span>
                         <span style={{ fontWeight: 600 }}>{ticketIdText}</span>
+                      </div>
+                      <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', lineHeight: 1.2 }}>
+                        <span style={{ fontWeight: 'bold' }}>نوع العملية:</span>
+                        <span style={{ fontWeight: 600 }}>{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
                       </div>
                       <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', lineHeight: 1.2 }}>
                         <span style={{ fontWeight: 'bold' }}>التاريخ:</span>
