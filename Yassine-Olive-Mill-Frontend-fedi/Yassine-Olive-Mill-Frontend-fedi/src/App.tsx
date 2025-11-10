@@ -27,6 +27,7 @@ import { OperatorScannerPage } from "@/pages/OperatorScannerPage";
 import { EmployeeScannerPage } from "@/pages/EmployeeScannerPage";
 import { BatchLoadingTestPage } from "@/pages/BatchLoadingTestPage";
 import { PaymentsPage } from "@/pages/PaymentsPage";
+import OilSalesPage from "@/pages/OilSalesPage";
 import { UserManagementPage } from "@/pages/admin/UserManagementPage";
 
 const queryClient = new QueryClient();
@@ -71,6 +72,7 @@ const App = () => {
                 <Route path="/batch-management" element={<ProtectedRoute roles={['admin', 'operator', 'presser']}><BatchManagementPage /></ProtectedRoute>} />
                 <Route path="/pressing-display" element={<PressingDisplayPage />} />
                 <Route path="/rooms" element={<ProtectedRoute roles={['admin', 'operator']}><RoomsPage /></ProtectedRoute>} />
+                <Route path="/oil-sales" element={<ProtectedRoute roles={['admin']}><OilSalesPage /></ProtectedRoute>} />
                 <Route path="/payments" element={<ProtectedRoute roles={['admin']}><PaymentsPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute roles={['admin']}><SettingsPage /></ProtectedRoute>} />
                 <Route path="/admin/users" element={<ProtectedRoute roles={['admin']}><UserManagementPage /></ProtectedRoute>} />

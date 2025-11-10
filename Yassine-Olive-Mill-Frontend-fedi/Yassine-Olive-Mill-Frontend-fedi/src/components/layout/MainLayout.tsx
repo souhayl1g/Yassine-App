@@ -32,6 +32,7 @@ const navigationItems = [
   { key: 'tickets', icon: FileText, href: '/tickets', roles: ['admin'] },
 
   { key: 'containers', icon: Container, href: '/containers', roles: ['admin', 'operator'] },
+  { key: 'oilSales', icon: DollarSign, href: '/oil-sales', roles: ['admin'] },
   { key: 'scanner', icon: QrCode, href: '/scanner', roles: [ 'scanner'] },
   { key: 'queuerScanner', icon: Users, href: '/queuer-scanner', roles: ['queuer'] },
   { key: 'operatorScanner', icon: QrCode, href: '/operator-scanner', roles: ['operator'] },

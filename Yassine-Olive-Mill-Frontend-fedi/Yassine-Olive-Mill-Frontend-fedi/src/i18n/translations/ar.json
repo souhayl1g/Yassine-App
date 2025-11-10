@@ -30,6 +30,7 @@
     "dashboard": "لوحة التحكم",
     "clients": "العملاء",
     "tickets": "التذاكر",
+    "oilSales": "مبيعات الزيت",
     "payments": "الدفعات",
     "containers": "خزانات الزيت",
     "sessions": "جلسات العمل",
@@ -173,6 +174,15 @@
     "oilWeight": "وزن الزيت",
     "pricePerKg": "السعر لكل كيلو",
     "totalValue": "القيمة الإجمالية"
+  },
+  "oilSales": {
+    "title": "مبيعات الزيت",
+    "list": "قائمة المبيعات",
+    "client": "العميل",
+    "weight": "الوزن (كغ)",
+    "unitPrice": "سعر الوحدة",
+    "total": "الإجمالي",
+    "totalToday": "إجمالي اليوم"
   },
   "sessions": {
     "title": "جلسات العمل",

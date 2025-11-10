@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "/api/clients"
+      "destination": "https://preneuralgic-overexuberantly-marjorie.ngrok-free.dev/api/:path*"
     },
     {
       "source": "/(.*)",

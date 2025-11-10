@@ -35,7 +35,8 @@
     "rooms": "Salles de pressage",
     "history": "Historique",
     "settings": "Paramètres",
-    "logout": "Déconnexion"
+    "logout": "Déconnexion",
+    "oilSales": "Ventes d'huile"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -159,6 +160,15 @@
     "oilWeight": "Poids de l'huile",
     "pricePerKg": "Prix par Kg",
     "totalValue": "Valeur totale"
+  },
+  "oilSales": {
+    "title": "Ventes d'huile",
+    "list": "Liste des ventes",
+    "client": "Client",
+    "weight": "Poids (kg)",
+    "unitPrice": "Prix unitaire",
+    "total": "Total",
+    "totalToday": "Total du jour"
   },
   "sessions": {
     "title": "Sessions de travail",

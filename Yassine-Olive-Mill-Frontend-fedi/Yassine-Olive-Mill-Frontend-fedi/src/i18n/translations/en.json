@@ -40,7 +40,8 @@
     "rooms": "Pressing Rooms",
     "history": "History",
     "settings": "Settings",
-    "logout": "Logout"
+    "logout": "Logout",
+    "oilSales": "Oil Sales"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -164,6 +165,15 @@
     "oilWeight": "Oil Weight",
     "pricePerKg": "Price per Kg",
     "totalValue": "Total Value"
+  },
+  "oilSales": {
+    "title": "Oil Sales",
+    "list": "Sales List",
+    "client": "Client",
+    "weight": "Weight (kg)",
+    "unitPrice": "Unit Price",
+    "total": "Total",
+    "totalToday": "Today's Total"
   },
   "sessions": {
     "title": "Work Sessions",
