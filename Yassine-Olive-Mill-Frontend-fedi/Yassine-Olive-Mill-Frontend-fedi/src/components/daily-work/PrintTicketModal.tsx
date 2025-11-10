@@ -56,14 +56,18 @@ export function PrintTicketModal({
     try {
       const response = await api.get('/prices?latest=true');
       if (response && typeof response === 'object' && response !== null) {
-        setCurrentPrices({
+        const prices = {
           millingPricePerKg: (response as any).milling_price_per_kg || 0,
           oliveBuyingPricePerKg: (response as any).olive_buying_price_per_kg || 0,
           emptyBidonPrice: (response as any).empty_bidon_price || 0,
-        });
+        };
+        console.log('💰 Prices loaded for exit receipt:', prices);
+        setCurrentPrices(prices);
       }
     } catch (error) {
       console.error('Error loading prices:', error);
+      // Set prices to null so we know they failed to load
+      setCurrentPrices(null);
     }
   };
 
@@ -504,15 +508,27 @@ export function PrintTicketModal({
     if (ticket.operationType === 'milling') {
       baseUnitPrice = currentPrices.millingPricePerKg || 0;
     } else if (ticket.operationType === 'sale') {
-      baseUnitPrice = currentPrices.oilExportSellingPricePerKg || 0;
+      // For sale operations, use olive buying price per kg
+      baseUnitPrice = currentPrices.oliveBuyingPricePerKg || 0;
     }
   }
 
+  // Use ticket's unitPrice if available, otherwise use the base price from current prices
   const derivedUnitPrice = typeof ticket.unitPrice === 'number' && ticket.unitPrice > 0
     ? ticket.unitPrice
     : baseUnitPrice;
 
-  const baseAmount = derivedUnitPrice * safeNetWeight;
+  // Calculate base amount - ensure we have a valid price
+  const baseAmount = derivedUnitPrice > 0 && safeNetWeight > 0 
+    ? derivedUnitPrice * safeNetWeight 
+    : 0;
+  
+  // Minimum weight only applies to milling operations, not sales
+  const MINIMUM_MILLING_WEIGHT = 200;
+  const minimumEligibleWeight = ticket.operationType === 'sale' ? 0 : MINIMUM_MILLING_WEIGHT;
+  const minimumServiceAmount = derivedUnitPrice > 0 ? derivedUnitPrice * minimumEligibleWeight : 0;
+  const minimumApplied = ticket.operationType !== 'sale' && derivedUnitPrice > 0 && baseAmount < minimumServiceAmount;
+  const serviceAmount = derivedUnitPrice > 0 ? Math.max(baseAmount, minimumServiceAmount) : baseAmount;
 
   const numberOfBidons = ticket.numberOfBidons || 0;
   let bidonsProduced = 0;
@@ -528,6 +544,7 @@ export function PrintTicketModal({
     }
     additionalBidonsForClient = Math.max(0, bidonsProduced - numberOfBidons);
   } else {
+    // For sale operations, all bidons are additional
     additionalBidonsForClient = numberOfBidons;
   }
 
@@ -535,9 +552,28 @@ export function PrintTicketModal({
     ? additionalBidonsForClient * (currentPrices?.emptyBidonPrice || 0)
     : 0;
 
+  // Calculate total amount: use ticket's totalAmount if available and valid, otherwise calculate it
+  const computedTotal = serviceAmount + bidonCost;
   const derivedTotalAmount = typeof ticket.totalAmount === 'number' && ticket.totalAmount > 0
-    ? ticket.totalAmount
-    : baseAmount + bidonCost;
+    ? Math.max(ticket.totalAmount, computedTotal) // Use the higher of stored or calculated
+    : computedTotal; // Always calculate if no stored amount
+
+  // Debug logging for sale operations
+  if (ticket.operationType === 'sale' && ticketType === 'exit-receipt') {
+    console.log('💰 SALE EXIT RECEIPT CALCULATION:', {
+      operationType: ticket.operationType,
+      currentPrices,
+      baseUnitPrice,
+      derivedUnitPrice,
+      safeNetWeight,
+      baseAmount,
+      serviceAmount,
+      bidonCost,
+      computedTotal,
+      ticketTotalAmount: ticket.totalAmount,
+      derivedTotalAmount,
+    });
+  }
 
   const getModalTitle = () => {
     if (ticketType === 'arrival-receipt') return '🎫 طباعة إيصال الوصول';
