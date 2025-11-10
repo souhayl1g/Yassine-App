@@ -341,6 +341,23 @@ export function PrintTicketModal({
         text-align: center;
         margin-top: 1mm;
       }
+      .label-operation-type {
+        font-size: 14pt;
+        font-weight: bold;
+        text-align: center;
+        margin-top: 1mm;
+        padding: 2mm 4mm;
+        border-radius: 2mm;
+        display: inline-block;
+      }
+      .label-operation-milling {
+        background-color: #d1fae5;
+        color: #000000ff;
+      }
+      .label-operation-sale {
+        background-color: #e0e7ff;
+        color: #000000ff;
+      }
       .label-qr {
         display: flex;
         align-items: center;
@@ -365,6 +382,11 @@ export function PrintTicketModal({
       <QRCodeSVG value={qrCodeValue} size={80} level="H" includeMargin={false} />
     );
 
+    // Get operation type label
+    const operationType = ticket?.operationType || 'milling';
+    const operationTypeLabel = operationType === 'milling' ? '🫒 عصر' : '💰 بيع';
+    const operationTypeClass = operationType === 'milling' ? 'label-operation-milling' : 'label-operation-sale';
+
     const labelsToPrintArray = Array.from({ length: boxesCount }, (_, i) => i + 1);
     const labelsMarkup = labelsToPrintArray.map((boxNum) => `
       <div class="label-page">
@@ -372,6 +394,7 @@ export function PrintTicketModal({
         <div class="label-client-name">
           <div class="label-client-firstname">${clientNames.firstname}</div>
           <div class="label-client-lastname">${clientNames.lastname}</div>
+          <div class="label-operation-type ${operationTypeClass}">${operationTypeLabel}</div>
           <div class="label-text">رقم: ${ticketIdText}</div>
           <div class="label-text">${ticket ? new Date(ticket.dateReceived).toLocaleDateString('ar-TN') : ''}</div>
           ${netWeight > 0 ? `<div class="label-net-weight">الوزن الصافي: ${netWeight.toFixed(2)} كلغ</div>` : ''}
@@ -710,6 +733,13 @@ export function PrintTicketModal({
                     <div className="flex-1 flex flex-col items-center justify-center text-center mb-2">
                       <div className="text-[14px] font-bold text-black mb-1">{clientNames.firstname}</div>
                       <div className="text-[14px] font-bold text-black mb-1">{clientNames.lastname}</div>
+                      <div className={`text-[11px] font-bold px-2 py-1 rounded mb-1 ${
+                        ticket.operationType === 'milling' 
+                          ? 'bg-emerald-100 text-emerald-700' 
+                          : 'bg-indigo-100 text-indigo-700'
+                      }`}>
+                        {ticket.operationType === 'milling' ? '🫒 عصر' : '💰 بيع'}
+                      </div>
                       <div className="text-[11px] text-black">رقم: {ticketIdText}</div>
                       <div className="text-[11px] text-black">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</div>
                       {safeNetWeight > 0 && (
@@ -951,6 +981,20 @@ export function PrintTicketModal({
                         marginBottom: '1mm',
                       }}>
                         {clientNames.lastname}
+                      </div>
+                      <div style={{
+                        fontSize: '14pt',
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        marginTop: '1mm',
+                        marginBottom: '1mm',
+                        padding: '2mm 4mm',
+                        borderRadius: '2mm',
+                        display: 'inline-block',
+                        backgroundColor: ticket.operationType === 'milling' ? '#d1fae5' : '#e0e7ff',
+                        color: ticket.operationType === 'milling' ? '#065f46' : '#3730a3',
+                      }}>
+                        {ticket.operationType === 'milling' ? '🫒 عصر' : '💰 بيع'}
                       </div>
                       <div style={{
                         fontSize: '11pt',
