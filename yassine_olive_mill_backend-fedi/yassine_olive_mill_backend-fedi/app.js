@@ -95,6 +95,7 @@ app.get('/', (req, res) => {
       employees: '/api/employees',
       prices: '/api/prices',
       dashboard: '/api/dashboard',
+      'oil-sales': '/api/oil-sales',
       users: '/api/users'
     }
   });
