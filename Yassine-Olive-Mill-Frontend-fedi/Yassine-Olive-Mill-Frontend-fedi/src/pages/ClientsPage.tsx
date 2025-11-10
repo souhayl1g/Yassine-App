@@ -548,9 +548,9 @@ export function ClientsPage() {
 
   const filteredClients = clients.filter(client => {
     const matchesSearch = 
-      client.firstname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.lastname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.phone.includes(searchQuery);
+      (client.firstname && client.firstname.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (client.lastname && client.lastname.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (client.phone && client.phone.includes(searchQuery));
     
     const matchesType = typeFilter === 'all' || client.type === typeFilter;
     
