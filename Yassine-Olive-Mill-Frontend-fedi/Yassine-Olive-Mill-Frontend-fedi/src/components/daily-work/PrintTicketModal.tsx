@@ -754,6 +754,11 @@ export function PrintTicketModal({
                     <div className="font-bold text-[13px] text-gray-900 leading-tight">{clientNames.lastname}</div>
                   </div>
                   
+                  {/* Operation Type Badge */}
+                  <div className={`text-center py-1 rounded text-[13px] font-bold mt-0.5 ${ticket.operationType === 'sale' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {ticket.operationType === 'milling' ? '🫒 عملية عصر' : '💰 عملية بيع'}
+                  </div>
+                  
                   {/* Net Weight */}
                   <div className="flex justify-between leading-tight bg-emerald-50 px-1.5 py-0.5 rounded text-[13px] mt-0.5">
                     <span className="font-bold">الوزن الصافي:</span>
@@ -1038,6 +1043,20 @@ export function PrintTicketModal({
                       <div style={{ gap: '0mm' }}>
                         <div style={{ fontSize: '13px', color: '#4b5563', fontWeight: 600, marginBottom: '0.2mm' }}>اسم العائلة</div>
                         <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#111827', lineHeight: 1.1 }}>{clientNames.lastname}</div>
+                      </div>
+                      
+                      {/* Operation Type Badge */}
+                      <div style={{
+                        textAlign: 'center',
+                        padding: '1mm',
+                        borderRadius: '1mm',
+                        marginTop: '0.5mm',
+                        fontSize: '13px',
+                        fontWeight: 'bold',
+                        backgroundColor: ticket.operationType === 'sale' ? '#f3e8ff' : '#d1fae5',
+                        color: ticket.operationType === 'sale' ? '#6b21a8' : '#065f46',
+                      }}>
+                        {ticket.operationType === 'milling' ? '🫒 عملية عصر' : '💰 عملية بيع'}
                       </div>
                       
                       {/* Net Weight */}
