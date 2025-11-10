@@ -1,42 +1,59 @@
 export const up = async (queryInterface, Sequelize) => {
-  await queryInterface.addColumn('batches', 'unit_price', {
+  // Make migration idempotent: only add columns that don't exist
+  const table = await queryInterface.describeTable('batches');
+
+  const addIfMissing = async (name, definition) => {
+    if (!table[name]) {
+      await queryInterface.addColumn('batches', name, definition);
+    }
+  };
+
+  await addIfMissing('unit_price', {
     type: Sequelize.DECIMAL(10, 2),
-    allowNull: true
+    allowNull: true,
   });
-  
-  await queryInterface.addColumn('batches', 'total_amount', {
+
+  await addIfMissing('total_amount', {
     type: Sequelize.DECIMAL(10, 2),
-    allowNull: true
+    allowNull: true,
   });
-  
-  await queryInterface.addColumn('batches', 'is_paid', {
+
+  await addIfMissing('is_paid', {
     type: Sequelize.BOOLEAN,
     allowNull: false,
-    defaultValue: false
+    defaultValue: false,
   });
-  
-  await queryInterface.addColumn('batches', 'payment_method', {
+
+  await addIfMissing('payment_method', {
     type: Sequelize.STRING,
     allowNull: true,
-    defaultValue: 'cash'
+    defaultValue: 'cash',
   });
-  
-  await queryInterface.addColumn('batches', 'payment_reference', {
+
+  await addIfMissing('payment_reference', {
     type: Sequelize.STRING,
-    allowNull: true
+    allowNull: true,
   });
-  
-  await queryInterface.addColumn('batches', 'date_paid', {
+
+  await addIfMissing('date_paid', {
     type: Sequelize.DATE,
-    allowNull: true
+    allowNull: true,
   });
 };
 
 export const down = async (queryInterface, Sequelize) => {
-  await queryInterface.removeColumn('batches', 'unit_price');
-  await queryInterface.removeColumn('batches', 'total_amount');
-  await queryInterface.removeColumn('batches', 'is_paid');
-  await queryInterface.removeColumn('batches', 'payment_method');
-  await queryInterface.removeColumn('batches', 'payment_reference');
-  await queryInterface.removeColumn('batches', 'date_paid');
+  // Only remove if the column exists
+  const table = await queryInterface.describeTable('batches');
+  const removeIfPresent = async (name) => {
+    if (table[name]) {
+      await queryInterface.removeColumn('batches', name);
+    }
+  };
+
+  await removeIfPresent('unit_price');
+  await removeIfPresent('total_amount');
+  await removeIfPresent('is_paid');
+  await removeIfPresent('payment_method');
+  await removeIfPresent('payment_reference');
+  await removeIfPresent('date_paid');
 };
