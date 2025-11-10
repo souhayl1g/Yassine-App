@@ -9,6 +9,7 @@ import { PrintTicketModal } from '@/components/daily-work/PrintTicketModal';
 import { QRDisplayModal } from '@/components/daily-work/QRDisplayModal';
 import { TicketDetailsModal } from '@/components/daily-work/TicketDetailsModal';
 import { OperationButtons } from '@/components/daily-work/OperationButtons';
+import { OilSaleModal } from '@/components/daily-work/OilSaleModal';
 import { OilQuantityModal } from '@/components/daily-work/OilQuantityModal';
 import { PaymentModal } from '@/components/payments/PaymentModal';
 import { PaymentHistoryModal } from '@/components/payments/PaymentHistoryModal';
@@ -18,6 +19,21 @@ import { usePaymentOperations } from '@/hooks/usePaymentOperations';
 export function DailyWorkPage() {
   const dailyWork = useDailyWork();
   const payment = usePaymentOperations();
+  const [isOilSaleOpen, setIsOilSaleOpen] = useState(false);
+
+  // Ensure clients list is available for oil sale modal
+  useEffect(() => {
+    if (isOilSaleOpen && Array.isArray(dailyWork.clients) && dailyWork.clients.length === 0) {
+      // Silent load clients
+      (async () => {
+        try {
+          await dailyWork.loadClients();
+        } catch (e) {
+          console.warn('Failed to load clients for oil sale modal', e);
+        }
+      })();
+    }
+  }, [isOilSaleOpen, dailyWork.clients]);
 
   // Handle payment completion
   const handlePaymentComplete = () => {
@@ -38,6 +54,7 @@ export function DailyWorkPage() {
             dailyWork.setIsFinishingOperation(true);
             dailyWork.setIsQrScanOpen(true);
           }}
+          onOpenOilSale={() => setIsOilSaleOpen(true)}
         />
 
         {/* Recent Tickets Section */}
@@ -197,6 +214,13 @@ export function DailyWorkPage() {
         onSave={() => {
           dailyWork.loadRecentTickets(dailyWork.currentPage, true);
         }}
+      />
+
+      {/* Oil Sale Modal */}
+      <OilSaleModal
+        isOpen={isOilSaleOpen}
+        onClose={() => setIsOilSaleOpen(false)}
+        clients={dailyWork.clients || []}
       />
     </>
   );

@@ -4,6 +4,7 @@ import { OliveButton } from '@/components/ui/olive-button';
 interface OperationButtonsProps {
   onStartOperation: () => void;
   onFinishOperation: () => void;
+  onOpenOilSale?: () => void;
 }
 
 // Enhanced line-based icons with warehouse context
@@ -90,6 +91,7 @@ const TruckDepartingIcon = ({ className }: { className?: string }) => (
 export function OperationButtons({
   onStartOperation,
   onFinishOperation,
+  onOpenOilSale,
 }: OperationButtonsProps) {
   return (
     <div className="flex justify-center gap-12">
@@ -140,6 +142,35 @@ export function OperationButtons({
         <div className="mt-3 text-center">
           <p className="text-xs text-orange-600 font-medium">تسليم الزيت</p>
           <p className="text-xs text-muted-foreground">إنهاء العمليات</p>
+        </div>
+      </div>
+
+      {/* Oil Sale (باز) */}
+      <div className="flex flex-col items-center">
+        <div className="group">
+          <OliveButton
+            onClick={onOpenOilSale}
+            variant="outline"
+            size="lg"
+            className="w-48 h-48 flex flex-col items-center justify-center gap-5 rounded-3xl hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-2xl bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-300"
+          >
+            <div className="relative">
+              {/* Simple droplet icon */}
+              <svg viewBox="0 0 64 64" className="h-28 w-28 text-blue-700 fill-none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M32 6 C26 16 16 26 16 38 a16 16 0 0 0 32 0 C48 26 38 16 32 6z" fill="currentColor" fillOpacity="0.06"/>
+                <path d="M32 6 C26 16 16 26 16 38 a16 16 0 0 0 32 0 C48 26 38 16 32 6z"/>
+              </svg>
+              {/* Badge */}
+              <div className="absolute -top-3 -right-3 w-6 h-6 bg-blue-500 rounded-full animate-pulse" />
+            </div>
+            <span className="text-base font-bold text-blue-800 group-hover:text-blue-900">
+              باز
+            </span>
+          </OliveButton>
+        </div>
+        <div className="mt-3 text-center">
+          <p className="text-xs text-blue-600 font-medium">بيع الزيت</p>
+          <p className="text-xs text-muted-foreground">إيصال سريع</p>
         </div>
       </div>
     </div>
