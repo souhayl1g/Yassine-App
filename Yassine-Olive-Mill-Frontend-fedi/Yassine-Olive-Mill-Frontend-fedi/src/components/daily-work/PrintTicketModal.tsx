@@ -81,7 +81,7 @@ export function PrintTicketModal({
     
     return `
     @page {
-      size: ${width} ${height};
+      size: ${width} ${height} portrait;
       margin: ${pageMargin} !important;
     }
     @media print {
@@ -98,6 +98,9 @@ export function PrintTicketModal({
         min-height: ${height} !important;
         height: auto !important;
         display: block !important;
+      }
+      #${PRINT_ROOT_ID} * {
+        font-weight: bold !important;
       }
       .print-page {
         width: ${width} !important;
