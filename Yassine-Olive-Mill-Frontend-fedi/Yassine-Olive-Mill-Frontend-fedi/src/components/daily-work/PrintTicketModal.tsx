@@ -684,6 +684,16 @@ export function PrintTicketModal({
                     <span className="font-bold text-black">التاريخ:</span>
                     <span className="font-bold text-black">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                   </div>
+                  <div className="flex justify-between leading-tight text-[16px]">
+                    <span className="font-bold text-black">الوزن الداخل:</span>
+                    <span className="font-bold text-black">{ticket.weightIn} كلغ</span>
+                  </div>
+                  {ticket.numberOfBoxes && ticket.numberOfBoxes > 0 && (
+                    <div className="flex justify-between leading-tight text-[16px]">
+                      <span className="font-bold text-black">عدد الصناديق:</span>
+                      <span className="font-bold text-black">{ticket.numberOfBoxes}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Spacer */}
@@ -773,6 +783,32 @@ export function PrintTicketModal({
                   {/* Operation Type Badge */}
                   <div className="text-center py-1 rounded text-[16px] font-bold mt-0.5 bg-gray-100 text-black">
                     {ticket.operationType === 'milling' ? '🫒 عملية عصر' : '💰 عملية بيع'}
+                  </div>
+
+                  {/* Ticket Info */}
+                  <div className="leading-tight text-[16px] mt-0.5">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-black">رقم التذكرة:</span>
+                      <span className="font-bold text-black">{ticketIdText}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-bold text-black">التاريخ:</span>
+                      <span className="font-bold text-black">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-bold text-black">الوزن الداخل:</span>
+                      <span className="font-bold text-black">{ticket.weightIn} كلغ</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-bold text-black">الوزن الخارج:</span>
+                      <span className="font-bold text-black">{ticket.weightOut ?? 0} كلغ</span>
+                    </div>
+                    {ticket.numberOfBoxes && ticket.numberOfBoxes > 0 && (
+                      <div className="flex justify-between">
+                        <span className="font-bold text-black">عدد الصناديق:</span>
+                        <span className="font-bold text-black">{ticket.numberOfBoxes}</span>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Net Weight */}
@@ -886,6 +922,16 @@ export function PrintTicketModal({
                         <span style={{ fontWeight: 'bold', color: '#000000' }}>التاريخ:</span>
                         <span style={{ fontWeight: 'bold', color: '#000000' }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                       </div>
+                      <div style={{ fontSize: '16px', display: 'flex', justifyContent: 'space-between', lineHeight: 1.2 }}>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>الوزن الداخل:</span>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>{ticket.weightIn} كلغ</span>
+                      </div>
+                      {ticket.numberOfBoxes && ticket.numberOfBoxes > 0 && (
+                        <div style={{ fontSize: '16px', display: 'flex', justifyContent: 'space-between', lineHeight: 1.2 }}>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>عدد الصناديق:</span>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>{ticket.numberOfBoxes}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Spacer */}
@@ -1089,6 +1135,32 @@ export function PrintTicketModal({
                         color: '#000000',
                       }}>
                         {ticket.operationType === 'milling' ? '🫒 عملية عصر' : '💰 عملية بيع'}
+                      </div>
+
+                      {/* Ticket Info */}
+                      <div style={{ lineHeight: 1.2, fontSize: '16px', marginTop: '0.5mm' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>رقم التذكرة:</span>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>{ticketIdText}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>التاريخ:</span>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>الوزن الداخل:</span>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>{ticket.weightIn} كلغ</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>الوزن الخارج:</span>
+                          <span style={{ fontWeight: 'bold', color: '#000000' }}>{ticket.weightOut ?? 0} كلغ</span>
+                        </div>
+                        {ticket.numberOfBoxes && ticket.numberOfBoxes > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 'bold', color: '#000000' }}>عدد الصناديق:</span>
+                            <span style={{ fontWeight: 'bold', color: '#000000' }}>{ticket.numberOfBoxes}</span>
+                          </div>
+                        )}
                       </div>
                       
                       {/* Net Weight */}
