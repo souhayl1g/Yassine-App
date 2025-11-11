@@ -645,7 +645,7 @@ export function PrintTicketModal({
             </h3>
 
             {ticketType === 'arrival-receipt' && (
-              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', height: '80mm' }}>
+              <div className="bg-white p-4 mx-auto text-black" dir="rtl" style={{ width: '70mm', height: '80mm' }}>
                 {/* Big Title and Logo */}
                 <div className="text-center mb-1">
                   <div className="flex justify-center mb-0.5">
@@ -655,31 +655,31 @@ export function PrintTicketModal({
                       className="h-6 w-6"
                     />
                   </div>
-                  <h2 className="text-[13px] font-bold text-emerald-700 leading-tight mb-0">معصرة الحاج لطفي</h2>
-                  <p className="text-[13px] text-gray-600 leading-tight">إيصال الوصول</p>
+                  <h2 className="text-[13px] font-bold text-black leading-tight mb-0">معصرة الحاج لطفي</h2>
+                  <p className="text-[13px] text-black font-bold leading-tight">إيصال الوصول</p>
                 </div>
 
                 {/* Client Info - Centered */}
                 <div className="flex flex-col text-center space-y-0.5 mb-1">
                   <div className="space-y-0">
-                    <div className="text-[13px] text-gray-600 font-semibold">الاسم الأول</div>
-                    <div className="font-bold text-[13px] text-gray-900 leading-tight">{clientNames.firstname}</div>
+                    <div className="text-[13px] text-black font-bold">الاسم الأول</div>
+                    <div className="font-bold text-[13px] text-black leading-tight">{clientNames.firstname}</div>
                   </div>
                   <div className="space-y-0">
-                    <div className="text-[13px] text-gray-600 font-semibold">اسم العائلة</div>
-                    <div className="font-bold text-[13px] text-gray-900 leading-tight">{clientNames.lastname}</div>
+                    <div className="text-[13px] text-black font-bold">اسم العائلة</div>
+                    <div className="font-bold text-[13px] text-black leading-tight">{clientNames.lastname}</div>
                   </div>
                   <div className="flex justify-between leading-tight text-[13px] mt-0.5">
-                    <span className="font-bold">رقم التذكرة:</span>
-                    <span className="font-semibold">{ticketIdText}</span>
+                    <span className="font-bold text-black">رقم التذكرة:</span>
+                    <span className="font-bold text-black">{ticketIdText}</span>
                   </div>
                   <div className="flex justify-between leading-tight text-[13px]">
-                    <span className="font-bold">نوع العملية:</span>
-                    <span className="font-semibold">{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
+                    <span className="font-bold text-black">نوع العملية:</span>
+                    <span className="font-bold text-black">{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
                   </div>
                   <div className="flex justify-between leading-tight text-[13px]">
-                    <span className="font-bold">التاريخ:</span>
-                    <span className="font-semibold">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                    <span className="font-bold text-black">التاريخ:</span>
+                    <span className="font-bold text-black">{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                   </div>
                 </div>
 
@@ -693,13 +693,13 @@ export function PrintTicketModal({
 
                 {/* Cute Message to Client */}
                 <div className="text-center pt-1">
-                  <p className="text-[13px] text-gray-700 leading-tight font-medium">
+                  <p className="text-[13px] text-black leading-tight font-bold">
                     🌿 شكراً لثقتكم بنا 🌿
                   </p>
-                  <p className="text-[13px] text-gray-600 leading-tight mt-0">
+                  <p className="text-[13px] text-black font-bold leading-tight mt-0">
                     نتمنى لكم تجربة ممتازة معنا
                   </p>
-                  <p className="text-[13px] text-gray-500 leading-tight mt-0">
+                  <p className="text-[13px] text-black font-bold leading-tight mt-0">
                     للاستفسار: يرجى الاتصال بنا
                   </p>
                 </div>
@@ -746,7 +746,7 @@ export function PrintTicketModal({
             )}
 
             {ticketType === 'exit-receipt' && (
-              <div className="bg-white p-4 mx-auto text-gray-900" dir="rtl" style={{ width: '70mm', minHeight: '85mm' }}>
+              <div className="bg-white p-4 mx-auto text-black" dir="rtl" style={{ width: '70mm', minHeight: '85mm' }}>
                 {/* Big Title and Logo - Centered */}
                 <div className="text-center mb-1">
                   <div className="flex justify-center mb-0.5">
@@ -756,36 +756,36 @@ export function PrintTicketModal({
                       className="h-6 w-6"
                     />
                   </div>
-                  <h2 className="text-[13px] font-bold text-emerald-700 leading-tight mb-0">معصرة الحاج لطفي</h2>
-                  <p className="text-[13px] text-gray-600 leading-tight">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
+                  <h2 className="text-[13px] font-bold text-black leading-tight mb-0">معصرة الحاج لطفي</h2>
+                  <p className="text-[13px] text-black font-bold leading-tight">إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</p>
                 </div>
 
                 {/* Client Info */}
                 <div className="flex flex-col text-center space-y-0.5 mb-1">
                   <div className="space-y-0">
-                    <div className="text-[13px] text-gray-600 font-semibold">الاسم الأول</div>
-                    <div className="font-bold text-[13px] text-gray-900 leading-tight">{clientNames.firstname}</div>
+                    <div className="text-[13px] text-black font-bold">الاسم الأول</div>
+                    <div className="font-bold text-[13px] text-black leading-tight">{clientNames.firstname}</div>
                   </div>
                   <div className="space-y-0">
-                    <div className="text-[13px] text-gray-600 font-semibold">اسم العائلة</div>
-                    <div className="font-bold text-[13px] text-gray-900 leading-tight">{clientNames.lastname}</div>
+                    <div className="text-[13px] text-black font-bold">اسم العائلة</div>
+                    <div className="font-bold text-[13px] text-black leading-tight">{clientNames.lastname}</div>
                   </div>
                   
                   {/* Operation Type Badge */}
-                  <div className={`text-center py-1 rounded text-[13px] font-bold mt-0.5 ${ticket.operationType === 'sale' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                  <div className={`text-center py-1 rounded text-[13px] font-bold mt-0.5 ${ticket.operationType === 'sale' ? 'bg-purple-100 text-black' : 'bg-emerald-100 text-black'}`}>
                     {ticket.operationType === 'milling' ? '🫒 عملية عصر' : '💰 عملية بيع'}
                   </div>
                   
                   {/* Net Weight */}
                   <div className="flex justify-between leading-tight bg-emerald-50 px-1.5 py-0.5 rounded text-[13px] mt-0.5">
-                    <span className="font-bold">الوزن الصافي:</span>
-                    <span className="text-emerald-700 font-bold">{safeNetWeight} كلغ</span>
+                    <span className="font-bold text-black">الوزن الصافي:</span>
+                    <span className="text-black font-bold">{safeNetWeight} كلغ</span>
                   </div>
 
                   {/* Total */}
                   <div className="flex justify-between leading-tight bg-blue-50 px-1.5 py-0.5 rounded text-[13px]">
-                    <span className="font-bold">المبلغ الإجمالي:</span>
-                    <span className="text-blue-700 font-bold">
+                    <span className="font-bold text-black">المبلغ الإجمالي:</span>
+                    <span className="text-black font-bold">
                       {derivedTotalAmount > 0 
                         ? `${derivedTotalAmount.toFixed(3)} د.ت`
                         : computedTotal > 0 
@@ -795,7 +795,7 @@ export function PrintTicketModal({
                   </div>
 
                   {/* Payment State */}
-                  <div className={`text-center py-0.5 rounded text-[13px] font-bold ${isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                  <div className={`text-center py-0.5 rounded text-[13px] font-bold ${isPaid ? 'bg-green-100 text-black' : 'bg-orange-100 text-black'}`}>
                     {isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                   </div>
                 </div>
@@ -810,13 +810,13 @@ export function PrintTicketModal({
 
                 {/* Cute Message to Client */}
                 <div className="text-center pt-1">
-                  <p className="text-[13px] text-gray-700 leading-tight font-medium">
+                  <p className="text-[13px] text-black leading-tight font-bold">
                     🌿 شكراً لثقتكم بنا 🌿
                   </p>
-                  <p className="text-[13px] text-gray-600 leading-tight mt-0">
+                  <p className="text-[13px] text-black font-bold leading-tight mt-0">
                     نتمنى لكم تجربة ممتازة معنا
                   </p>
-                  <p className="text-[13px] text-gray-500 leading-tight mt-0">
+                  <p className="text-[13px] text-black font-bold leading-tight mt-0">
                     للاستفسار: يرجى الاتصال بنا
                   </p>
                 </div>
@@ -853,10 +853,10 @@ export function PrintTicketModal({
                           style={{ height: '6mm', width: '6mm' }}
                         />
                       </div>
-                      <h2 style={{ fontSize: '13px', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.1, marginBottom: '0.2mm' }}>
+                      <h2 style={{ fontSize: '13px', fontWeight: 'bold', color: '#000000', margin: 0, lineHeight: 1.1, marginBottom: '0.2mm' }}>
                         معصرة الحاج لطفي
                       </h2>
-                      <p style={{ fontSize: '13px', color: '#4b5563', margin: 0, lineHeight: 1.1 }}>إيصال الوصول</p>
+                      <p style={{ fontSize: '13px', color: '#000000', fontWeight: 'bold', margin: 0, lineHeight: 1.1 }}>إيصال الوصول</p>
                     </div>
 
                     {/* Client Info - Centered */}
@@ -868,24 +868,24 @@ export function PrintTicketModal({
                       gap: '0.5mm',
                     }}>
                       <div style={{ gap: '0mm' }}>
-                        <div style={{ fontSize: '13px', color: '#4b5563', fontWeight: 600, marginBottom: '0.2mm' }}>الاسم الأول</div>
-                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#111827', lineHeight: 1.1 }}>{clientNames.firstname}</div>
+                        <div style={{ fontSize: '13px', color: '#000000', fontWeight: 'bold', marginBottom: '0.2mm' }}>الاسم الأول</div>
+                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#000000', lineHeight: 1.1 }}>{clientNames.firstname}</div>
                       </div>
                       <div style={{ gap: '0mm' }}>
-                        <div style={{ fontSize: '13px', color: '#4b5563', fontWeight: 600, marginBottom: '0.2mm' }}>اسم العائلة</div>
-                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#111827', lineHeight: 1.1 }}>{clientNames.lastname}</div>
+                        <div style={{ fontSize: '13px', color: '#000000', fontWeight: 'bold', marginBottom: '0.2mm' }}>اسم العائلة</div>
+                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#000000', lineHeight: 1.1 }}>{clientNames.lastname}</div>
                       </div>
                       <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', lineHeight: 1.2, marginTop: '0.5mm' }}>
-                        <span style={{ fontWeight: 'bold' }}>رقم التذكرة:</span>
-                        <span style={{ fontWeight: 600 }}>{ticketIdText}</span>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>رقم التذكرة:</span>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>{ticketIdText}</span>
                       </div>
                       <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', lineHeight: 1.2 }}>
-                        <span style={{ fontWeight: 'bold' }}>نوع العملية:</span>
-                        <span style={{ fontWeight: 600 }}>{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>نوع العملية:</span>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>{ticket.operationType === 'milling' ? 'عصر' : 'بيع'}</span>
                       </div>
                       <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', lineHeight: 1.2 }}>
-                        <span style={{ fontWeight: 'bold' }}>التاريخ:</span>
-                        <span style={{ fontWeight: 600 }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>التاريخ:</span>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>{new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}</span>
                       </div>
                     </div>
 
@@ -907,13 +907,13 @@ export function PrintTicketModal({
                       textAlign: 'center',
                       paddingTop: '1mm',
                     }}>
-                      <p style={{ fontSize: '7pt', color: '#374151', margin: 0, lineHeight: 1.2, fontWeight: 500 }}>
+                      <p style={{ fontSize: '7pt', color: '#000000', margin: 0, lineHeight: 1.2, fontWeight: 'bold' }}>
                         🌿 شكراً لثقتكم بنا 🌿
                       </p>
-                      <p style={{ fontSize: '6pt', color: '#4b5563', margin: '0.2mm 0 0 0', lineHeight: 1.2 }}>
+                      <p style={{ fontSize: '6pt', color: '#000000', margin: '0.2mm 0 0 0', lineHeight: 1.2, fontWeight: 'bold' }}>
                         نتمنى لكم تجربة ممتازة معنا
                       </p>
-                      <p style={{ fontSize: '5pt', color: '#6b7280', margin: '0.2mm 0 0 0', lineHeight: 1.2 }}>
+                      <p style={{ fontSize: '5pt', color: '#000000', margin: '0.2mm 0 0 0', lineHeight: 1.2, fontWeight: 'bold' }}>
                         للاستفسار: يرجى الاتصال بنا
                       </p>
                     </div>
@@ -1051,10 +1051,10 @@ export function PrintTicketModal({
                           style={{ height: '6mm', width: '6mm' }}
                         />
                       </div>
-                      <h2 style={{ fontSize: '13px', fontWeight: 'bold', color: '#059669', margin: 0, lineHeight: 1.1, marginBottom: '0.2mm' }}>
+                      <h2 style={{ fontSize: '13px', fontWeight: 'bold', color: '#000000', margin: 0, lineHeight: 1.1, marginBottom: '0.2mm' }}>
                         معصرة الحاج لطفي
                       </h2>
-                      <p style={{ fontSize: '13px', color: '#4b5563', margin: 0, lineHeight: 1.1 }}>
+                      <p style={{ fontSize: '13px', color: '#000000', fontWeight: 'bold', margin: 0, lineHeight: 1.1 }}>
                         إيصال نهائي - {ticket.operationType === 'milling' ? 'عصر' : 'بيع'}
                       </p>
                     </div>
@@ -1068,12 +1068,12 @@ export function PrintTicketModal({
                       gap: '0.5mm',
                     }}>
                       <div style={{ gap: '0mm' }}>
-                        <div style={{ fontSize: '13px', color: '#4b5563', fontWeight: 600, marginBottom: '0.2mm' }}>الاسم الأول</div>
-                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#111827', lineHeight: 1.1 }}>{clientNames.firstname}</div>
+                        <div style={{ fontSize: '13px', color: '#000000', fontWeight: 'bold', marginBottom: '0.2mm' }}>الاسم الأول</div>
+                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#000000', lineHeight: 1.1 }}>{clientNames.firstname}</div>
                       </div>
                       <div style={{ gap: '0mm' }}>
-                        <div style={{ fontSize: '13px', color: '#4b5563', fontWeight: 600, marginBottom: '0.2mm' }}>اسم العائلة</div>
-                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#111827', lineHeight: 1.1 }}>{clientNames.lastname}</div>
+                        <div style={{ fontSize: '13px', color: '#000000', fontWeight: 'bold', marginBottom: '0.2mm' }}>اسم العائلة</div>
+                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#000000', lineHeight: 1.1 }}>{clientNames.lastname}</div>
                       </div>
                       
                       {/* Operation Type Badge */}
@@ -1085,7 +1085,7 @@ export function PrintTicketModal({
                         fontSize: '13px',
                         fontWeight: 'bold',
                         backgroundColor: ticket.operationType === 'sale' ? '#f3e8ff' : '#d1fae5',
-                        color: ticket.operationType === 'sale' ? '#6b21a8' : '#065f46',
+                        color: '#000000',
                       }}>
                         {ticket.operationType === 'milling' ? '🫒 عملية عصر' : '💰 عملية بيع'}
                       </div>
@@ -1101,8 +1101,8 @@ export function PrintTicketModal({
                         lineHeight: 1.2,
                         fontSize: '13px',
                       }}>
-                        <span style={{ fontWeight: 'bold' }}>الوزن الصافي:</span>
-                        <span style={{ color: '#059669', fontWeight: 'bold' }}>{safeNetWeight} كلغ</span>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>الوزن الصافي:</span>
+                        <span style={{ color: '#000000', fontWeight: 'bold' }}>{safeNetWeight} كلغ</span>
                       </div>
 
                       {/* Total */}
@@ -1115,8 +1115,8 @@ export function PrintTicketModal({
                         lineHeight: 1.2,
                         fontSize: '13px',
                       }}>
-                        <span style={{ fontWeight: 'bold' }}>المبلغ الإجمالي:</span>
-                        <span style={{ color: '#2563eb', fontWeight: 'bold' }}>
+                        <span style={{ fontWeight: 'bold', color: '#000000' }}>المبلغ الإجمالي:</span>
+                        <span style={{ color: '#000000', fontWeight: 'bold' }}>
                           {derivedTotalAmount > 0 
                             ? `${derivedTotalAmount.toFixed(3)} د.ت`
                             : computedTotal > 0 
@@ -1133,7 +1133,7 @@ export function PrintTicketModal({
                         fontSize: '13px',
                         fontWeight: 'bold',
                         backgroundColor: isPaid ? '#dcfce7' : '#fed7aa',
-                        color: isPaid ? '#166534' : '#9a3412',
+                        color: '#000000',
                       }}>
                         {isPaid ? '✅ مدفوع' : '⏳ غير مدفوع'}
                       </div>
@@ -1157,13 +1157,13 @@ export function PrintTicketModal({
                       textAlign: 'center',
                       paddingTop: '1mm',
                     }}>
-                      <p style={{ fontSize: '13px', color: '#374151', margin: 0, lineHeight: 1.2, fontWeight: 500 }}>
+                      <p style={{ fontSize: '13px', color: '#000000', margin: 0, lineHeight: 1.2, fontWeight: 'bold' }}>
                         🌿 شكراً لثقتكم بنا 🌿
                       </p>
-                      <p style={{ fontSize: '13px', color: '#4b5563', margin: '0.2mm 0 0 0', lineHeight: 1.2 }}>
+                      <p style={{ fontSize: '13px', color: '#000000', margin: '0.2mm 0 0 0', lineHeight: 1.2, fontWeight: 'bold' }}>
                         نتمنى لكم تجربة ممتازة معنا
                       </p>
-                      <p style={{ fontSize: '13px', color: '#6b7280', margin: '0.2mm 0 0 0', lineHeight: 1.2 }}>
+                      <p style={{ fontSize: '13px', color: '#000000', margin: '0.2mm 0 0 0', lineHeight: 1.2, fontWeight: 'bold' }}>
                         للاستفسار: يرجى الاتصال بنا
                       </p>
                     </div>
