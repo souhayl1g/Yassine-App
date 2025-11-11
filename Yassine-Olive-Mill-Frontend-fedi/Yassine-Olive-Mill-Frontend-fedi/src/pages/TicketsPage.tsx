@@ -1145,7 +1145,7 @@ export function TicketsPage() {
                 </div>
               </div>
 
-              {/* Show calculated net weight and total amount */}
+              {/*jhdhf Show calculated net weight and total amount */}
               {editModalTicket.weightIn && (
                 <>
                   <div className="p-3 bg-muted/50 rounded-lg">
