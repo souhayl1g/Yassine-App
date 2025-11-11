@@ -27,11 +27,15 @@ app.use(cors({
     'http://192.168.1.22:5173',  // Add your actual frontend IP
     'http://127.0.0.1:5173',
     /^https:\/\/.*\.vercel\.app$/,  // Allow all Vercel preview deployments
-    'https://yassine-olive-mill.vercel.app'  // Add your actual Vercel domain
+    'https://yassine-olive-mill.vercel.app',  // Add your actual Vercel domain
+    'https://yassine-app.vercel.app',  // Production Vercel domain
+    /^https:\/\/.*\.ngrok-free\.dev$/,  // Allow all ngrok tunnels
+    'https://preneuralgic-overexuberantly-marjorie.ngrok-free.dev'  // Current ngrok URL
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-skip-credentials', 'ngrok-skip-browser-warning'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
   optionsSuccessStatus: 200
 }));
 
