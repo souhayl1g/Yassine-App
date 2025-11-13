@@ -15,15 +15,28 @@
     "lastname": "Last Name",
     "phone": "Phone Number",
     "confirmPassword": "Confirm Password",
-    "role": "Role"
+    "role": "Role",
+    "selectRole": "Select Role",
+    "roles": {
+      "admin": "Admin",
+      "operator": "Operator",
+      "scanner": "Scanner",
+      "employee": "Employee"
+    }
   },
   "nav": {
+    "dailyWork": "Daily Work",
     "dashboard": "Dashboard",
     "clients": "Clients",
     "tickets": "Tickets",
     "containers": "Oil Containers",
     "sessions": "Work Sessions",
     "qr": "QR Scanner",
+    "scanner": "Ticket Scanner",
+    "operatorScanner": "Operator Scanner",
+    "employeeScanner": "Room Scanner",
+    "batchManagement": "Batch Management",
+    "pressingDisplay": "Pressing Room Display",
     "rooms": "Pressing Rooms",
     "history": "History",
     "settings": "Settings",
@@ -42,6 +55,12 @@
     "recentActivity": "Recent Activity",
     "noActivity": "No recent activity",
     "kg": "kg"
+  },
+  "dailyWork": {
+    "title": "Daily Work",
+    "subtitle": "Simplified page for managing daily mill operations",
+    "startOperations": "Start Operations",
+    "ofTheDay": "of the day"
   },
   "actions": {
     "new": "New",
@@ -206,6 +225,7 @@
     "minLength": "Minimum {{min}} characters",
     "maxLength": "Maximum {{max}} characters",
     "passwordMismatch": "Passwords do not match",
+    "roleRequired": "Please select a user role",
     "invalidPhone": "Invalid phone number"
   }
 }

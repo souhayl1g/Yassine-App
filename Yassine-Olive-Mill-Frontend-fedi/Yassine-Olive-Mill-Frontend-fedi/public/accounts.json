@@ -1,0 +1,26 @@
+[
+    {
+        "name": "Admin User",
+        "username": "admin@gmail.com",
+        "password": "adminadmin",
+        "role": "admin"
+    },
+    {
+        "name": "Operator User",
+        "username": "operator@gmail.com",
+        "password": "operatoroperator",
+        "role": "operator"
+    },
+    {
+        "name": "Scanner User",
+        "username": "scanner@gmail.com",
+        "password": "scannerscanner",
+        "role": "scanner"
+    },
+    {
+        "name": "queuer User",
+        "username": "queuer@gmail.com",
+        "password": "queuerqueuer",
+        "role": "queuer"
+    }
+]

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+// History page for olive mill management
 import { OliveCard, OliveCardHeader, OliveCardContent, OliveCardTitle } from '@/components/ui/olive-card';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Input } from '@/components/ui/input';

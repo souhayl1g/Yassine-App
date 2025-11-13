@@ -22,8 +22,12 @@ const containerController = {
       const containerIds = containers.map((c) => c.id);
       const latestByContainer = {};
       if (containerIds.length > 0) {
+        // Exclude sold contents when calculating current weight
         const contents = await ContainerContent.findAll({
-          where: { containerId: containerIds },
+          where: { 
+            containerId: containerIds,
+            sold: false  // Only consider unsold contents
+          },
           order: [["containerId", "ASC"], ["recorded_at", "DESC"]],
         });
         for (const c of contents) {
@@ -70,9 +74,12 @@ const containerController = {
       const container = await Container.findByPk(id);
       if (!container) return res.status(404).json({ error: 'Container not found' });
 
-      // find latest content
+      // find latest unsold content
       const latest = await ContainerContent.findOne({
-        where: { containerId: id },
+        where: { 
+          containerId: id,
+          sold: false  // Only consider unsold contents
+        },
         order: [["recorded_at", "DESC"]],
       });
       const currentWeight = latest ? latest.total_weight : 0;
@@ -96,6 +103,158 @@ const containerController = {
     } catch (error) {
       console.error('Container transaction error:', error);
       res.status(400).json({ error: error.message });
+    }
+  },
+
+  // GET /api/containers/:id/contents - Get all content records for a container
+  getContainerContents: async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: 'Invalid container ID' });
+
+      const container = await Container.findByPk(id);
+      if (!container) return res.status(404).json({ error: 'Container not found' });
+
+      // By default, exclude sold contents. Allow includeSold query param to show all
+      const includeSold = req.query.includeSold === 'true';
+      const whereClause = { containerId: id };
+      if (!includeSold) {
+        whereClause.sold = false;
+      }
+
+      const contents = await ContainerContent.findAll({
+        where: whereClause,
+        order: [['recorded_at', 'DESC']]
+      });
+
+      res.json(contents);
+    } catch (error) {
+      console.error('Get container contents error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // POST /api/containers/:id/contents - Create new content record
+  createContainerContent: async (req, res) => {
+    try {
+      const containerId = parseInt(req.params.id);
+      if (isNaN(containerId)) return res.status(400).json({ error: 'Invalid container ID' });
+
+      const { total_weight, value, currency } = req.body;
+      if (total_weight === undefined || total_weight === null) {
+        return res.status(400).json({ error: 'total_weight is required' });
+      }
+
+      const container = await Container.findByPk(containerId);
+      if (!container) return res.status(404).json({ error: 'Container not found' });
+
+      const content = await ContainerContent.create({
+        containerId,
+        total_weight: parseInt(total_weight),
+        value: value ? parseInt(value) : null,
+        currency: currency || null,
+        recorded_at: new Date()
+      });
+
+      res.status(201).json(content);
+    } catch (error) {
+      console.error('Create container content error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  },
+
+  // GET /api/containers/:containerId/contents/:id - Get specific content record
+  getContainerContentById: async (req, res) => {
+    try {
+      const containerId = parseInt(req.params.containerId);
+      const contentId = parseInt(req.params.id);
+      
+      if (isNaN(containerId)) return res.status(400).json({ error: 'Invalid container ID' });
+      if (isNaN(contentId)) return res.status(400).json({ error: 'Invalid content ID' });
+
+      const content = await ContainerContent.findOne({
+        where: { 
+          id: contentId,
+          containerId: containerId 
+        },
+        include: [
+          { model: Container, as: 'container' }
+        ]
+      });
+
+      if (!content) return res.status(404).json({ error: 'Container content not found' });
+
+      res.json(content);
+    } catch (error) {
+      console.error('Get container content by ID error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // PUT /api/containers/:containerId/contents/:id - Update content record
+  updateContainerContent: async (req, res) => {
+    try {
+      const containerId = parseInt(req.params.containerId);
+      const contentId = parseInt(req.params.id);
+      
+      if (isNaN(containerId)) return res.status(400).json({ error: 'Invalid container ID' });
+      if (isNaN(contentId)) return res.status(400).json({ error: 'Invalid content ID' });
+
+      const { total_weight, value, currency } = req.body;
+
+      const content = await ContainerContent.findOne({
+        where: { 
+          id: contentId,
+          containerId: containerId 
+        }
+      });
+
+      if (!content) return res.status(404).json({ error: 'Container content not found' });
+
+      const updateData = {};
+      if (total_weight !== undefined) updateData.total_weight = parseInt(total_weight);
+      if (value !== undefined) updateData.value = value ? parseInt(value) : null;
+      if (currency !== undefined) updateData.currency = currency || null;
+
+      await content.update(updateData);
+
+      const updatedContent = await ContainerContent.findByPk(contentId, {
+        include: [
+          { model: Container, as: 'container' }
+        ]
+      });
+
+      res.json(updatedContent);
+    } catch (error) {
+      console.error('Update container content error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  },
+
+  // DELETE /api/containers/:containerId/contents/:id - Delete content record
+  deleteContainerContent: async (req, res) => {
+    try {
+      const containerId = parseInt(req.params.containerId);
+      const contentId = parseInt(req.params.id);
+      
+      if (isNaN(containerId)) return res.status(400).json({ error: 'Invalid container ID' });
+      if (isNaN(contentId)) return res.status(400).json({ error: 'Invalid content ID' });
+
+      const content = await ContainerContent.findOne({
+        where: { 
+          id: contentId,
+          containerId: containerId 
+        }
+      });
+
+      if (!content) return res.status(404).json({ error: 'Container content not found' });
+
+      await content.destroy();
+
+      res.status(204).send();
+    } catch (error) {
+      console.error('Delete container content error:', error);
+      res.status(500).json({ error: error.message });
     }
   }
 };

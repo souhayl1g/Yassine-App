@@ -1,0 +1,394 @@
+
+import React, { useState, useEffect, useRef } from 'react';
+import { X, RefreshCw, Minimize2, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { OliveButton } from '@/components/ui/olive-button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Ticket, EditTicketForm, Price } from '@/types/daily-work';
+
+interface EditTicketModalProps {
+  isOpen: boolean;
+  ticket: Ticket | null;
+  editForm: EditTicketForm;
+  setEditForm: React.Dispatch<React.SetStateAction<EditTicketForm>>;
+  currentPrices: Price | null;
+  loadingPrices: boolean;
+  isSaving: boolean;
+  onSave: () => void;
+  onMinimize: (ticket: Ticket) => void;
+  onShowDetails: (ticket: Ticket) => void;
+  onClose: () => void;
+  calculateEditNetWeight: () => number;
+  calculateEditTotalAmount: (operationType?: string) => Promise<number>;
+  calculateEditTotalAmountWithDetails: (operationType?: string) => Promise<{
+    amount: number;
+    calculationMethod: string;
+    containerWeight?: number;
+  }>;
+  isMinimumPriceApplied: (operationType?: string) => Promise<boolean>;
+  isFinishingOperation?: boolean; // New prop to indicate if this is a finishing operation
+}
+
+export function EditTicketModal({
+  isOpen,
+  ticket,
+  editForm,
+  setEditForm,
+  currentPrices,
+  loadingPrices,
+  isSaving,
+  onSave,
+  onMinimize,
+  onShowDetails,
+  onClose,
+  calculateEditNetWeight,
+  calculateEditTotalAmount,
+  calculateEditTotalAmountWithDetails,
+  isMinimumPriceApplied,
+  isFinishingOperation = false,
+}: EditTicketModalProps) {
+  const [totalAmount, setTotalAmount] = useState<number>(0);
+  const [isMinimumApplied, setIsMinimumApplied] = useState<boolean>(false);
+  const [calculationLoading, setCalculationLoading] = useState<boolean>(false);
+  const lastAutoUpdatedAmount = useRef<number>(0);
+
+  // Check if the form is valid for saving
+  const isFormValid = () => {
+    // Allow saving even without numberOfBoxes specified
+    return true;
+  };
+
+  // Update calculations when form changes
+  useEffect(() => {
+    if (ticket?.operationType) {
+      setCalculationLoading(true);
+      Promise.all([
+        calculateEditTotalAmount(ticket.operationType),
+        isMinimumPriceApplied(ticket.operationType)
+      ]).then(([amount, isMinimum]) => {
+        setTotalAmount(amount);
+        setIsMinimumApplied(isMinimum);
+        setCalculationLoading(false);
+      }).catch(() => {
+        setCalculationLoading(false);
+      });
+    }
+  }, [editForm.weightOut, editForm.numberOfBoxes, editForm.taux, ticket?.operationType, calculateEditTotalAmount, isMinimumPriceApplied]);
+
+  // Auto-update payment amount when isPaid changes or total amount changes
+  useEffect(() => {
+    if (editForm.isPaid && 
+        (!editForm.paymentAmount || parseFloat(editForm.paymentAmount) === 0) && 
+        totalAmount > 0 && 
+        lastAutoUpdatedAmount.current !== totalAmount) {
+      setEditForm(prev => ({ ...prev, paymentAmount: totalAmount.toFixed(2) }));
+      lastAutoUpdatedAmount.current = totalAmount;
+    }
+  }, [editForm.isPaid, totalAmount]);
+
+  // Initialize calculations when modal opens
+  useEffect(() => {
+    if (isOpen && ticket?.operationType) {
+      lastAutoUpdatedAmount.current = 0; // Reset the ref when modal opens
+      setCalculationLoading(true);
+      Promise.all([
+        calculateEditTotalAmount(ticket.operationType),
+        isMinimumPriceApplied(ticket.operationType)
+      ]).then(([amount, isMinimum]) => {
+        setTotalAmount(amount);
+        setIsMinimumApplied(isMinimum);
+        setCalculationLoading(false);
+      }).catch(() => {
+        setCalculationLoading(false);
+      });
+    }
+  }, [isOpen, ticket?.id, calculateEditTotalAmount, isMinimumPriceApplied]);
+
+  if (!isOpen || !ticket) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white dark:bg-gray-900 text-foreground rounded-lg p-6 w-full max-w-lg shadow-lg relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button 
+          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 z-10" 
+          onClick={onClose}
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="flex items-center justify-between mb-6 pr-8">
+          <h2 className="text-2xl font-bold text-primary">تعديل التذكرة #{ticket.ticketNumber}</h2>
+          
+          {/* Operation type badge - inline with header */}
+          <div className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium ${
+            ticket?.operationType === 'sale' 
+              ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border border-orange-200 dark:border-orange-800'
+              : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-800'
+          }`}>
+            {ticket?.operationType === 'sale' ? '🛒 عملية بيع' : '🫒 عملية عصر'}
+          </div>
+        </div>
+
+        {/* Static ticket info */}
+        <div className="mb-6 p-4 bg-muted/20 rounded-lg">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="text-muted-foreground">رقم التذكرة: <span className="text-foreground font-medium">#{ticket.ticketNumber}</span></div>
+            <div className="text-muted-foreground">اسم العميل: <span className="text-foreground font-medium">{ticket.clientName}</span></div>
+            <div className="text-muted-foreground">الوزن الداخل: <span className="text-foreground font-medium">{ticket.weightIn} كيلو</span></div>
+            <div className="text-muted-foreground">تاريخ الاستلام: <span className="text-foreground font-medium">
+              {new Date(ticket.dateReceived).toLocaleDateString('ar-TN')}
+            </span></div>
+          </div>
+        </div>
+
+        {/* Editable fields */}
+        <div className="mb-6">
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-sm">
+                <span className="block mb-2">الوزن الخارج (كيلو)</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editForm.weightOut}
+                  onChange={(e) => setEditForm((p) => ({ ...p, weightOut: e.target.value }))}
+                  placeholder="أدخل الوزن الخارج"
+                  className="w-full"
+                />
+              </label>
+            </div>
+            <div>
+              <label className="text-sm">
+                <span className="block mb-2">عدد الصناديق</span>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editForm.numberOfBoxes}
+                  onChange={(e) => setEditForm((p) => ({ ...p, numberOfBoxes: e.target.value }))}
+                  placeholder="0"
+                  className="w-full"
+                  disabled={isFinishingOperation}
+                />
+                {isFinishingOperation && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    لا يمكن تعديل عدد الصناديق أثناء إكمال العملية. انتظر حتى يقوم المسؤول بمسح وإدخال العدد.
+                  </p>
+                )}
+              </label>
+            </div>
+          </div>
+          
+          {/* Taux field for sale operations */}
+          {ticket?.operationType === 'sale' && (
+            <div className="mb-2">
+              <label className="text-sm">
+                <span className="block mb-2">معدل الاستخراج (التوكس) - اختياري</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={editForm.taux}
+                  onChange={(e) => setEditForm((p) => ({ ...p, taux: e.target.value }))}
+                  placeholder="أدخل نسبة استخراج الزيت (مثال: 18.5)"
+                  className="w-full"
+                />
+              </label>
+            </div>
+          )}
+          
+          {ticket?.operationType === 'sale' && (
+            <div className="text-xs text-muted-foreground">
+              إذا تم إدخال معدل الاستخراج، سيتم حساب كمية الزيت ثم ضربها في سعر شراء الزيتون. وإلا سيتم حساب السعر مباشرة على الوزن الصافي.
+            </div>
+          )}
+        </div>
+
+        {/* Display current pricing information */}
+        <div className="mb-4">
+          <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded">
+            <div className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2">السعر المستخدم للحساب:</div>
+            {loadingPrices ? (
+              <div className="flex items-center text-blue-700 dark:text-blue-300 text-sm">
+                <RefreshCw className="h-3 w-3 animate-spin mr-2" />
+                جاري تحميل الأسعار...
+              </div>
+            ) : currentPrices ? (
+              <div>
+                {ticket?.operationType === 'sale' ? (
+                  currentPrices.olive_buying_price_per_kg > 0 ? (
+                    <p className="text-sm text-olive-600">
+                      سعر شراء الزيتون: {currentPrices.olive_buying_price_per_kg} دينار/كيلو
+                    </p>
+                  ) : (
+                    <div className="text-red-700 dark:text-red-400 text-sm">
+                      لا يوجد سعر شراء الزيتون محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                    </div>
+                  )
+                ) : (
+                  currentPrices.milling_price_per_kg > 0 ? (
+                    <div className="text-base font-bold text-blue-700 dark:text-blue-300">
+                      سعر العصر: {currentPrices.milling_price_per_kg} دينار/كيلو
+                    </div>
+                  ) : (
+                    <div className="text-red-700 dark:text-red-400 text-sm">
+                      لا يوجد سعر العصر محدد في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+                    </div>
+                  )
+                )}
+              </div>
+            ) : (
+              <div className="text-red-700 dark:text-red-400 text-sm">
+                لا توجد أسعار محددة في النظام. يرجى تحديد الأسعار في صفحة الإعدادات.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Calculated values */}
+        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+          <div className="p-3 rounded bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+            <div className="text-blue-800 dark:text-blue-200 font-medium">الوزن الصافي</div>
+            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+              {calculateEditNetWeight().toFixed(2)} كيلو
+            </div>
+          </div>
+          <div className="p-3 rounded bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+            <div className="text-green-800 dark:text-green-200 font-medium">المبلغ الإجمالي</div>
+            <div className="text-lg font-bold text-green-600 dark:text-green-400">
+              {calculationLoading ? (
+                <RefreshCw className="h-4 w-4 animate-spin inline" />
+              ) : (
+                <>
+                  {totalAmount.toFixed(2)} دينار
+                  {isMinimumApplied && (
+                    <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      تم تطبيق الحد الأدنى للسعر (200 كيلو × سعر الوحدة)
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Section */}
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <h3 className="text-sm font-semibold mb-4 text-gray-800 dark:text-gray-200">معلومات الدفع</h3>
+          
+          {/* Payment Status Toggle (UI library) */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-sm font-medium">حالة الدفع</Label>
+              <ToggleGroup
+                type="single"
+                value={editForm.isPaid ? 'paid' : 'unpaid'}
+                onValueChange={(val) => {
+                  if (!val) return;
+                  const willBePaid = val === 'paid';
+                  setEditForm((p) => ({
+                    ...p,
+                    isPaid: willBePaid,
+                    paymentAmount: willBePaid
+                      ? (p.paymentAmount || totalAmount.toFixed(2))
+                      : '',
+                  }));
+                }}
+                className="rounded-full border border-muted bg-muted/50"
+              >
+                <ToggleGroupItem
+                  value="unpaid"
+                  className="data-[state=on]:bg-red-600 data-[state=on]:text-white text-muted-foreground px-4 py-2 rounded-full"
+                  aria-label="غير مدفوع"
+                >
+                  <span className="inline-flex items-center gap-2"><XCircle className="h-4 w-4" /> غير مدفوع</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="paid"
+                  className="data-[state=on]:bg-emerald-600 data-[state=on]:text-white text-muted-foreground px-4 py-2 rounded-full"
+                  aria-label="مدفوع"
+                >
+                  <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> مدفوع</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </div>
+
+          {/* Payment Details - Only show if paid */}
+          {editForm.isPaid && (
+            <div className="space-y-4">
+              {/* Payment Amount */}
+              <div>
+                <Label htmlFor="paymentAmount" className="text-sm font-medium">
+                  المبلغ المدفوع (دينار)
+                </Label>
+                <Input
+                  id="paymentAmount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editForm.paymentAmount}
+                  onChange={(e) => setEditForm((p) => ({ ...p, paymentAmount: e.target.value }))}
+                  placeholder="أدخل المبلغ المدفوع"
+                  className="w-full mt-1"
+                />
+              </div>
+
+              {/* Payment Method is always cash - no need for selection */}
+              <div className="text-sm text-muted-foreground">
+                طريقة الدفع: نقدي
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          {/* Primary Action */}
+          <OliveButton 
+            onClick={onSave} 
+            disabled={isSaving || !isFormValid()}
+            className="w-full"
+            size="lg"
+          >
+            {isSaving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
+          </OliveButton>
+          
+          {/* Secondary Actions */}
+          <div className="grid grid-cols-3 gap-2">
+            <OliveButton 
+              variant="outline" 
+              onClick={() => onMinimize(ticket)}
+              size="sm"
+            >
+              <Minimize2 className="h-4 w-4 mr-1" />
+              تصغير
+            </OliveButton>
+            <OliveButton 
+              variant="outline"
+              onClick={() => onShowDetails(ticket)}
+              size="sm"
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              تفاصيل
+            </OliveButton>
+            <OliveButton 
+              variant="outline" 
+              onClick={onClose}
+              size="sm"
+            >
+              إلغاء
+            </OliveButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -15,6 +15,14 @@ export default (sequelize) => {
         key: 'id'
       }
     },
+    priceId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'prices',
+        key: 'id'
+      }
+    },
     date_received: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -30,16 +38,107 @@ export default (sequelize) => {
     },
     net_weight: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: true
     },
     number_of_boxes: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: true
     },
     status: {
-      type: DataTypes.ENUM('received', 'in_process', 'completed'),
+      type: DataTypes.ENUM('received', 'in_queue', 'in_process', 'completed'),
       allowNull: false,
       defaultValue: 'received'
+    },
+
+    operation_type: {
+      type: DataTypes.ENUM('milling', 'sale'),
+      allowNull: true,
+      defaultValue: 'milling'
+    },
+
+    pressing_room_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'pressing_rooms',
+        key: 'id'
+      }
+    },
+    session_start_time: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    estimated_time: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 60,
+      comment: 'Estimated processing time in minutes'
+    },
+    ticket_number: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    bidons_brought: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Number of bidons brought by client (entered in scanner user page)'
+    },
+    number_of_bidons: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Final number of bidons produced (entered in employee scanning page)'
+    },
+    boxes_loaded_to_pressing: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Number of boxes loaded into pressing (cannot exceed number_of_boxes)'
+    },
+    boxes_committed_to_queue: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Number of boxes committed to pressing queue (reserved but not yet loaded)'
+    },
+    taux: {
+      type: DataTypes.DECIMAL(5, 2),
+      allowNull: true,
+      comment: 'Oil extraction percentage (taux) used for sale operations calculations'
+    },
+    // Payment tracking fields
+    unit_price: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: 'Unit price per kg for calculations'
+    },
+    total_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: 'Total amount due for this batch'
+    },
+    is_paid: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Whether this batch has been fully paid'
+    },
+    payment_method: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'cash',
+      comment: 'Method used for payment - defaults to cash'
+    },
+    payment_reference: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Payment reference number or transaction ID'
+    },
+    date_paid: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Date when payment was completed'
     }
   }, {
     tableName: 'batches',
@@ -48,9 +147,13 @@ export default (sequelize) => {
 
   Batch.associate = (models) => {
     Batch.belongsTo(models.Client, { foreignKey: 'clientId', as: 'client' });
-    Batch.hasMany(models.ProcessingDecision, { foreignKey: 'batchId', as: 'processingDecisions' });
-    Batch.hasMany(models.OilBatch, { foreignKey: 'batchId', as: 'oilBatches' });
-    Batch.hasMany(models.Invoice, { foreignKey: 'batchId', as: 'invoices' });
+    Batch.belongsTo(models.Price, { foreignKey: 'priceId', as: 'price' });
+    Batch.belongsTo(models.PressingRoom, { foreignKey: 'pressing_room_id', as: 'pressingRoom' });
+    Batch.hasMany(models.OilBatch, { foreignKey: 'batchId', as: 'oilBatches', onDelete: 'CASCADE' });
+    Batch.hasMany(models.Invoice, { foreignKey: 'batchId', as: 'invoices', onDelete: 'CASCADE' });
+    Batch.hasMany(models.PressingSession, { foreignKey: 'batch_id', as: 'pressingSessions', onDelete: 'CASCADE' });
+    Batch.hasMany(models.BatchLoading, { foreignKey: 'batchId', as: 'batchLoadings', onDelete: 'CASCADE' });
+    Batch.hasMany(models.PressingQueue, { foreignKey: 'batch_id', as: 'pressingQueueItems', onDelete: 'CASCADE' });
   };
 
   return Batch;

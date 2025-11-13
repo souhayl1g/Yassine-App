@@ -18,21 +18,32 @@
     "role": "الدور",
     "selectRole": "اختر الدور",
     "roles": {
-      "admin": "مدير",
-      "operator": "مشغل",
-      "scanner": "ماسح"
+      "admin": "مدير النظام",
+      "operator": "مدير",
+      "scanner": "ماسح",
+      "employee": "موظف",
+      "queuer" :"مشرف الطابور"
     }
   },
   "nav": {
+    "dailyWork": "العمل اليومي",
     "dashboard": "لوحة التحكم",
     "clients": "العملاء",
     "tickets": "التذاكر",
+    "payments": "الدفعات",
     "containers": "خزانات الزيت",
     "sessions": "جلسات العمل",
     "qr": "مسح QR",
+    "scanner": "ماسح التذاكر",
+    "queuerScanner": "ماسح قائمة الانتظار",
+    "operatorScanner": "ماسح المشغل",
+    "employeeScanner": "ماسح الغرف",
+    "batchManagement": "إدارة الدفعات",
+    "pressingDisplay": "شاشة غرف العصر",
     "rooms": "غرف العصر",
     "history": "سجل النظام",
     "settings": "الإعدادات",
+    "userManagement": "إدارة المستخدمين",
     "logout": "تسجيل الخروج"
   },
   "dashboard": {
@@ -42,12 +53,23 @@
     "currentBoxes": "صناديق حالية", 
     "activeRooms": "غرف نشطة",
     "quickActions": "إجراءات سريعة",
+    "dailyWork": "العمل اليومي",
     "newTicket": "تذكرة جديدة",
     "newClient": "عميل جديد",
+    "pressingRooms": "غرف العصر",
+    "containers": "خزانات الزيت",
+    "settings": "الإعدادات",
     "scanQR": "مسح QR",
     "recentActivity": "النشاط الأخير",
     "noActivity": "لا يوجد نشاط حديث",
+    "ticketsToday": "تذاكر اليوم",
     "kg": "كيلو"
+  },
+  "dailyWork": {
+    "title": "العمل اليومي",
+    "subtitle": "صفحة مبسطة لإدارة العمليات اليومية للمعصرة",
+    "startOperations": "بدء العمليات",
+    "ofTheDay": "من اليوم"
   },
   "actions": {
     "new": "جديد",

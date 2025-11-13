@@ -4,7 +4,7 @@ export interface User {
   firstname: string;
   lastname: string;
   phone?: string;
-  role: 'admin' | 'operator' | 'scanner' | 'manager' | 'employee' | string;
+  role: 'admin' | 'operator' | 'scanner' | 'employee' | 'queuer' | string;
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -24,7 +24,7 @@ export interface SignupData {
   firstname: string;
   lastname: string;
   phone?: string;
-  role?: 'admin' | 'operator' | 'scanner';
+  role?: 'admin' | 'operator' | 'scanner' | 'employee' | 'queuer';
 }
 
 export interface LoginCredentials {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { OliveCard, OliveCardHeader, OliveCardContent, OliveCardTitle } from '@/components/ui/olive-card';
@@ -20,9 +20,13 @@ import {
   Save,
   Plus,
   Edit2,
-  Trash2
+  Trash2,
+  Loader,
+  QrCode
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { api } from '@/integrations/api/client';
+import { useQRScannerMode } from '@/hooks/useQRScannerMode';
 
 interface UserProfile {
   firstname: string;
@@ -41,9 +45,9 @@ interface CompanySettings {
 
 interface PricingSettings {
   millingPricePerKg: number;
-  oilClientSellingPricePerKg: number;
   oilExportSellingPricePerKg: number;
   oliveBuyingPricePerKg: number;
+  emptyBidonPrice: number;
   currency: string;
 }
 
@@ -51,6 +55,7 @@ export function SettingsPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { scannerMode, setScannerMode, isDeviceMode } = useQRScannerMode();
 
   const [userProfile, setUserProfile] = useState<UserProfile>({
     firstname: user?.firstname || '',
@@ -67,10 +72,10 @@ export function SettingsPage() {
   });
 
   const [pricingSettings, setPricingSettings] = useState<PricingSettings>({
-    millingPricePerKg: 5.0,
-    oilClientSellingPricePerKg: 15.5,
-    oilExportSellingPricePerKg: 18.0,
-    oliveBuyingPricePerKg: 3.5,
+    millingPricePerKg: 0,
+    oilExportSellingPricePerKg: 0,
+    oliveBuyingPricePerKg: 0,
+    emptyBidonPrice: 0,
     currency: 'TND',
   });
 
@@ -81,6 +86,58 @@ export function SettingsPage() {
     print80mmFormat: false,
     includeCompanyLogo: true,
   });
+
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  const [savingPrices, setSavingPrices] = useState(false);
+
+  // Load current prices on component mount
+  useEffect(() => {
+    loadCurrentPrices();
+  }, []);
+
+  const loadCurrentPrices = async () => {
+    try {
+      setLoadingPrices(true);
+      const response = await api.get('/prices?latest=true');
+      
+      // Handle the response data properly
+      if (response && typeof response === 'object' && response !== null) {
+        setPricingSettings({
+          millingPricePerKg: (response as any).milling_price_per_kg || 0,
+          oilExportSellingPricePerKg: (response as any).oil_export_selling_price_per_kg || 0,
+          oliveBuyingPricePerKg: (response as any).olive_buying_price_per_kg || 0,
+          emptyBidonPrice: (response as any).empty_bidon_price || 0,
+          currency: 'TND',
+        });
+      } else {
+        // If no response or null, set all to 0
+        setPricingSettings({
+          millingPricePerKg: 0,
+          oilExportSellingPricePerKg: 0,
+          oliveBuyingPricePerKg: 0,
+          emptyBidonPrice: 0,
+          currency: 'TND',
+        });
+      }
+    } catch (error) {
+      console.error('Error loading prices:', error);
+      // Set all prices to 0 if fetch fails
+      setPricingSettings({
+        millingPricePerKg: 0,
+        oilExportSellingPricePerKg: 0,
+        oliveBuyingPricePerKg: 0,
+        emptyBidonPrice: 0,
+        currency: 'TND',
+      });
+      toast({
+        title: 'خطأ',
+        description: 'فشل في تحميل الأسعار الحالية، تم تعيين القيم الافتراضية',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingPrices(false);
+    }
+  };
 
   const handleSaveProfile = () => {
     toast({
@@ -96,11 +153,54 @@ export function SettingsPage() {
     });
   };
 
-  const handleSavePricing = () => {
-    toast({
-      title: t('common.success'),
-      description: 'تم حفظ إعدادات التسعير بنجاح',
-    });
+  const handleSavePricing = async () => {
+    try {
+      setSavingPrices(true);
+      
+      // Validate that at least one price is set
+      const hasValidPrice = pricingSettings.millingPricePerKg > 0 || 
+                           pricingSettings.oilExportSellingPricePerKg > 0 || 
+                           pricingSettings.oliveBuyingPricePerKg > 0 ||
+                           pricingSettings.emptyBidonPrice > 0;
+
+      if (!hasValidPrice) {
+        toast({
+          title: 'تنبيه',
+          description: 'يرجى إدخال سعر واحد على الأقل',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Create new price record with current settings
+      const priceData = {
+        milling_price_per_kg: pricingSettings.millingPricePerKg,
+
+        oil_export_selling_price_per_kg: pricingSettings.oilExportSellingPricePerKg,
+        olive_buying_price_per_kg: pricingSettings.oliveBuyingPricePerKg,
+        empty_bidon_price: pricingSettings.emptyBidonPrice,
+      };
+
+      await api.post('/prices', priceData);
+      
+      toast({
+        title: t('common.success'),
+        description: 'تم حفظ إعدادات التسعير بنجاح وإنشاء سجل أسعار جديد',
+      });
+
+      // Reload prices to get the latest data
+      await loadCurrentPrices();
+    } catch (error: any) {
+      console.error('Error saving prices:', error);
+      const errorMessage = error?.message || 'فشل في حفظ إعدادات التسعير';
+      toast({
+        title: 'خطأ',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingPrices(false);
+    }
   };
 
   const handleSavePrint = () => {
@@ -137,7 +237,7 @@ export function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             الملف الشخصي
@@ -149,6 +249,10 @@ export function SettingsPage() {
           <TabsTrigger value="company" className="gap-2">
             <Building className="h-4 w-4" />
             الشركة
+          </TabsTrigger>
+          <TabsTrigger value="scanner" className="gap-2">
+            <QrCode className="h-4 w-4" />
+            المسح الضوئي
           </TabsTrigger>
           <TabsTrigger value="print" className="gap-2">
             <Printer className="h-4 w-4" />
@@ -228,86 +332,119 @@ export function SettingsPage() {
               <OliveCardTitle className="flex items-center gap-2">
                 <DollarSign className="h-5 w-5" />
                 {t('settings.pricing')}
+                {loadingPrices && <Loader className="h-4 w-4 animate-spin" />}
               </OliveCardTitle>
             </OliveCardHeader>
             <OliveCardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>سعر العصر لكل كيلو</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={pricingSettings.millingPricePerKg}
-                    onChange={(e) => setPricingSettings({
-                      ...pricingSettings, 
-                      millingPricePerKg: parseFloat(e.target.value) || 0
-                    })}
-                    className="olive-input"
-                  />
+              {loadingPrices ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader className="h-8 w-8 animate-spin" />
+                  <span className="mr-2">جاري تحميل الأسعار الحالية...</span>
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>سعر العصر لكل كيلو</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={pricingSettings.millingPricePerKg}
+                        onChange={(e) => setPricingSettings({
+                          ...pricingSettings, 
+                          millingPricePerKg: parseFloat(e.target.value) || 0
+                        })}
+                        className="olive-input"
+                        disabled={savingPrices}
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label>سعر بيع الزيت للعملاء لكل كيلو</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={pricingSettings.oilClientSellingPricePerKg}
-                    onChange={(e) => setPricingSettings({
-                      ...pricingSettings, 
-                      oilClientSellingPricePerKg: parseFloat(e.target.value) || 0
-                    })}
-                    className="olive-input"
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label>سعر بيع الزيت للتصدير لكل كيلو</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={pricingSettings.oilExportSellingPricePerKg}
+                        onChange={(e) => setPricingSettings({
+                          ...pricingSettings, 
+                          oilExportSellingPricePerKg: parseFloat(e.target.value) || 0
+                        })}
+                        className="olive-input"
+                        disabled={savingPrices}
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label>سعر بيع الزيت للتصدير لكل كيلو</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={pricingSettings.oilExportSellingPricePerKg}
-                    onChange={(e) => setPricingSettings({
-                      ...pricingSettings, 
-                      oilExportSellingPricePerKg: parseFloat(e.target.value) || 0
-                    })}
-                    className="olive-input"
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label>سعر شراء الزيتون لكل كيلو</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={pricingSettings.oliveBuyingPricePerKg}
+                        onChange={(e) => setPricingSettings({
+                          ...pricingSettings, 
+                          oliveBuyingPricePerKg: parseFloat(e.target.value) || 0
+                        })}
+                        className="olive-input"
+                        disabled={savingPrices}
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label>سعر شراء الزيتون لكل كيلو</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={pricingSettings.oliveBuyingPricePerKg}
-                    onChange={(e) => setPricingSettings({
-                      ...pricingSettings, 
-                      oliveBuyingPricePerKg: parseFloat(e.target.value) || 0
-                    })}
-                    className="olive-input"
-                  />
-                </div>
-              </div>
+                    <div className="space-y-2">
+                      <Label>سعر البيدون الفارغ</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={pricingSettings.emptyBidonPrice}
+                        onChange={(e) => setPricingSettings({
+                          ...pricingSettings, 
+                          emptyBidonPrice: parseFloat(e.target.value) || 0
+                        })}
+                        className="olive-input"
+                        disabled={savingPrices}
+                      />
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <Label>العملة</Label>
-                <Select 
-                  value={pricingSettings.currency} 
-                  onValueChange={(value) => setPricingSettings({...pricingSettings, currency: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TND">دينار تونسي (TND)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <Label>العملة</Label>
+                    <Select 
+                      value={pricingSettings.currency} 
+                      onValueChange={(value) => setPricingSettings({...pricingSettings, currency: value})}
+                      disabled={savingPrices}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="TND">دينار تونسي (TND)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <OliveButton onClick={handleSavePricing} className="gap-2">
-                <Save className="h-4 w-4" />
-                {t('actions.save')}
-              </OliveButton>
+                  <div className="flex flex-col gap-2">
+                    <OliveButton 
+                      onClick={handleSavePricing} 
+                      className="gap-2"
+                      disabled={savingPrices}
+                    >
+                      {savingPrices ? (
+                        <>
+                          <Loader className="h-4 w-4 animate-spin" />
+                          جاري الحفظ...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          {t('actions.save')}
+                        </>
+                      )}
+                    </OliveButton>
+                    <p className="text-sm text-muted-foreground">
+                      سيتم إنشاء سجل أسعار جديد في قاعدة البيانات عند الحفظ
+                    </p>
+                  </div>
+                </>
+              )}
             </OliveCardContent>
           </OliveCard>
         </TabsContent>
@@ -370,6 +507,86 @@ export function SettingsPage() {
                 <Save className="h-4 w-4" />
                 {t('actions.save')}
               </OliveButton>
+            </OliveCardContent>
+          </OliveCard>
+        </TabsContent>
+
+        {/* Scanner Settings */}
+        <TabsContent value="scanner">
+          <OliveCard>
+            <OliveCardHeader>
+              <OliveCardTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                إعدادات المسح الضوئي
+              </OliveCardTitle>
+            </OliveCardHeader>
+            <OliveCardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex-1">
+                    <Label htmlFor="scanner-mode">نوع الماسح الضوئي</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      اختر طريقة المسح الضوئي لرموز QR
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id="camera-mode"
+                        name="scanner-mode"
+                        value="camera"
+                        checked={scannerMode === 'camera'}
+                        onChange={(e) => setScannerMode(e.target.value as any)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      />
+                      <label htmlFor="camera-mode" className="text-sm font-medium text-gray-700">
+                        كاميرا الجهاز
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id="device-mode"
+                        name="scanner-mode"
+                        value="device"
+                        checked={scannerMode === 'device'}
+                        onChange={(e) => setScannerMode(e.target.value as any)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      />
+                      <label htmlFor="device-mode" className="text-sm font-medium text-gray-700">
+                        ماسح خارجي
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {isDeviceMode && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <h4 className="font-semibold text-green-800 mb-2">إعدادات الماسح الخارجي</h4>
+                    <div className="space-y-2 text-sm text-green-700">
+                      <p><strong>النوع:</strong> HENEX HC-3206R-2D</p>
+                      <p><strong>نوع الاتصال:</strong> USB HID (محاكاة لوحة المفاتيح)</p>
+                      <p><strong>الدعم:</strong> رموز QR، الباركود، وغيرها</p>
+                      <p><strong>التعريفات:</strong> Plug-and-play (لا تحتاج تعريفات إضافية)</p>
+                    </div>
+                    <div className="mt-3 p-3 bg-white border border-green-300 rounded">
+                      <p className="text-sm text-green-800">
+                        <strong>ملاحظة:</strong> عند تفعيل هذا الوضع، سيقوم الماسح بإدخال البيانات مباشرة في حقول النص المطلوبة عند توجيهه نحو رمز QR.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!isDeviceMode && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="font-semibold text-blue-800 mb-2">وضع الكاميرا</h4>
+                    <p className="text-sm text-blue-700">
+                      سيتم استخدام كاميرا الجهاز لمسح رموز QR. يتطلب هذا الوضع إذن الوصول للكاميرا والاتصال الآمن (HTTPS).
+                    </p>
+                  </div>
+                )}
+              </div>
             </OliveCardContent>
           </OliveCard>
         </TabsContent>

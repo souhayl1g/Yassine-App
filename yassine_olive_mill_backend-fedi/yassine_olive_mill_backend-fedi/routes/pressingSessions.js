@@ -14,4 +14,10 @@ router.post('/', pressingSessionController.startPressingSession);
 // PUT /api/pressing-sessions/:id/finish - Finish pressing session
 router.put('/:id/finish', pressingSessionController.finishPressingSession);
 
+// PUT /api/pressing-sessions/:id/status - Update pressing session status
+router.put('/:id/status', pressingSessionController.updatePressingSessionStatus);
+
+// PUT /api/pressing-sessions/:id - Update pressing session (generic)
+router.put('/:id', pressingSessionController.updatePressingSession);
+
 export default router;

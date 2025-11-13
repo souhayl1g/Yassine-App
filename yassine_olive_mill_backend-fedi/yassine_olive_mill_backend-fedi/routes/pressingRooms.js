@@ -6,6 +6,12 @@ import pressingRoomController from "../controllers/pressingRoomController.js";
 // GET /api/pressing-rooms - list rooms with derived status
 router.get('/', pressingRoomController.getAllPressingRooms);
 
+// GET /api/pressing-rooms/display-data - get rooms with detailed session info for display
+router.get('/display-data', pressingRoomController.getPressingRoomsDisplayData);
+
+// GET /api/pressing-rooms/combined-display-data - get both rooms and queue data in single response
+router.get('/combined-display-data', pressingRoomController.getCombinedDisplayData);
+
 // GET /api/pressing-rooms/:id - get room
 router.get('/:id', pressingRoomController.getPressingRoomById);
 

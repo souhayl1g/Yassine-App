@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, TrendingUp, TrendingDown, Droplets, DollarSign } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Droplets, DollarSign, History, Clock } from 'lucide-react';
 import { OliveCard } from '@/components/ui/olive-card';
 import { OliveButton } from '@/components/ui/olive-button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { api } from '@/integrations/api/client';
@@ -14,7 +15,7 @@ import { api } from '@/integrations/api/client';
 // dans api_documentation.yaml actuel. On affiche un état temporaire et on évite tout appel réseau.
 
 interface Container {
-  id: string;
+  id: number;
   label: string;
   capacity: number;
   currentWeight: number;
@@ -24,26 +25,38 @@ interface Container {
 }
 
 interface ContainerContent {
-  id: string;
-  container_id: string;
+  id: number;
+  containerId: number;
   total_weight: number;
-  value: number;
-  currency: string;
+  value?: number;
+  currency?: string;
   recorded_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface OilTransactionForm {
   weight: number;
   pricePerKg: number;
   type: 'add' | 'sell';
-  containerId: string;
+  containerId: number;
+}
+
+interface SellOilForm {
+  sellingPrice: number;
+  payment_date: string;
+  payment_method: string;
+  buyer_name?: string;
+  buyer_contact?: string;
+  reference?: string;
+  notes?: string;
 }
 
 export default function ContainersPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [containers, setContainers] = useState<Container[]>([]);
-  const [containerContents, setContainerContents] = useState<ContainerContent[]>([]);
+  const [containerContents, setContainerContents] = useState<{[key: number]: ContainerContent[]}>({});
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -51,13 +64,23 @@ export default function ContainersPage() {
   const [newContainer, setNewContainer] = useState({ label: '', capacity: '' as unknown as number | string });
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<OilTransactionForm>();
+  const [isSellDialogOpen, setIsSellDialogOpen] = useState(false);
+  const [sellForm, setSellForm] = useState<SellOilForm>({
+    sellingPrice: 0,
+    payment_date: new Date().toISOString().slice(0, 10),
+    payment_method: 'cash',
+    buyer_name: '',
+    buyer_contact: '',
+    reference: '',
+    notes: ''
+  });
 
   const loadContainers = async () => {
     try {
       setIsLoading(true);
       const data = await api.get<any[]>(`/containers`);
       const mapped: Container[] = (data || []).map((c: any) => ({
-        id: String(c.id),
+        id: c.id,
         label: c.label,
         capacity: c.capacity,
         currentWeight: c.currentWeight || 0,
@@ -66,7 +89,21 @@ export default function ContainersPage() {
         lastUpdated: c.lastUpdated || new Date().toISOString(),
       }));
       setContainers(mapped);
+
+      // Load contents for each container
+      const contentsMap: {[key: number]: ContainerContent[]} = {};
+      for (const container of mapped) {
+        try {
+          const contents = await api.get<ContainerContent[]>(`/containers/${container.id}/contents`);
+          contentsMap[container.id] = contents || [];
+        } catch (error) {
+          console.error(`Error loading contents for container ${container.id}:`, error);
+          contentsMap[container.id] = [];
+        }
+      }
+      setContainerContents(contentsMap);
     } catch (e) {
+      console.error('Error loading containers:', e);
       // silent; page will show empty state
     } finally {
       setIsLoading(false);
@@ -98,6 +135,59 @@ export default function ContainersPage() {
       toast({
         title: t('common.error'),
         description: 'Failed to process transaction',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleSellOil = async () => {
+    try {
+      if (!selectedContainer) return;
+      
+      if (!sellForm.sellingPrice || sellForm.sellingPrice <= 0) {
+        toast({
+          title: t('common.error'),
+          description: 'Please enter a valid selling price',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Save to export_payment table
+      await api.post('/export-payments', {
+        containerId: selectedContainer.id,
+        amount: sellForm.sellingPrice,
+        payment_date: sellForm.payment_date,
+        payment_method: sellForm.payment_method,
+        buyer_name: sellForm.buyer_name || undefined,
+        buyer_contact: sellForm.buyer_contact || undefined,
+        reference: sellForm.reference || undefined,
+        notes: sellForm.notes || undefined
+      });
+
+      // Reload containers to reflect the sold status (container contents are now flagged as sold)
+      await loadContainers();
+
+      // Reset form
+      setSellForm({
+        sellingPrice: 0,
+        payment_date: new Date().toISOString().slice(0, 10),
+        payment_method: 'cash',
+        buyer_name: '',
+        buyer_contact: '',
+        reference: '',
+        notes: ''
+      });
+      setIsSellDialogOpen(false);
+      toast({ 
+        title: t('common.success'), 
+        description: 'Selling price saved successfully. Container contents have been marked as sold.' 
+      });
+    } catch (error: any) {
+      console.error('Error saving selling price:', error);
+      toast({
+        title: t('common.error'),
+        description: error?.message || 'Failed to save selling price',
         variant: 'destructive'
       });
     }
@@ -283,6 +373,60 @@ export default function ContainersPage() {
                 </div>
               </div>
 
+              {/* Container Contents */}
+              {containerContents[container.id] && containerContents[container.id].length > 0 && (
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <History className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      محتويات الحاوية ({containerContents[container.id].length} سجل)
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {containerContents[container.id].slice(0, 3).map((content) => (
+                      <div key={content.id} className="flex justify-between items-center text-xs bg-background rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-muted-foreground">
+                            {new Date(content.recorded_at).toLocaleDateString('ar-TN', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{content.total_weight} كيلو</span>
+                          {content.value && (
+                            <span className="text-muted-foreground">
+                              ({content.value} {content.currency})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {containerContents[container.id].length > 3 && (
+                      <div className="text-center">
+                        <span className="text-xs text-muted-foreground">
+                          و {containerContents[container.id].length - 3} سجل آخر...
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty Container Message */}
+              {(!containerContents[container.id] || containerContents[container.id].length === 0) && (
+                <div className="bg-muted/30 rounded-lg p-4 text-center">
+                  <Droplets className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">لا توجد محتويات مسجلة</p>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-2">
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -360,12 +504,28 @@ export default function ContainersPage() {
                   </DialogContent>
                 </Dialog>
 
-                <Dialog>
+                <Dialog open={isSellDialogOpen && selectedContainer?.id === container.id} onOpenChange={(open) => {
+                  setIsSellDialogOpen(open);
+                  if (!open) {
+                    setSellForm({
+                      sellingPrice: 0,
+                      payment_date: new Date().toISOString().slice(0, 10),
+                      payment_method: 'cash',
+                      buyer_name: '',
+                      buyer_contact: '',
+                      reference: '',
+                      notes: ''
+                    });
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <OliveButton 
                       size="sm" 
                       variant="outline"
-                      onClick={() => setSelectedContainer(container)}
+                      onClick={() => {
+                        setSelectedContainer(container);
+                        setIsSellDialogOpen(true);
+                      }}
                       disabled={container.currentWeight === 0}
                     >
                       <DollarSign className="h-4 w-4 mr-2" />
@@ -378,43 +538,104 @@ export default function ContainersPage() {
                         {t('containers.sellOil')} - {selectedContainer?.label}
                       </DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleSubmit((data) => handleOilTransaction({ ...data, type: 'sell', containerId: selectedContainer!.id }))}>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="sellWeight">{t('containers.oilWeight')} ({t('common.kg')})</Label>
-                          <Input
-                            id="sellWeight"
-                            type="number"
-                            step="0.01"
-                            max={selectedContainer?.currentWeight || 0}
-                            {...register('weight', { required: true, min: 0.01, max: selectedContainer?.currentWeight || 0 })}
-                          />
-                          {errors.weight && (
-                            <p className="text-sm text-error mt-1">{t('validation.required')}</p>
-                          )}
-                        </div>
-                        <div>
-                          <Label htmlFor="sellPricePerKg">{t('containers.pricePerKg')} ({t('common.currency')})</Label>
-                          <Input
-                            id="sellPricePerKg"
-                            type="number"
-                            step="0.01"
-                            {...register('pricePerKg', { required: true, min: 0.01 })}
-                          />
-                          {errors.pricePerKg && (
-                            <p className="text-sm text-error mt-1">{t('validation.required')}</p>
-                          )}
-                        </div>
-                        <div className="flex justify-end space-x-2">
-                          <OliveButton type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                            {t('actions.cancel')}
-                          </OliveButton>
-                          <OliveButton type="submit">
-                            {t('actions.save')}
-                          </OliveButton>
-                        </div>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="sellingPrice">سعر البيع (د.ت) *</Label>
+                        <Input
+                          id="sellingPrice"
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          value={sellForm.sellingPrice || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, sellingPrice: parseFloat(e.target.value) || 0 })}
+                          placeholder="0.000"
+                        />
                       </div>
-                    </form>
+                      <div>
+                        <Label htmlFor="sellPaymentDate">تاريخ البيع *</Label>
+                        <Input
+                          id="sellPaymentDate"
+                          type="date"
+                          value={sellForm.payment_date}
+                          onChange={(e) => setSellForm({ ...sellForm, payment_date: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sellPaymentMethod">طريقة الدفع</Label>
+                        <Select
+                          value={sellForm.payment_method}
+                          onValueChange={(value) => setSellForm({ ...sellForm, payment_method: value })}
+                        >
+                          <SelectTrigger id="sellPaymentMethod">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash">نقداً</SelectItem>
+                            <SelectItem value="transfer">تحويل</SelectItem>
+                            <SelectItem value="check">شيك</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="sellBuyerName">اسم المشتري</Label>
+                        <Input
+                          id="sellBuyerName"
+                          value={sellForm.buyer_name || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, buyer_name: e.target.value })}
+                          placeholder="اسم المشتري (اختياري)"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sellBuyerContact">معلومات التواصل</Label>
+                        <Input
+                          id="sellBuyerContact"
+                          value={sellForm.buyer_contact || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, buyer_contact: e.target.value })}
+                          placeholder="هاتف أو بريد إلكتروني (اختياري)"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sellReference">رقم المرجع</Label>
+                        <Input
+                          id="sellReference"
+                          value={sellForm.reference || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, reference: e.target.value })}
+                          placeholder="رقم المرجع (اختياري)"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sellNotes">ملاحظات</Label>
+                        <Input
+                          id="sellNotes"
+                          value={sellForm.notes || ''}
+                          onChange={(e) => setSellForm({ ...sellForm, notes: e.target.value })}
+                          placeholder="ملاحظات إضافية (اختياري)"
+                        />
+                      </div>
+                      <div className="flex justify-end space-x-2">
+                        <OliveButton 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => {
+                            setIsSellDialogOpen(false);
+                            setSellForm({
+                              sellingPrice: 0,
+                              payment_date: new Date().toISOString().slice(0, 10),
+                              payment_method: 'cash',
+                              buyer_name: '',
+                              buyer_contact: '',
+                              reference: '',
+                              notes: ''
+                            });
+                          }}
+                        >
+                          {t('actions.cancel')}
+                        </OliveButton>
+                        <OliveButton onClick={handleSellOil}>
+                          {t('actions.save')}
+                        </OliveButton>
+                      </div>
+                    </div>
                   </DialogContent>
                 </Dialog>
               </div>

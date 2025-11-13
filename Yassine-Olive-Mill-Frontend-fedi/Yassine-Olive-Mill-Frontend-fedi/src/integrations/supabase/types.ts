@@ -362,7 +362,6 @@ export type Database = {
           date: string
           id: string
           milling_price_per_kg: number
-          oil_client_selling_price_per_kg: number
           oil_export_selling_price_per_kg: number
           olive_buying_price_per_kg: number
           updated_at: string
@@ -372,7 +371,6 @@ export type Database = {
           date: string
           id?: string
           milling_price_per_kg: number
-          oil_client_selling_price_per_kg: number
           oil_export_selling_price_per_kg: number
           olive_buying_price_per_kg: number
           updated_at?: string
@@ -382,7 +380,6 @@ export type Database = {
           date?: string
           id?: string
           milling_price_per_kg?: number
-          oil_client_selling_price_per_kg?: number
           oil_export_selling_price_per_kg?: number
           olive_buying_price_per_kg?: number
           updated_at?: string

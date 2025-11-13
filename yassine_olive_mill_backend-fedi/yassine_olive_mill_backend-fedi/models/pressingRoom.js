@@ -22,6 +22,7 @@ export default (sequelize) => {
 
   PressingRoom.associate = (models) => {
     PressingRoom.hasMany(models.PressingSession, { foreignKey: 'pressing_roomID', as: 'pressingSessions' });
+    PressingRoom.hasMany(models.BatchLoading, { foreignKey: 'pressingRoomId', as: 'batchLoadings' });
   };
 
   return PressingRoom;

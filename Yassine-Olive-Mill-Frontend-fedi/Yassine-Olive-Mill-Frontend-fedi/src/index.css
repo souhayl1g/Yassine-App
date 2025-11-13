@@ -220,4 +220,18 @@ All colors MUST be HSL for proper theming support.
   .text-balance {
     text-wrap: balance;
   }
+
+  /* RTL Toast animations */
+  .slide-out-to-left-full {
+    animation: slide-out-to-left-full 0.15s ease-in forwards;
+  }
+
+  @keyframes slide-out-to-left-full {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-100%);
+    }
+  }
 }

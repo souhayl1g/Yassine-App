@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OliveCard, OliveCardHeader, OliveCardContent, OliveCardTitle } from '@/components/ui/olive-card';
 import { OliveButton } from '@/components/ui/olive-button';
@@ -15,10 +15,18 @@ import {
   MapPin, 
   Edit2, 
   Trash2,
-  UserPlus
+  UserPlus,
+  FileText,
+  Camera,
+  X,
+  RotateCcw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/integrations/api/client';
+import QrScanner from 'qr-scanner';
+
+// Set the worker path for QR Scanner
+QrScanner.WORKER_PATH = '/qr-scanner-worker.min.js';
 
 interface Client {
   id: number | string;
@@ -46,6 +54,15 @@ export function ClientsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [viewingClient, setViewingClient] = useState<Client | null>(null);
+  const [clientTickets, setClientTickets] = useState<any[]>([]);
+  const [loadingClientDetails, setLoadingClientDetails] = useState(false);
+
+  // QR Scanner state
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const qrScannerRef = useRef<QrScanner | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -176,6 +193,253 @@ export function ClientsPage() {
     });
   };
 
+  const handleViewClient = async (client: Client) => {
+    setViewingClient(client);
+    setLoadingClientDetails(true);
+    try {
+      const response = await api.get(`/clients/${client.id}`);
+      const clientData = response as any;
+      
+      // Extract tickets/batches from the client data
+      const tickets = clientData?.batches || [];
+      setClientTickets(tickets);
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: t('common.error'),
+        description: error?.message || 'فشل في تحميل بيانات العميل',
+      });
+      setClientTickets([]);
+    } finally {
+      setLoadingClientDetails(false);
+    }
+  };
+
+  // Helper function to extract payload from API responses
+  const getPayload = <T,>(res: any): T => (res && typeof res === 'object' && 'data' in res ? res.data : res);
+
+  // Initialize camera for QR scanning
+  const initializeCamera = async () => {
+    if (!videoRef.current) return;
+
+    // Check if we're on HTTPS or localhost
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      toast({
+        variant: 'destructive',
+        title: 'خطأ في الأمان',
+        description: 'الكاميرا تتطلب HTTPS للعمل. يرجى استخدام https:// أو localhost',
+      });
+      setIsCameraActive(false);
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+
+      qrScannerRef.current = new QrScanner(
+        videoRef.current,
+        (result) => {
+          handleQRResult(result.data);
+        },
+        {
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+          preferredCamera: 'environment',
+          maxScansPerSecond: 5,
+        }
+      );
+
+      await qrScannerRef.current.start();
+      setIsCameraActive(true);
+    } catch (error: any) {
+      console.error('Error accessing camera:', error);
+      
+      let errorMessage = 'لا يمكن الوصول إلى الكاميرا. يرجى التحقق من الأذونات.';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'تم رفض إذن الوصول إلى الكاميرا. يرجى السماح بالوصول إلى الكاميرا في إعدادات المتصفح.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'لم يتم العثور على كاميرا. يرجى التأكد من وجود كاميرا متصلة.';
+      } else if (error.name === 'SecurityError' || error.message.includes('https')) {
+        errorMessage = 'الكاميرا تتطلب HTTPS للعمل. يرجى استخدام https://localhost:5173';
+      }
+      
+      toast({
+        variant: 'destructive',
+        title: 'خطأ في الكاميرا',
+        description: errorMessage,
+      });
+      setIsCameraActive(false);
+    }
+  };
+
+  // Stop camera
+  const stopCamera = () => {
+    if (qrScannerRef.current) {
+      qrScannerRef.current.stop();
+      qrScannerRef.current.destroy();
+      qrScannerRef.current = null;
+    }
+
+    if (videoRef.current && (videoRef.current as any).srcObject) {
+      const stream = (videoRef.current as any).srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      (videoRef.current as any).srcObject = null;
+    }
+
+    setIsCameraActive(false);
+  };
+
+  // Handle QR scan result
+  const handleQRResult = async (result: string) => {
+    try {
+      let qrData;
+      try {
+        qrData = JSON.parse(result);
+      } catch {
+        const directId = parseInt(result, 10);
+        qrData = { id: isNaN(directId) ? result : directId };
+      }
+
+      const batchId = qrData.id || qrData.ticketId;
+      if (!batchId) {
+        throw new Error('لم يتم العثور على معرف التذكرة في رمز QR');
+      }
+
+      // Fetch the batch to get client information
+      const batch = await fetchBatchById(batchId);
+      
+      // Find the client from the batch
+      const client = await findClientFromBatch(batch);
+      
+      // Stop scanning after successful scan
+      stopCamera();
+      setIsQrScannerOpen(false);
+      
+      // Open the client details modal
+      await handleViewClient(client);
+      
+      toast({ title: 'نجح', description: 'تم العثور على العميل من رمز QR بنجاح' });
+    } catch (error: any) {
+      console.error('QR scan error:', error);
+      toast({ variant: 'destructive', title: 'خطأ', description: error.message || 'فشل قراءة رمز QR' });
+    }
+  };
+
+  // Fetch batch by ID from API
+  const fetchBatchById = async (batchId: string | number) => {
+    let idOrCode: string;
+    
+    if (typeof batchId === 'number') {
+      idOrCode = String(batchId);
+    } else if (typeof batchId === 'string') {
+      const num = parseInt(batchId.replace(/\D+/g, ''), 10);
+      idOrCode = isNaN(num) ? batchId : String(num);
+    } else {
+      throw new Error('معرف التذكرة غير صالح');
+    }
+
+    try {
+      const res = await api.get<any>(`/batches/${idOrCode}`);
+      const data = getPayload<any>(res);
+
+      if (!data || !data.id) {
+        throw new Error('التذكرة غير موجودة في النظام');
+      }
+
+      return data;
+    } catch (e: any) {
+      const errorMessage = e?.response?.status === 404 
+        ? 'التذكرة غير موجودة في النظام'
+        : e?.message || 'فشل جلب بيانات التذكرة';
+      
+      throw new Error(errorMessage);
+    }
+  };
+
+  // Find client from batch data
+  const findClientFromBatch = async (batch: any): Promise<Client> => {
+    try {
+      if (!batch.clientId && !batch.client?.id) {
+        throw new Error('لا يوجد معرف عميل في هذه التذكرة');
+      }
+
+      const clientId = batch.clientId || batch.client?.id;
+      
+      // If we already have client data in the batch, use it
+      if (batch.client && batch.client.firstname && batch.client.lastname) {
+        return {
+          id: clientId,
+          firstname: batch.client.firstname,
+          lastname: batch.client.lastname,
+          phone: batch.client.phone || '',
+          address: batch.client.address || '',
+          type: batch.client.type || 'grower',
+          createdAt: batch.client.createdAt
+        };
+      }
+
+      // Otherwise, fetch the client data separately
+      const clientResponse = await api.get(`/clients/${clientId}`);
+      const clientData = getPayload<any>(clientResponse);
+      
+      if (!clientData) {
+        throw new Error('لم يتم العثور على بيانات العميل');
+      }
+
+      return {
+        id: clientData.id,
+        firstname: clientData.firstname,
+        lastname: clientData.lastname,
+        phone: clientData.phone || '',
+        address: clientData.address || '',
+        type: clientData.type || 'grower',
+        createdAt: clientData.createdAt
+      };
+    } catch (e: any) {
+      const errorMessage = e?.response?.status === 404 
+        ? 'العميل غير موجود في النظام'
+        : e?.message || 'فشل العثور على العميل';
+      
+      throw new Error(errorMessage);
+    }
+  };
+
+  // Handle opening QR scanner
+  const handleOpenQrScanner = () => {
+    setIsQrScannerOpen(true);
+    setIsCameraActive(true);
+    setTimeout(() => {
+      initializeCamera();
+    }, 100);
+  };
+
+  // Handle closing QR scanner
+  const handleCloseQrScanner = () => {
+    stopCamera();
+    setIsQrScannerOpen(false);
+  };
+
+  // Cleanup camera when component unmounts or QR scanner closes
+  useEffect(() => {
+    if (!isQrScannerOpen) {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [isQrScannerOpen]);
+
   const filteredClients = clients.filter(client => {
     const matchesSearch = 
       client.firstname.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -200,28 +464,40 @@ export function ClientsPage() {
           </p>
         </div>
 
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <OliveButton size="lg" className="gap-2">
-              <Plus className="h-5 w-5" />
-              {t('clients.addClient')}
-            </OliveButton>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>{t('clients.addClient')}</DialogTitle>
-            </DialogHeader>
-            <ClientForm
-              formData={formData}
-              setFormData={setFormData}
-              onSubmit={handleAddClient}
-              onCancel={() => {
-                setIsAddDialogOpen(false);
-                resetForm();
-              }}
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-3">
+          <OliveButton 
+            size="lg" 
+            variant="outline" 
+            className="gap-2"
+            onClick={handleOpenQrScanner}
+          >
+            <Camera className="h-5 w-5" />
+            مسح QR للعميل
+          </OliveButton>
+          
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <OliveButton size="lg" className="gap-2">
+                <Plus className="h-5 w-5" />
+                {t('clients.addClient')}
+              </OliveButton>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{t('clients.addClient')}</DialogTitle>
+              </DialogHeader>
+              <ClientForm
+                formData={formData}
+                setFormData={setFormData}
+                onSubmit={handleAddClient}
+                onCancel={() => {
+                  setIsAddDialogOpen(false);
+                  resetForm();
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
@@ -276,7 +552,11 @@ export function ClientsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredClients.map((client) => (
-            <OliveCard key={client.id} className="hover:shadow-lg transition-shadow">
+            <OliveCard 
+              key={client.id} 
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => handleViewClient(client)}
+            >
               <OliveCardHeader>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
@@ -292,7 +572,7 @@ export function ClientsPage() {
                       </Badge>
                     )}
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                     <OliveButton
                       variant="ghost"
                       size="sm"
@@ -329,6 +609,9 @@ export function ClientsPage() {
                     day: 'numeric'
                   }) : '-'}
                 </div>
+                <div className="text-xs text-primary font-medium">
+                  انقر لعرض التفاصيل والتذاكر السابقة
+                </div>
               </OliveCardContent>
             </OliveCard>
           ))}
@@ -361,6 +644,272 @@ export function ClientsPage() {
               resetForm();
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Client Details Modal */}
+      <Dialog open={!!viewingClient} onOpenChange={(open) => !open && setViewingClient(null)}>
+        <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="pb-6">
+            <DialogTitle className="text-2xl font-bold text-center">
+              تفاصيل العميل: {viewingClient?.firstname} {viewingClient?.lastname}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {viewingClient && (
+            <div className="space-y-8">
+              {/* Client Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <OliveCard className="border-2">
+                  <OliveCardHeader className="pb-4">
+                    <OliveCardTitle className="flex items-center gap-3 text-lg">
+                      <Users className="h-6 w-6 text-primary" />
+                      معلومات العميل
+                    </OliveCardTitle>
+                  </OliveCardHeader>
+                  <OliveCardContent className="space-y-4">
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-muted-foreground font-medium">الاسم الكامل:</span>
+                      <span className="font-semibold">{viewingClient.firstname} {viewingClient.lastname}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-t border-muted/20">
+                      <span className="text-muted-foreground font-medium">رقم الهاتف:</span>
+                      <span className="font-semibold">{viewingClient.phone || 'غير محدد'}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-t border-muted/20">
+                      <span className="text-muted-foreground font-medium">العنوان:</span>
+                      <span className="font-semibold text-right max-w-48 truncate" title={viewingClient.address}>
+                        {viewingClient.address || 'غير محدد'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-t border-muted/20">
+                      <span className="text-muted-foreground font-medium">النوع:</span>
+                      <Badge variant={viewingClient.type === 'grower' ? 'default' : 'secondary'} className="px-3 py-1">
+                        {t(`clients.${viewingClient.type}`)}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-t border-muted/20">
+                      <span className="text-muted-foreground font-medium">تاريخ التسجيل:</span>
+                      <span className="font-semibold">
+                        {viewingClient.createdAt ? new Date(viewingClient.createdAt).toLocaleDateString('ar-SA') : 'غير محدد'}
+                      </span>
+                    </div>
+                  </OliveCardContent>
+                </OliveCard>
+
+                {/* Statistics */}
+                <OliveCard className="border-2">
+                  <OliveCardHeader className="pb-4">
+                    <OliveCardTitle className="flex items-center gap-3 text-lg">
+                      <FileText className="h-6 w-6 text-primary" />
+                      إحصائيات العميل
+                    </OliveCardTitle>
+                  </OliveCardHeader>
+                  <OliveCardContent className="space-y-4">
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-muted-foreground font-medium">إجمالي التذاكر:</span>
+                      <span className="font-bold text-primary text-xl">{clientTickets.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-t border-muted/20">
+                      <span className="text-muted-foreground font-medium">إجمالي الوزن:</span>
+                      <span className="font-semibold text-green-600">
+                        {clientTickets.reduce((sum, ticket) => sum + (ticket.weight_in || 0), 0)} كغ
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-t border-muted/20">
+                      <span className="text-muted-foreground font-medium">إجمالي الصناديق:</span>
+                      <span className="font-semibold text-blue-600">
+                        {clientTickets.reduce((sum, ticket) => sum + (ticket.number_of_boxes || 0), 0)} صندوق
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-t border-muted/20">
+                      <span className="text-muted-foreground font-medium">آخر زيارة:</span>
+                      <span className="font-semibold">
+                        {clientTickets.length > 0 
+                          ? new Date(Math.max(...clientTickets.map(t => new Date(t.date_received || t.createdAt).getTime()))).toLocaleDateString('ar-SA')
+                          : 'لا توجد زيارات'
+                        }
+                      </span>
+                    </div>
+                  </OliveCardContent>
+                </OliveCard>
+              </div>
+
+              {/* Tickets History */}
+              <OliveCard className="border-2">
+                <OliveCardHeader className="pb-4">
+                  <OliveCardTitle className="flex items-center gap-3 text-lg">
+                    <FileText className="h-6 w-6 text-primary" />
+                    سجل التذاكر السابقة ({clientTickets.length})
+                  </OliveCardTitle>
+                </OliveCardHeader>
+                <OliveCardContent className="px-6">
+                  {loadingClientDetails ? (
+                    <div className="flex justify-center items-center py-12">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                      <span className="mr-4 text-muted-foreground text-lg">جاري تحميل التذاكر...</span>
+                    </div>
+                  ) : clientTickets.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FileText className="h-20 w-20 text-muted-foreground mx-auto mb-6" />
+                      <h3 className="text-xl font-semibold mb-3">لا توجد تذاكر سابقة</h3>
+                      <p className="text-muted-foreground text-lg">لم يقم هذا العميل بإنشاء أي تذاكر بعد</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 max-h-[450px] overflow-y-auto pr-2">
+                      {clientTickets
+                        .sort((a, b) => new Date(b.date_received || b.createdAt).getTime() - new Date(a.date_received || a.createdAt).getTime())
+                        .map((ticket, index) => (
+                        <div key={ticket.id} className="border-2 rounded-xl p-6 hover:bg-muted/30 transition-all duration-200 hover:shadow-md">
+                          <div className="flex justify-between items-start mb-5">
+                            <div className="space-y-1">
+                              <h4 className="font-bold text-lg">تذكرة #{ticket.id}</h4>
+                              <p className="text-muted-foreground">
+                                {new Date(ticket.date_received || ticket.createdAt).toLocaleDateString('ar-SA', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                })}
+                              </p>
+                            </div>
+                            <Badge 
+                              variant={
+                                ticket.status === 'completed' ? 'default' : 
+                                ticket.status === 'in_process' ? 'secondary' : 
+                                'outline'
+                              }
+                              className="px-4 py-2 text-sm font-medium"
+                            >
+                              {ticket.status === 'completed' ? 'مكتملة' : 
+                               ticket.status === 'in_process' ? 'قيد المعالجة' : 
+                               'مستلمة'}
+                            </Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                            <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                              <span className="text-muted-foreground text-sm block mb-1">الوزن</span>
+                              <div className="font-bold text-blue-600 text-lg">{ticket.weight_in || 0} كغ</div>
+                            </div>
+                            <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                              <span className="text-muted-foreground text-sm block mb-1">الصناديق</span>
+                              <div className="font-bold text-green-600 text-lg">{ticket.number_of_boxes || 0} صندوق</div>
+                            </div>
+                            <div className="text-center p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
+                              <span className="text-muted-foreground text-sm block mb-1">نوع العملية</span>
+                              <div className="font-bold text-purple-600">
+                                {ticket.operation_type === 'milling' ? 'عصر' : 
+                                 ticket.operation_type === 'storage' ? 'تخزين' : 
+                                 'أخرى'}
+                              </div>
+                            </div>
+                            <div className="text-center p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
+                              <span className="text-muted-foreground text-sm block mb-1">رقم التذكرة</span>
+                              <div className="font-bold text-orange-600">{ticket.ticket_number || '-'}</div>
+                            </div>
+                          </div>
+                          
+                          {ticket.notes && (
+                            <div className="mt-5 pt-4 border-t border-muted/30">
+                              <span className="text-muted-foreground font-medium text-sm">ملاحظات:</span>
+                              <p className="mt-2 p-3 bg-muted/20 rounded-lg text-sm leading-relaxed">{ticket.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </OliveCardContent>
+              </OliveCard>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Scanner Dialog */}
+      <Dialog open={isQrScannerOpen} onOpenChange={(open) => !open && handleCloseQrScanner()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">مسح QR للعثور على العميل</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <p className="text-center text-muted-foreground">
+              وجه الكاميرا نحو رمز QR الخاص بتذكرة العميل
+            </p>
+            
+            {/* Camera View */}
+            <div className="relative w-full aspect-square bg-black rounded-lg overflow-hidden">
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                autoPlay
+                playsInline
+                muted
+              />
+              
+              {/* Camera status overlay */}
+              {!isCameraActive && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <div className="text-white text-center">
+                    <Camera className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">جاري تشغيل الكاميرا...</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Scanning frame overlay */}
+              {isCameraActive && (
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute inset-4 border-2 border-white/50 rounded-lg">
+                    <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary"></div>
+                    <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary"></div>
+                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary"></div>
+                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary"></div>
+                  </div>
+                  <div className="absolute bottom-4 left-4 right-4 text-center">
+                    <p className="text-white text-sm bg-black/50 px-2 py-1 rounded">
+                      ضع رمز QR داخل الإطار
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Control Buttons */}
+            <div className="flex gap-3">
+              <OliveButton
+                variant="outline"
+                onClick={handleCloseQrScanner}
+                className="flex-1"
+              >
+                <X className="h-4 w-4 mr-2" />
+                إلغاء
+              </OliveButton>
+              
+              {!isCameraActive ? (
+                <OliveButton
+                  onClick={initializeCamera}
+                  className="flex-1"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  تشغيل الكاميرا
+                </OliveButton>
+              ) : (
+                <OliveButton
+                  onClick={() => {
+                    stopCamera();
+                    setTimeout(initializeCamera, 500);
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  إعادة تشغيل
+                </OliveButton>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

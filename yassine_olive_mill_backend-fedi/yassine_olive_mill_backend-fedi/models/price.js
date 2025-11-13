@@ -9,24 +9,23 @@ export default (sequelize) => {
     },
     date: {
       type: DataTypes.DATEONLY,
-      allowNull: false,
-      unique: true
+      allowNull: true
     },
     milling_price_per_kg: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-    oil_client_selling_price_per_kg: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: DataTypes.FLOAT,
+      allowNull: true
     },
     oil_export_selling_price_per_kg: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: DataTypes.FLOAT,
+      allowNull: true
     },
     olive_buying_price_per_kg: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    empty_bidon_price: {
+      type: DataTypes.FLOAT,
+      allowNull: true
     }
   }, {
     tableName: 'prices',

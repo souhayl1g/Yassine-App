@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFullscreen } from '@/contexts/FullscreenContext';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Button } from '@/components/ui/button';
@@ -16,25 +17,37 @@ import {
   LogOut,
   Menu,
   Container,
-  Clock
+  Clock,
+  Coffee,
+  ClipboardList,
+  Monitor,
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigationItems = [
-  { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard', roles: ['admin', 'operator', 'scanner'] },
-  { key: 'clients', icon: Users, href: '/clients', roles: ['admin', 'operator'] },
-  { key: 'tickets', icon: FileText, href: '/tickets', roles: ['admin', 'operator'] },
+  { key: 'dailyWork', icon: Coffee, href: '/', roles: ['admin'] },
+  { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard', roles: ['admin'] },
+  { key: 'clients', icon: Users, href: '/clients', roles: ['admin'] },
+  { key: 'tickets', icon: FileText, href: '/tickets', roles: ['admin'] },
+
   { key: 'containers', icon: Container, href: '/containers', roles: ['admin', 'operator'] },
-  { key: 'sessions', icon: Clock, href: '/sessions', roles: ['admin', 'operator'] },
-  { key: 'qr', icon: QrCode, href: '/qr', roles: ['admin', 'operator', 'scanner'] },
+  { key: 'scanner', icon: QrCode, href: '/scanner', roles: [ 'scanner'] },
+  { key: 'queuerScanner', icon: Users, href: '/queuer-scanner', roles: ['queuer'] },
+  { key: 'operatorScanner', icon: QrCode, href: '/operator-scanner', roles: ['operator'] },
+  { key: 'employeeScanner', icon: Building2, href: '/employee-scanner', roles: ['operator'] },
+  // { key: 'batchManagement', icon: ClipboardList, href: '/batch-management', roles: ['admin', 'operator', 'presser'] },
+  { key: 'pressingDisplay', icon: Monitor, href: '/pressing-display', roles: ['admin'] },
+  { key: 'payments', icon: DollarSign, href: '/payments', roles: ['admin'] },
   { key: 'rooms', icon: Building2, href: '/rooms', roles: ['admin', 'operator'] },
-  { key: 'history', icon: History, href: '/history', roles: ['admin', 'operator'] },
+  { key: 'userManagement', icon: Users, href: '/admin/users', roles: ['admin'] },
   { key: 'settings', icon: Settings, href: '/settings', roles: ['admin'] },
 ];
 
 export function MainLayout() {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
+  const { isFullscreen } = useFullscreen();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
@@ -59,12 +72,13 @@ export function MainLayout() {
         />
       )}
 
-      {/* Sidebar */}
-      <aside className={cn(
-        'fixed inset-y-0 z-50 w-64 transform bg-card border-r border-border transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex lg:flex-col',
-        sidebarOpen ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full',
-        isRTL ? 'right-0' : 'left-0'
-      )}>
+      {/* Sidebar - Hidden when in fullscreen */}
+      {!isFullscreen && (
+        <aside className={cn(
+          'fixed inset-y-0 z-50 w-64 transform bg-card border-r border-border transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex lg:flex-col',
+          sidebarOpen ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full',
+          isRTL ? 'right-0' : 'left-0'
+        )}>
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-center border-b border-border px-6">
@@ -121,28 +135,38 @@ export function MainLayout() {
           </div>
         </div>
       </aside>
+      )}
 
       {/* Main content */}
-      <div className={cn('flex-1 flex flex-col min-h-screen', isRTL && 'lg:pr-0')}>
-        {/* Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:px-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="lg:hidden"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          
-          <div className="flex items-center gap-4 ml-auto">
-            <LanguageSwitcher />
-            <ThemeToggle />
-          </div>
-        </header>
+      <div className={cn(
+        'flex-1 flex flex-col min-h-screen', 
+        isRTL && 'lg:pr-0',
+        isFullscreen && 'w-full'
+      )}>
+        {/* Header - Hidden when in fullscreen */}
+        {!isFullscreen && (
+          <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:px-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            
+            <div className="flex items-center gap-4 ml-auto">
+              <LanguageSwitcher />
+              <ThemeToggle />
+            </div>
+          </header>
+        )}
 
         {/* Page content */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className={cn(
+          'flex-1 overflow-auto',
+          isFullscreen ? 'p-0' : 'p-6'
+        )}>
           <Outlet />
         </main>
       </div>

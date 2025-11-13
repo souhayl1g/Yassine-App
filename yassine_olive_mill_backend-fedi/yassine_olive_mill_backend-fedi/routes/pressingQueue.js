@@ -1,0 +1,49 @@
+import express from 'express';
+import { verifyToken } from '../middleware/auth.js';
+import pressingQueueController from '../controllers/pressingQueueController.js';
+
+const router = express.Router();
+
+// Apply authentication middleware to all routes
+router.use(verifyToken);
+
+// POST /api/pressing-queue - Add session to queue
+router.post('/', pressingQueueController.addToQueue);
+
+// GET /api/pressing-queue - Get all queued sessions
+router.get('/', pressingQueueController.getQueuedSessions);
+
+// POST /api/pressing-queue/process-next - Process next session in queue
+router.post('/process-next', pressingQueueController.processNextInQueue);
+
+// DELETE /api/pressing-queue/:id - Remove session from queue or queuer session
+router.delete('/:id', pressingQueueController.removeFromQueue);
+
+// GET /api/pressing-queue/stats - Get queue statistics
+router.get('/stats', pressingQueueController.getQueueStats);
+
+// GET /api/pressing-queue/batch/:batch_id/available-boxes - Get available boxes for a batch
+router.get('/batch/:batch_id/available-boxes', pressingQueueController.getBatchAvailableBoxes);
+
+// GET /api/pressing-queue/queuer/:queuer_id/session - Get queuer session status
+router.get('/queuer/:queuer_id/session', pressingQueueController.getQueuerSessionStatus);
+
+// PUT /api/pressing-queue/queuer/:queuer_id/session - Update queuer session (cancel/complete)
+router.put('/queuer/:queuer_id/session', pressingQueueController.updateQueuerSession);
+
+// GET /api/pressing-queue/partially-queued - Get active queuer sessions (batches being queued) system-wide
+router.get('/partially-queued', pressingQueueController.getPartiallyQueuedBatches);
+
+// GET /api/pressing-queue/batch-status/:batchId - Get queue status for a specific batch
+router.get('/batch-status/:batchId', pressingQueueController.getBatchStatus);
+
+// GET /api/pressing-queue/batch/:batchId/details - Get batch details for queuer scanner
+router.get('/batch/:batchId/details', pressingQueueController.getBatchForQueuer);
+
+// GET /api/pressing-queue/batch/:batchId/pressing-status - Check if batch is currently being pressed
+router.get('/batch/:batchId/pressing-status', pressingQueueController.checkBatchPressingStatus);
+
+// GET /api/pressing-queue/display-data - Get queue display data for queuer scanner
+router.get('/display-data', pressingQueueController.getQueueDisplayData);
+
+export default router;
